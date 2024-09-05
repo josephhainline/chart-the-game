@@ -2,32 +2,44 @@
 
 set -e  # Exit immediately if a command exits with a non-zero status
 
-# Directory containing the React Native app
 DIRECTORY="."
-
-# Output file
 OUTPUT_FILE="$DIRECTORY/allfiles.txt"
+TEMP_FILE="$DIRECTORY/temp_allfiles.txt"
 
-# Create output directory if it doesn't exist
+echo "Debug: Starting script"
+
 mkdir -p "$(dirname "$OUTPUT_FILE")"
+> "$TEMP_FILE"
 
-# Clear the output file
-> "$OUTPUT_FILE"
+echo "Debug: Generating file listing"
+echo "// File Listing:" > "$OUTPUT_FILE"
+find "$DIRECTORY" -type f \( -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" -o -name "*.json" \) | 
+grep -vE "(\.expo|node_modules|build|dist|__tests__|__mocks__|\.test\.|\.spec\.)" | 
+sort | 
+sed 's|^./||' >> "$OUTPUT_FILE"
 
-# Function to add file contents to the output file
+echo "Debug: Adding important root files to listing"
+for file in .gitignore package.json tsconfig.json babel.config.js app.json expo-env.d.ts; do
+    if [ -f "$DIRECTORY/$file" ]; then
+        echo "$file" >> "$OUTPUT_FILE"
+    fi
+done
+
+echo -e "\n\n" >> "$OUTPUT_FILE"
+
 add_file_content() {
     if [ -f "$1" ]; then
         echo "Debug: Adding file $1"
-        echo "// File: $1" >> "$OUTPUT_FILE"
-        cat "$1" >> "$OUTPUT_FILE"
-        echo -e "\n\n" >> "$OUTPUT_FILE"
+        echo "// File: $1" >> "$TEMP_FILE"
+        cat "$1" >> "$TEMP_FILE"
+        echo -e "\n\n" >> "$TEMP_FILE"
     else
         echo "Debug: File not found $1"
     fi
 }
 
-# Important root files
 echo "Debug: Processing root files"
+# Important root files
 for file in .gitignore package.json tsconfig.json babel.config.js app.json expo-env.d.ts; do
     add_file_content "$DIRECTORY/$file"
 done
@@ -48,21 +60,21 @@ process_directory() {
     fi
 }
 
-# Process apps directory
 echo "Debug: Processing app directory"
 process_directory "$DIRECTORY/app"
 
-# Process components directory
 echo "Debug: Processing components directory"
 process_directory "$DIRECTORY/components"
 
-# Process constants directory
 echo "Debug: Processing constants directory"
 process_directory "$DIRECTORY/constants"
 
-# Process assets directory
 echo "Debug: Processing assets directory"
 process_directory "$DIRECTORY/assets"
+
+# Append the temp file to the output file
+cat "$TEMP_FILE" >> "$OUTPUT_FILE"
+rm "$TEMP_FILE"
 
 echo "Contents of important files have been copied to $OUTPUT_FILE"
 
