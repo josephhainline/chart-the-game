@@ -40,7 +40,7 @@ escaped_diff=$(printf '%s' "$diff" | jq -Rs .)
 
 # Prepare the payload for the OpenAI API
 debug "Preparing payload for OpenAI API"
-read -r -d '' payload <<EOF
+payload=$(cat <<EOF
 {
     "model": "gpt-3.5-turbo",
     "messages": [
@@ -55,13 +55,19 @@ read -r -d '' payload <<EOF
     ]
 }
 EOF
+)
+
+debug "Payload prepared. Calling OpenAI API..."
+debug "Payload: $payload"
 
 # Generate commit message using OpenAI API
 debug "Calling OpenAI API"
-response=$(curl -s https://api.openai.com/v1/chat/completions \
+response=$(curl -v -s https://api.openai.com/v1/chat/completions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $OPENAI_API_KEY" \
   -d "$payload")
+
+debug "API call completed. Response: $response"
 
 # Check if the API call was successful
 if [ $? -ne 0 ]; then
