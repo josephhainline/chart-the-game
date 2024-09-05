@@ -1,17 +1,17 @@
 import React from 'react';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { Link, Tabs } from 'expo-router';
-import { Pressable } from 'react-native';
+import { Tabs } from 'expo-router';
 
 import Colors from '@/constants/Colors';
-import { useColorScheme } from '@/components/useColorScheme';
-import { useClientOnlyValue } from '@/components/useClientOnlyValue';
+import { useColorScheme } from 'react-native';
 
-// You can explore the built-in icon families and icons on the web at https://icons.expo.fyi/
-function TabBarIcon(props: {
-  name: React.ComponentProps<typeof FontAwesome>['name'];
-  color: string;
-}) {
+// Import your screens
+import TeamsScreen from '@/app/(tabs)/teams';
+import PlayersScreen from '@/app/(tabs)/players';
+import GameTrackerScreen from '@/app/(tabs)/game-tracker';
+import StatisticsScreen from '@/app/(tabs)/statistics';
+
+function TabBarIcon(props: { name: React.ComponentProps<typeof FontAwesome>['name']; color: string; }) {
   return <FontAwesome size={28} style={{ marginBottom: -3 }} {...props} />;
 }
 
@@ -20,40 +20,30 @@ export default function TabLayout() {
 
   return (
     <Tabs
-      screenOptions={{
+      screenOptions={({ route }) => ({
+        tabBarIcon: ({ color }) => {
+          let iconName: keyof typeof FontAwesome.glyphMap = 'code'; // default icon
+
+          if (route.name === 'teams') {
+            iconName = 'users';
+          } else if (route.name === 'players') {
+            iconName = 'user';
+          } else if (route.name === 'game-tracker') {
+            iconName = 'gamepad';
+          } else if (route.name === 'statistics') {
+            iconName = 'bar-chart';
+          }
+
+          return <TabBarIcon name={iconName} color={color} />;
+        },
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        // Disable the static render of the header on web
-        // to prevent a hydration error in React Navigation v6.
-        headerShown: useClientOnlyValue(false, true),
-      }}>
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Tab One',
-          tabBarIcon: ({ color }) => <TabBarIcon name="code" color={color} />,
-          headerRight: () => (
-            <Link href="/modal" asChild>
-              <Pressable>
-                {({ pressed }) => (
-                  <FontAwesome
-                    name="info-circle"
-                    size={25}
-                    color={Colors[colorScheme ?? 'light'].text}
-                    style={{ marginRight: 15, opacity: pressed ? 0.5 : 1 }}
-                  />
-                )}
-              </Pressable>
-            </Link>
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="two"
-        options={{
-          title: 'Tab Two',
-          tabBarIcon: ({ color }) => <TabBarIcon name="code" color={color} />,
-        }}
-      />
+        headerShown: false,
+      })}
+    >
+      <Tabs.Screen name="teams" options={{ title: 'Teams' }} />
+      <Tabs.Screen name="players" options={{ title: 'Players' }} />
+      <Tabs.Screen name="game-tracker" options={{ title: 'Game Tracker' }} />
+      <Tabs.Screen name="statistics" options={{ title: 'Statistics' }} />
     </Tabs>
   );
 }
