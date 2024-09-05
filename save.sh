@@ -40,38 +40,37 @@ escaped_diff=$(printf '%s' "$diff" | jq -Rs .)
 
 # Prepare the payload for the OpenAI API
 debug "Preparing payload for OpenAI API"
-payload=$(cat <<EOF
-{
-    "model": "gpt-3.5-turbo",
-    "messages": [
-        {
-            "role": "system",
-            "content": "You are a helpful assistant that generates concise and informative git commit messages."
-        },
-        {
-            "role": "user",
-            "content": "Generate a concise git commit message for the following changes:\n\n$escaped_diff"
-        }
-    ]
-}
-EOF
-)
+payload=$(jq -n \
+    --arg model "gpt-3.5-turbo" \
+    --arg system_content "You are a helpful assistant that generates concise and informative git commit messages." \
+    --arg user_content "Generate a concise git commit message for the following changes:$escaped_diff" \
+    '{
+        model: $model,
+        messages: [
+            {role: "system", content: $system_content},
+            {role: "user", content: $user_content}
+        ]
+    }')
 
 debug "Payload prepared. Calling OpenAI API..."
-debug "Payload: $payload"
 
 # Generate commit message using OpenAI API
 debug "Calling OpenAI API"
-response=$(curl -v -s https://api.openai.com/v1/chat/completions \
+response=$(curl -s https://api.openai.com/v1/chat/completions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $OPENAI_API_KEY" \
   -d "$payload")
 
 debug "API call completed. Response: $response"
 
-# Check if the API call was successful
-if [ $? -ne 0 ]; then
-    echo "Error: Failed to connect to OpenAI API."
+# Check for API errors
+error_message=$(echo "$response" | jq -r '.error.message // empty')
+if [ ! -z "$error_message" ]; then
+    echo "Error: API request failed. $error_message"
+    if [[ "$error_message" == *"Incorrect API key provided"* ]]; then
+        echo "Please check your OPENAI_API_KEY environment variable."
+    fi
+    echo "Aborting commit. Please fix the error and try again."
     exit 1
 fi
 
@@ -83,6 +82,7 @@ message=$(echo "$response" | jq -r '.choices[0].message.content')
 if [ -z "$message" ]; then
     echo "Error: Failed to generate commit message."
     echo "OpenAI API response: $response"
+    echo "Aborting commit. Please try again."
     exit 1
 fi
 
