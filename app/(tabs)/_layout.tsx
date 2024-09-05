@@ -1,15 +1,8 @@
-import React from 'react';
-import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { Tabs } from 'expo-router';
-
-import Colors from '@/constants/Colors';
+import { Tabs, useRouter } from 'expo-router';
+import { useEffect } from 'react';
 import { useColorScheme } from 'react-native';
-
-// Import your screens
-import TeamsScreen from '@/app/(tabs)/teams';
-import PlayersScreen from '@/app/(tabs)/players';
-import GameTrackerScreen from '@/app/(tabs)/game-tracker';
-import StatisticsScreen from '@/app/(tabs)/statistics';
+import FontAwesome from '@expo/vector-icons/FontAwesome';
+import Colors from '@/constants/Colors';
 
 function TabBarIcon(props: { name: React.ComponentProps<typeof FontAwesome>['name']; color: string; }) {
   return <FontAwesome size={28} style={{ marginBottom: -3 }} {...props} />;
@@ -17,12 +10,13 @@ function TabBarIcon(props: { name: React.ComponentProps<typeof FontAwesome>['nam
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
+  const router = useRouter();
 
   return (
     <Tabs
       screenOptions={({ route }) => ({
         tabBarIcon: ({ color }) => {
-          let iconName: keyof typeof FontAwesome.glyphMap = 'code'; // default icon
+          let iconName: keyof typeof FontAwesome.glyphMap = 'code';
 
           if (route.name === 'teams') {
             iconName = 'users';
