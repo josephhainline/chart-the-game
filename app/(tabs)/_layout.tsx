@@ -9,11 +9,9 @@ function TabBarIcon(props: { name: React.ComponentProps<typeof FontAwesome>['nam
 }
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-  const router = useRouter();
-
   return (
     <Tabs
+      initialRouteName="game-tracker"
       screenOptions={({ route }) => ({
         tabBarIcon: ({ color }) => {
           let iconName: keyof typeof FontAwesome.glyphMap = 'code';
@@ -30,7 +28,7 @@ export default function TabLayout() {
 
           return <TabBarIcon name={iconName} color={color} />;
         },
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+        tabBarActiveTintColor: 'orange',
         headerShown: false,
       })}
     >
