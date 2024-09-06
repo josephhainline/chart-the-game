@@ -2,11 +2,10 @@ import React from 'react';
 import { StyleSheet } from 'react-native';
 import { Text, View } from '@/components/Themed';
 
-export default function TeamsScreen() {
+export default function LineupScreen() {
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Teams</Text>
-      {/* Add your team management component here */}
+      <Text style={styles.title}>Lineup</Text>
     </View>
   );
 }

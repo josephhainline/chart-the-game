@@ -2,11 +2,11 @@ import React from 'react';
 import { StyleSheet } from 'react-native';
 import { Text, View } from '@/components/Themed';
 
-export default function PlayersScreen() {
+export default function TeamScreen() {
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Players</Text>
-      {/* Add your player management and ranking component here */}
+      <Text style={styles.title}>Team</Text>
+      {/* Add your team management component here */}
     </View>
   );
 }

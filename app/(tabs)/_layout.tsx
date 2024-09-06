@@ -18,16 +18,16 @@ export default function TabLayout() {
         tabBarIcon: ({ color }) => {
           let iconName: keyof typeof FontAwesome.glyphMap = 'code';
 
-          if (route.name === 'teams') {
-            iconName = 'people-group';
-          } else if (route.name === 'players') {
+          if (route.name === 'team') {
+            iconName = 'users';
+          } else if (route.name === 'lineup') {
             iconName = 'users';
           } else if (route.name === 'index') {
-            iconName = 'house';  // Changed from 'home' to 'house'
-          } else if (route.name === 'game-tracker') {
+            iconName = 'house';  
+          } else if (route.name === 'games') {
             iconName = 'baseball-bat-ball';
           } else if (route.name === 'statistics') {
-            iconName = 'chart-column';  // Changed from 'bar-chart' to 'chart-column'
+            iconName = 'chart-column';
           }
 
           return <TabBarIcon name={iconName} color={color} />;
@@ -36,10 +36,10 @@ export default function TabLayout() {
         headerShown: false,
       })}
     >
-      <Tabs.Screen name="teams" options={{ title: 'Teams' }} />
-      <Tabs.Screen name="players" options={{ title: 'Players' }} />
+      <Tabs.Screen name="team" options={{ title: 'Team' }} />
+      <Tabs.Screen name="lineup" options={{ title: 'Lineup' }} />
       <Tabs.Screen name="index" options={{ title: 'Home' }} />
-      <Tabs.Screen name="game-tracker" options={{ title: 'Game Tracker' }} />
+      <Tabs.Screen name="games" options={{ title: 'Games' }} />
       <Tabs.Screen name="statistics" options={{ title: 'Statistics' }} />
     </Tabs>
   );
