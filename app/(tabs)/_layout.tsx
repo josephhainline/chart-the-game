@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { Tabs } from 'expo-router';
-import FontAwesome from '@expo/vector-icons/FontAwesome';
+import FontAwesome from '@expo/vector-icons/FontAwesome6';
 
 function TabBarIcon(props: { name: React.ComponentProps<typeof FontAwesome>['name']; color: string; }) {
   return <FontAwesome size={28} style={{ marginBottom: -3 }} {...props} />;
@@ -19,15 +19,15 @@ export default function TabLayout() {
           let iconName: keyof typeof FontAwesome.glyphMap = 'code';
 
           if (route.name === 'teams') {
-            iconName = 'users';
+            iconName = 'people-group';
           } else if (route.name === 'players') {
-            iconName = 'user';
+            iconName = 'users';
           } else if (route.name === 'index') {
-            iconName = 'home';
+            iconName = 'house';  // Changed from 'home' to 'house'
           } else if (route.name === 'game-tracker') {
-            iconName = 'gamepad';
+            iconName = 'baseball-bat-ball';
           } else if (route.name === 'statistics') {
-            iconName = 'bar-chart';
+            iconName = 'chart-column';  // Changed from 'bar-chart' to 'chart-column'
           }
 
           return <TabBarIcon name={iconName} color={color} />;
