@@ -1,1 +1,1 @@
-npx expo start
+npx expo start --clear
