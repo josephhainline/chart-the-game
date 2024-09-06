@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { StyleSheet, View, Text, TextInput, TouchableOpacity, FlatList } from 'react-native';
 import { Trash2 } from 'lucide-react-native';
+import { useTeam } from '../context/team-context';
 
 type Player = {
   id: string;
@@ -14,52 +15,83 @@ const capitalizeWords = (str: string) => {
 };
 
 export default function TeamScreen() {
-  const [teamName, setTeamName] = useState("");
-  const [players, setPlayers] = useState<Player[]>([]);
+  const { team, setTeam } = useTeam();
+  const [players, setPlayers] = useState<Player[]>(team?.players || []);
   const [newPlayerName, setNewPlayerName] = useState("");
   const [newPlayerNumber, setNewPlayerNumber] = useState("");
   const [isEditingTeamName, setIsEditingTeamName] = useState(false);
+  const isMounted = useRef(true);
 
-  const addPlayer = () => {
+  useEffect(() => {
+    if (team) {
+      setPlayers(team.players);
+    }
+  }, [team]);
+
+  const addPlayer = useCallback((player: Player) => {
+    if (isMounted.current) {
+      const updatedPlayers = [...players, player];
+      setPlayers(updatedPlayers);
+      setTeam({
+        ...team,
+        name: team?.name || '',
+        players: updatedPlayers
+      });
+    }
+  }, [setTeam, team, players]);
+
+  const removePlayer = (id: string) => {
+    const updatedPlayers = players.filter(player => player.id !== id);
+    setPlayers(updatedPlayers);
+    setTeam({
+      ...team,
+      name: team?.name || '',
+      players: updatedPlayers
+    });
+  };
+
+  const sortedPlayers = [...players].sort((a, b) => a.name.localeCompare(b.name));
+
+  const handleSetTeamName = (newName: string) => {
+    if (team) {
+      setTeam({ ...team, name: newName, players: team?.players || [] });
+    } else {
+      setTeam({ name: newName, players: [] });
+    }
+    setIsEditingTeamName(false);
+  };
+
+  const handleAddPlayer = () => {
     if (newPlayerName && newPlayerNumber) {
       const capitalizedName = capitalizeWords(newPlayerName.trim());
-      setPlayers([...players, { id: Date.now().toString(), name: capitalizedName, number: newPlayerNumber }]);
+      addPlayer({ id: Date.now().toString(), name: capitalizedName, number: newPlayerNumber });
       setNewPlayerName("");
       setNewPlayerNumber("");
     }
   };
 
-  const removePlayer = (id: string) => {
-    setPlayers(players.filter(player => player.id !== id));
-  };
-
-  const sortedPlayers = [...players].sort((a, b) => a.name.localeCompare(b.name));
-
   return (
     <View style={styles.container}>
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Team Information</Text>
         {isEditingTeamName ? (
           <View style={styles.formRow}>
             <TextInput
               style={styles.input}
-              value={teamName}
-              onChangeText={setTeamName}
+              value={team?.name || ''}
+              onChangeText={(newName) => setTeam({ ...team, name: newName, players: team?.players || [] })}
               placeholder="Enter team name"
+              id="teamName"
             />
             <TouchableOpacity
               style={styles.button}
-              onPress={() => {
-                setTeamName(capitalizeWords(teamName.trim()));
-                setIsEditingTeamName(false);
-              }}
+              onPress={() => handleSetTeamName(capitalizeWords(team?.name?.trim() || ''))}
             >
               <Text style={styles.buttonText}>Save</Text>
             </TouchableOpacity>
           </View>
         ) : (
           <View style={styles.formRow}>
-            <Text style={styles.teamName}>{teamName || "Unnamed Team"}</Text>
+            <Text style={styles.teamName}>{team?.name || "Unnamed Team"}</Text>
             <TouchableOpacity
               style={styles.button}
               onPress={() => setIsEditingTeamName(true)}
@@ -79,6 +111,7 @@ export default function TeamScreen() {
             value={newPlayerName}
             onChangeText={setNewPlayerName}
             placeholder="Enter player name"
+            id="playerName"
           />
           <Text style={styles.label}>Player Number</Text>
           <TextInput
@@ -86,8 +119,9 @@ export default function TeamScreen() {
             value={newPlayerNumber}
             onChangeText={setNewPlayerNumber}
             placeholder="Enter player number"
+            id="playerNumber"
           />
-          <TouchableOpacity style={styles.button} onPress={addPlayer}>
+          <TouchableOpacity style={styles.button} onPress={handleAddPlayer}>
             <Text style={styles.buttonText}>Add Player</Text>
           </TouchableOpacity>
         </View>
