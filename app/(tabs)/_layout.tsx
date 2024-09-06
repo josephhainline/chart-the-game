@@ -21,7 +21,7 @@ export default function TabLayout() {
           if (route.name === 'team') {
             iconName = 'users';
           } else if (route.name === 'lineup') {
-            iconName = 'users';
+            iconName = 'list-check';  // Updated to use list-check icon
           } else if (route.name === 'index') {
             iconName = 'house';  
           } else if (route.name === 'games') {
