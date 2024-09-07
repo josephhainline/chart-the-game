@@ -7,12 +7,13 @@ export type Player = {
   number: string;
 };
 
-type Team = { name: string; players: Player[] };
+type Team = { name: string; players: Player[]; lineupOrder: string[] };
 
 const TeamContext = createContext<{
   team: Team | null;
   setTeam: (team: Team) => void;
   addPlayer: (player: Player) => void;
+  updateLineupOrder: (newOrder: string[]) => void;
 } | undefined>(undefined);
 
 export function TeamProvider({ children }: { children: React.ReactNode }) {
@@ -48,18 +49,29 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
   const addPlayer = (player: Player) => {
     console.log('Adding player:', player);
     if (team) {
-      const newTeam = { ...team, players: [...team.players, player] };
+      const newTeam = { 
+        ...team, 
+        players: [...team.players, player],
+        lineupOrder: team.lineupOrder ? [...team.lineupOrder, player.id] : [player.id]
+      };
       console.log('New team state:', newTeam);
       saveTeam(newTeam);
     } else {
       console.log('Creating new team with player:', player);
-      const newTeam = { name: '', players: [player] };
+      const newTeam = { name: '', players: [player], lineupOrder: [player.id] };
+      saveTeam(newTeam);
+    }
+  };
+
+  const updateLineupOrder = (newOrder: string[]) => {
+    if (team) {
+      const newTeam = { ...team, lineupOrder: newOrder };
       saveTeam(newTeam);
     }
   };
 
   return (
-    <TeamContext.Provider value={{ team, setTeam: saveTeam, addPlayer }}>
+    <TeamContext.Provider value={{ team, setTeam: saveTeam, addPlayer, updateLineupOrder }}>
       {children}
     </TeamContext.Provider>
   );

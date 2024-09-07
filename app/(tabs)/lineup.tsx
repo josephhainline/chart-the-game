@@ -1,62 +1,67 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, FlatList, ScrollView } from 'react-native';
-import { ArrowUpDown, Trash2, Plus } from 'lucide-react-native';
+import { ArrowUpDown, Trash2, Plus, GripVertical } from 'lucide-react-native';
 import { useTeam, Player } from '../context/team-context';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StyleSheet } from 'react-native';
+import DraggableFlatList, { RenderItemParams } from 'react-native-draggable-flatlist';
 
 export default function LineupScreen() {
-  const { team } = useTeam();
+  const { team, updateLineupOrder } = useTeam();
   const [lineup, setLineup] = useState<Player[]>([]);
 
-  const loadLineup = async () => {
-    try {
-      const savedLineup = await AsyncStorage.getItem('lineup');
-      if (savedLineup) setLineup(JSON.parse(savedLineup));
-    } catch (error) {
-      console.error('Failed to load lineup:', error);
+  useEffect(() => {
+    if (team && team.players) {
+      const lineupPlayers = team.lineupOrder
+        ? team.lineupOrder
+            .map(id => team.players.find(p => p.id === id))
+            .filter((p): p is Player => p !== undefined)
+        : team.players; // If lineupOrder doesn't exist, use all players
+      setLineup(lineupPlayers);
     }
-  };
-
-  const saveLineup = async (newLineup: Player[]) => {
-    try {
-      await AsyncStorage.setItem('lineup', JSON.stringify(newLineup));
-    } catch (error) {
-      console.error('Failed to save lineup:', error);
-    }
-  };
+  }, [team]);
 
   const removeFromLineup = (playerId: string) => {
     const newLineup = lineup.filter(p => p.id !== playerId);
     setLineup(newLineup);
-    saveLineup(newLineup);
-  };
-
-  const movePlayer = (index: number, direction: 'up' | 'down') => {
-    const newLineup = [...lineup];
-    const newIndex = direction === 'up' ? index - 1 : index + 1;
-    if (newIndex >= 0 && newIndex < lineup.length) {
-      [newLineup[index], newLineup[newIndex]] = [newLineup[newIndex], newLineup[index]];
-      setLineup(newLineup);
-      saveLineup(newLineup);
-    }
+    updateLineupOrder(newLineup.map(p => p.id));
   };
 
   const addToLineup = (player: Player) => {
     if (!lineup.some(p => p.id === player.id)) {
       const newLineup = [...lineup, player];
       setLineup(newLineup);
-      saveLineup(newLineup);
+      updateLineupOrder(newLineup.map(p => p.id));
     }
   };
 
+  const onDragEnd = ({ data }: { data: Player[] }) => {
+    setLineup(data);
+    updateLineupOrder(data.map(p => p.id));
+  };
+
   const availablePlayers = team?.players.filter(p => !lineup.some(lp => lp.id === p.id)) || [];
+
+  const renderLineupItem = ({ item, drag, isActive }: RenderItemParams<Player>) => (
+    <TouchableOpacity
+      onLongPress={drag}
+      disabled={isActive}
+      style={[styles.playerItem, isActive && styles.activeItem]}
+    >
+      <View style={styles.playerInfo}>
+        <GripVertical size={20} color="#666" />
+        <Text style={styles.playerText}>{item.name} (#{item.number})</Text>
+      </View>
+      <TouchableOpacity onPress={() => removeFromLineup(item.id)}>
+        <Trash2 size={20} color="#FF3B30" />
+      </TouchableOpacity>
+    </TouchableOpacity>
+  );
 
   return (
     <ScrollView style={styles.container}>
       <View style={styles.card}>
         <Text style={styles.cardTitle}>
-         {team?.name || "Unnamed Team"} Roster
+          {team?.name || "Unnamed Team"} Roster
         </Text>
         <FlatList
           data={availablePlayers}
@@ -77,25 +82,11 @@ export default function LineupScreen() {
         {lineup.length === 0 ? (
           <Text style={styles.emptyText}>No players in the lineup yet.</Text>
         ) : (
-          <FlatList
+          <DraggableFlatList
             data={lineup}
+            renderItem={renderLineupItem}
             keyExtractor={(item) => item.id}
-            renderItem={({ item, index }) => (
-              <View style={styles.playerItem}>
-                <Text>{index + 1}. {item.name} (#{item.number})</Text>
-                <View style={styles.buttonGroup}>
-                  <TouchableOpacity onPress={() => movePlayer(index, 'up')} disabled={index === 0}>
-                    <ArrowUpDown size={20} style={{ transform: [{ rotate: '180deg' }] }} />
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => movePlayer(index, 'down')} disabled={index === lineup.length - 1}>
-                    <ArrowUpDown size={20} />
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => removeFromLineup(item.id)}>
-                    <Trash2 size={20} />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
+            onDragEnd={onDragEnd}
           />
         )}
       </View>
@@ -115,4 +106,14 @@ const styles = StyleSheet.create({
   emptyText: { textAlign: 'center', color: '#666' },
   playerItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 10, backgroundColor: '#f0f0f0', borderRadius: 5, marginBottom: 5 },
   buttonGroup: { flexDirection: 'row', alignItems: 'center' },
+  playerInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  playerText: {
+    marginLeft: 10,
+  },
+  activeItem: {
+    backgroundColor: '#e0e0e0',
+  },
 });
