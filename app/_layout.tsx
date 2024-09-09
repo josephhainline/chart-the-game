@@ -5,6 +5,7 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
+import { GestureHandlerRootView } from 'react-native-gesture-handler'; // Import GestureHandlerRootView
 
 import { useColorScheme } from '@/components/useColorScheme';
 import { TeamProvider } from './context/team-context';
@@ -39,16 +40,15 @@ function RootLayoutNav() {
   const colorScheme = useColorScheme();
 
   return (
-    <TeamProvider>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen 
-            name="(tabs)" 
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-        </Stack>
-      </ThemeProvider>
-    </TeamProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}> {/* Wrap with GestureHandlerRootView */}
+      <TeamProvider>
+        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+          </Stack>
+        </ThemeProvider>
+      </TeamProvider>
+    </GestureHandlerRootView>
   );
 }
