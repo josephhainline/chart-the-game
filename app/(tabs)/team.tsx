@@ -1,7 +1,11 @@
+// File: ./app/(tabs)/team.tsx
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { StyleSheet, View, Text, TextInput, TouchableOpacity, FlatList } from 'react-native';
 import { Trash2 } from 'lucide-react-native';
 import { useTeam } from '../context/team-context';
+import CustomHeader from '../../components/CustomHeader';
+import { Button } from 'react-native-paper';
+import { useRouter } from 'expo-router';
 
 type Player = {
   id: string;
@@ -21,6 +25,7 @@ export default function TeamScreen() {
   const [newPlayerNumber, setNewPlayerNumber] = useState("");
   const [isEditingTeamName, setIsEditingTeamName] = useState(false);
   const isMounted = useRef(true);
+  const router = useRouter();
 
   useEffect(() => {
     if (team) {
@@ -70,81 +75,108 @@ export default function TeamScreen() {
     }
   };
 
+  const handlePickGame = () => {
+    router.push('games');
+  };
+
+  const handleViewLineup = () => {
+    router.push('lineup');
+  };
+
   return (
-    <View style={styles.container}>
-      <View style={styles.card}>
-        {isEditingTeamName ? (
-          <View style={styles.formRow}>
+    <View style={{ flex: 1 }}>
+      <CustomHeader title="Team" />
+      <View style={styles.container}>
+        <View style={styles.card}>
+          {isEditingTeamName ? (
+            <View style={styles.formRow}>
+              <TextInput
+                style={styles.input}
+                value={team?.name || ''}
+                onChangeText={(newName) => setTeam({ ...team, name: newName, players: team?.players || [] })}
+                placeholder="Enter team name"
+                id="teamName"
+              />
+              <TouchableOpacity
+                style={styles.button}
+                onPress={() => handleSetTeamName(capitalizeWords(team?.name?.trim() || ''))}
+              >
+                <Text style={styles.buttonText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.formRow}>
+              <Text style={styles.teamName}>{team?.name || "Unnamed Team"}</Text>
+              <TouchableOpacity
+                style={styles.button}
+                onPress={() => setIsEditingTeamName(true)}
+              >
+                <Text style={styles.buttonText}>Edit Team Name</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Add Player</Text>
+          <View style={styles.form}>
+            <Text style={styles.label}>Player Name</Text>
             <TextInput
               style={styles.input}
-              value={team?.name || ''}
-              onChangeText={(newName) => setTeam({ ...team, name: newName, players: team?.players || [] })}
-              placeholder="Enter team name"
-              id="teamName"
+              value={newPlayerName}
+              onChangeText={setNewPlayerName}
+              placeholder="Enter player name"
+              id="playerName"
             />
-            <TouchableOpacity
-              style={styles.button}
-              onPress={() => handleSetTeamName(capitalizeWords(team?.name?.trim() || ''))}
-            >
-              <Text style={styles.buttonText}>Save</Text>
+            <Text style={styles.label}>Player Number</Text>
+            <TextInput
+              style={styles.input}
+              value={newPlayerNumber}
+              onChangeText={setNewPlayerNumber}
+              placeholder="Enter player number"
+              id="playerNumber"
+            />
+            <TouchableOpacity style={styles.button} onPress={handleAddPlayer}>
+              <Text style={styles.buttonText}>Add Player</Text>
             </TouchableOpacity>
           </View>
-        ) : (
-          <View style={styles.formRow}>
-            <Text style={styles.teamName}>{team?.name || "Unnamed Team"}</Text>
-            <TouchableOpacity
-              style={styles.button}
-              onPress={() => setIsEditingTeamName(true)}
-            >
-              <Text style={styles.buttonText}>Edit Team Name</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
-
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Add Player</Text>
-        <View style={styles.form}>
-          <Text style={styles.label}>Player Name</Text>
-          <TextInput
-            style={styles.input}
-            value={newPlayerName}
-            onChangeText={setNewPlayerName}
-            placeholder="Enter player name"
-            id="playerName"
-          />
-          <Text style={styles.label}>Player Number</Text>
-          <TextInput
-            style={styles.input}
-            value={newPlayerNumber}
-            onChangeText={setNewPlayerNumber}
-            placeholder="Enter player number"
-            id="playerNumber"
-          />
-          <TouchableOpacity style={styles.button} onPress={handleAddPlayer}>
-            <Text style={styles.buttonText}>Add Player</Text>
-          </TouchableOpacity>
         </View>
-      </View>
 
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Player Roster</Text>
-        {sortedPlayers.length === 0 ? (
-          <Text style={styles.emptyRoster}>No players added yet.</Text>
-        ) : (
-          <FlatList
-            data={sortedPlayers}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <View style={styles.playerItem}>
-                <Text>{item.name} (#{item.number})</Text>
-                <TouchableOpacity onPress={() => removePlayer(item.id)}>
-                  <Trash2 size={20} color="#000" />
-                </TouchableOpacity>
-              </View>
-            )}
-          />
-        )}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Player Roster</Text>
+          {sortedPlayers.length === 0 ? (
+            <Text style={styles.emptyRoster}>No players added yet.</Text>
+          ) : (
+            <FlatList
+              data={sortedPlayers}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <View style={styles.playerItem}>
+                  <Text>{item.name} (#{item.number})</Text>
+                  <TouchableOpacity onPress={() => removePlayer(item.id)}>
+                    <Trash2 size={20} color="#000" />
+                  </TouchableOpacity>
+                </View>
+              )}
+            />
+          )}
+        </View>
+
+        {/* Button to pick a game */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Upcoming Games</Text>
+          <Button mode="contained" onPress={handlePickGame}>
+            Pick a Game
+          </Button>
+        </View>
+
+        {/* Button to manage lineup */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Manage Lineup</Text>
+          <Button mode="contained" onPress={handleViewLineup}>
+            View Lineup
+          </Button>
+        </View>
       </View>
     </View>
   );
@@ -200,6 +232,7 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 4,
     alignItems: 'center',
+    marginTop: 8,
   },
   buttonText: {
     color: '#fff',

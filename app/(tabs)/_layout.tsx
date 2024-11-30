@@ -1,3 +1,4 @@
+// File: ./app/(tabs)/_layout.tsx
 import React, { useEffect } from 'react';
 import { Tabs } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome6';
@@ -21,9 +22,9 @@ export default function TabLayout() {
           if (route.name === 'team') {
             iconName = 'users';
           } else if (route.name === 'lineup') {
-            iconName = 'list-check';  // Updated to use list-check icon
+            iconName = 'list-check';
           } else if (route.name === 'index') {
-            iconName = 'house';  
+            iconName = 'house';
           } else if (route.name === 'games') {
             iconName = 'baseball-bat-ball';
           } else if (route.name === 'statistics') {
@@ -36,9 +37,9 @@ export default function TabLayout() {
         headerShown: false,
       })}
     >
+      <Tabs.Screen name="index" options={{ title: 'Home' }} />
       <Tabs.Screen name="team" options={{ title: 'Team' }} />
       <Tabs.Screen name="lineup" options={{ title: 'Lineup' }} />
-      <Tabs.Screen name="index" options={{ title: 'Home' }} />
       <Tabs.Screen name="games" options={{ title: 'Games' }} />
       <Tabs.Screen name="statistics" options={{ title: 'Statistics' }} />
     </Tabs>

@@ -1,11 +1,11 @@
-"use client"
-
+// File: ./app/(tabs)/games.tsx
 import React, { useState, useEffect } from 'react';
 import { StyleSheet } from 'react-native';
 import { Text, View } from '@/components/Themed';
 import { Button, Card, FAB } from 'react-native-paper';
 import { ScrollView } from 'react-native-gesture-handler';
-import { format } from "date-fns"
+import { format } from "date-fns";
+import CustomHeader from '../../components/CustomHeader';
 
 type Game = {
   id: string
@@ -20,55 +20,8 @@ type Game = {
 }
 
 const mockGames: Game[] = [
-  {
-    id: "1",
-    date: new Date("2024-01-01"),
-    opponent: "Team A",
-    isAway: false,
-    status: "Scheduled",
-    score: { home: 0, away: 0 }
-  },
-  {
-    id: "2",
-    date: new Date("2024-01-02"),
-    opponent: "Team B",
-    isAway: true,
-    status: "Scheduled",
-    score: { home: 0, away: 0 }
-  },
-  {
-    id: "3",
-    date: new Date("2024-01-03"),
-    opponent: "Team C",
-    isAway: false,
-    status: "Won",
-    score: { home: 3, away: 1 }
-  },
-  {
-    id: "4",
-    date: new Date("2024-01-04"),
-    opponent: "Team D",
-    isAway: true,
-    status: "Lost",
-    score: { home: 0, away: 2 }
-  },
-  {
-    id: "5",
-    date: new Date("2024-01-05"),
-    opponent: "Team E",
-    isAway: false,
-    status: "Scoring",
-    score: { home: 2, away: 2 }
-  },
-  {
-    id: "6",
-    date: new Date("2024-01-06"),
-    opponent: "Team F",
-    isAway: true,
-    status: "Scheduled",
-    score: { home: 0, away: 0 }
-  },
-]
+  // ... your mock games here ...
+];
 
 export default function GameTrackerScreen() {
   const [games, setGames] = useState<Game[]>([])
@@ -117,45 +70,44 @@ export default function GameTrackerScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Game Tracker</Text>
-      <ScrollView style={styles.scrollView}>
-        <View style={styles.gameList}>
-          {sortedGames.map((game) => (
-            <Card key={game.id} style={styles.gameItem}>
-              <Card.Content style={styles.gameContent}>
-                <View style={styles.gameInfo}>
-                  <Text style={styles.dateText}>{format(game.date, 'MMM d, yyyy')}</Text>
-                  <Text>{game.isAway ? '@ ' : 'vs '}{game.opponent}</Text>
-                </View>
-                <View>
-                  {game.status === "Won" || game.status === "Lost" ? (
-                    <Text style={[styles.statusText, game.status === "Won" ? styles.wonStatus : styles.lostStatus]}>
-                      {game.status}
-                    </Text>
-                  ) : (
-                    <Button mode="outlined" onPress={() => handleScoreClick(game)}>
-                      {game.status === "Scoring" ? "Update Score" : "Score"}
-                    </Button>
-                  )}
-                </View>
-              </Card.Content>
-            </Card>
-          ))}
-        </View>
-      </ScrollView>
-      <FAB
-        style={styles.fab}
-        icon="plus"
-        onPress={addNewGame}
-        label="New Game"
-      />
+    <View style={{ flex: 1 }}>
+      <CustomHeader title="Games" />
+      <View style={styles.container}>
+        <Text style={styles.title}>Game Tracker</Text>
+        <ScrollView style={styles.scrollView}>
+          <View style={styles.gameList}>
+            {sortedGames.map((game) => (
+              <Card key={game.id} style={styles.gameItem}>
+                <Card.Content style={styles.gameContent}>
+                  <View style={styles.gameInfo}>
+                    <Text style={styles.dateText}>{format(game.date, 'MMM d, yyyy')}</Text>
+                    <Text>{game.isAway ? '@ ' : 'vs '}{game.opponent}</Text>
+                  </View>
+                  <View>
+                    {game.status === "Won" || game.status === "Lost" ? (
+                      <Text style={[styles.statusText, game.status === "Won" ? styles.wonStatus : styles.lostStatus]}>
+                        {game.status}
+                      </Text>
+                    ) : (
+                      <Button mode="outlined" onPress={() => handleScoreClick(game)}>
+                        {game.status === "Scoring" ? "Update Score" : "Score"}
+                      </Button>
+                    )}
+                  </View>
+                </Card.Content>
+              </Card>
+            ))}
+          </View>
+        </ScrollView>
+        <FAB
+          style={styles.fab}
+          icon="plus"
+          onPress={addNewGame}
+          label="New Game"
+        />
+      </View>
     </View>
   );
-}
-
-function ScoringModal({ game, updateScore }: { game: Game, updateScore: (gameId: string, homeScore: number, awayScore: number) => void }) {
-  // ... ScoringModal component implementation ...
 }
 
 const styles = StyleSheet.create({

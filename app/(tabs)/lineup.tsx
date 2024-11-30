@@ -1,9 +1,11 @@
+// File: ./app/(tabs)/lineup.tsx
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, FlatList, ScrollView } from 'react-native';
-import { ArrowUpDown, Trash2, Plus, GripVertical } from 'lucide-react-native';
+import { Trash2, Plus, GripVertical } from 'lucide-react-native';
 import { useTeam, Player } from '../context/team-context';
 import { StyleSheet } from 'react-native';
 import DraggableFlatList, { RenderItemParams } from 'react-native-draggable-flatlist';
+import CustomHeader from '../../components/CustomHeader';
 
 export default function LineupScreen() {
   const { team, updateLineupOrder } = useTeam();
@@ -58,54 +60,60 @@ export default function LineupScreen() {
   );
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>
-          {team?.name || "Unnamed Team"} Roster
-        </Text>
-        <FlatList
-          data={availablePlayers}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <View style={styles.playerItem}>
-              <Text>{item.name} (#{item.number})</Text>
-              <TouchableOpacity onPress={() => addToLineup(item)}>
-                <Plus size={20} color="#007AFF" />
-              </TouchableOpacity>
-            </View>
-          )}
-        />
-      </View>
-
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Current Lineup</Text>
-        {lineup.length === 0 ? (
-          <Text style={styles.emptyText}>No players in the lineup yet.</Text>
-        ) : (
-          <DraggableFlatList
-            data={lineup}
-            renderItem={renderLineupItem}
+    <View style={{ flex: 1 }}>
+      <CustomHeader title="Lineup" />
+      <ScrollView style={styles.container}>
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>
+            {team?.name || "Unnamed Team"} Roster
+          </Text>
+          <FlatList
+            data={availablePlayers}
             keyExtractor={(item) => item.id}
-            onDragEnd={onDragEnd}
+            renderItem={({ item }) => (
+              <View style={styles.playerItem}>
+                <Text>{item.name} (#{item.number})</Text>
+                <TouchableOpacity onPress={() => addToLineup(item)}>
+                  <Plus size={20} color="#007AFF" />
+                </TouchableOpacity>
+              </View>
+            )}
           />
-        )}
-      </View>
-    </ScrollView>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Current Lineup</Text>
+          {lineup.length === 0 ? (
+            <Text style={styles.emptyText}>No players in the lineup yet.</Text>
+          ) : (
+            <DraggableFlatList
+              data={lineup}
+              renderItem={renderLineupItem}
+              keyExtractor={(item) => item.id}
+              onDragEnd={onDragEnd}
+            />
+          )}
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20 },
-  title: { fontSize: 22, fontWeight: 'bold', marginBottom: 16 }, // Add this line
+  title: { fontSize: 22, fontWeight: 'bold', marginBottom: 16 },
   card: { backgroundColor: '#fff', borderRadius: 8, padding: 16, marginBottom: 16 },
   cardTitle: { fontSize: 20, fontWeight: '700' as const, marginBottom: 10 },
-  pickerContainer: { flexDirection: 'row' as const, alignItems: 'center' as const },
-  picker: { flex: 1, height: 50 },
-  button: { backgroundColor: '#007AFF', padding: 10, borderRadius: 5, marginLeft: 10 },
-  buttonText: { color: '#fff', fontWeight: 'bold' },
   emptyText: { textAlign: 'center', color: '#666' },
-  playerItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 10, backgroundColor: '#f0f0f0', borderRadius: 5, marginBottom: 5 },
-  buttonGroup: { flexDirection: 'row', alignItems: 'center' },
+  playerItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 10,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 5,
+    marginBottom: 5,
+  },
   playerInfo: {
     flexDirection: 'row',
     alignItems: 'center',

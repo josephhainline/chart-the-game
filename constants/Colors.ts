@@ -1,4 +1,5 @@
-const tintColorLight = '#2f95dc';
+// File: ./constants/Colors.ts
+const tintColorLight = '#007AFF'; // Updated tint color
 const tintColorDark = '#fff';
 
 export default {
