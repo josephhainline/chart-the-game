@@ -1,57 +1,106 @@
-// File: ./app/_layout.tsx
-import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
+import {
+  Lato_400Regular,
+  Lato_400Regular_Italic,
+  Lato_700Bold,
+  Lato_700Bold_Italic,
+} from '@expo-google-fonts/lato';
+import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
-import 'react-native-reanimated';
+import { StatusBar } from 'expo-status-bar';
+import React, { useEffect } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import 'react-native-reanimated';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { useColorScheme } from '@/components/useColorScheme';
-import { TeamProvider } from './context/team-context';
+import PhoneFrame from '@/components/PhoneFrame';
+import { colors, fonts } from '@/constants/theme';
+import { StoreProvider, useStore } from '@/lib/store';
 
 export { ErrorBoundary } from 'expo-router';
 
-SplashScreen.preventAutoHideAsync();
+SplashScreen.preventAutoHideAsync().catch(() => {});
+
+const navTheme = {
+  ...DefaultTheme,
+  colors: {
+    ...DefaultTheme.colors,
+    primary: colors.primary,
+    background: colors.surface,
+    card: colors.surface,
+    text: colors.text,
+    border: colors.divider,
+  },
+};
 
 export default function RootLayout() {
-  const [loaded, error] = useFonts({
-    ...FontAwesome.font,
+  const [fontsLoaded, fontError] = useFonts({
+    Lato_400Regular,
+    Lato_400Regular_Italic,
+    Lato_700Bold,
+    Lato_700Bold_Italic,
+    ...FontAwesome6.font,
   });
 
   useEffect(() => {
-    if (error) throw error;
-  }, [error]);
+    if (fontError) console.warn('Font loading failed', fontError);
+  }, [fontError]);
 
   useEffect(() => {
-    if (loaded) {
-      SplashScreen.hideAsync();
-    }
-  }, [loaded]);
-
-  if (!loaded) {
-    return null;
-  }
-
-  return <RootLayoutNav />;
-}
-
-function RootLayoutNav() {
-  const colorScheme = useColorScheme();
+    if (fontsLoaded || fontError) SplashScreen.hideAsync().catch(() => {});
+  }, [fontsLoaded, fontError]);
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <TeamProvider>
-        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-          <Stack screenOptions={{ headerShown: false }}>
-            {/* Set the initial route to the Intro screen */}
-            <Stack.Screen name="intro" options={{ headerShown: false }} />
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-          </Stack>
-        </ThemeProvider>
-      </TeamProvider>
+    <GestureHandlerRootView style={styles.root}>
+      <SafeAreaProvider>
+        <StoreProvider>
+          <ThemeProvider value={navTheme}>
+            <PhoneFrame>
+              <StatusBar style="light" />
+              {fontsLoaded || fontError ? <AppStack /> : <Splash />}
+            </PhoneFrame>
+          </ThemeProvider>
+        </StoreProvider>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }
+
+function AppStack() {
+  const { ready } = useStore();
+  if (!ready) return <Splash />;
+  return (
+    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.surface } }}>
+      <Stack.Screen name="intro" options={{ animation: 'fade' }} />
+      <Stack.Screen name="(app)" />
+      <Stack.Screen name="team/[teamId]" />
+      <Stack.Screen name="game/[gameId]" />
+      <Stack.Screen name="new-team" options={{ presentation: 'modal' }} />
+    </Stack>
+  );
+}
+
+/** Blue splash matching the prototype's first screen, shown while fonts and data load. */
+function Splash() {
+  return (
+    <View style={styles.splash}>
+      <Text style={styles.splashTitle}>Chart The Game</Text>
+      <Text style={styles.splashSubtitle}>a Coach Rob Floyd app</Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+  splash: {
+    flex: 1,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  splashTitle: { fontFamily: fonts.bold, fontSize: 36, color: '#fff' },
+  splashSubtitle: { fontFamily: fonts.bold, fontSize: 18, color: '#fff', marginTop: 4 },
+});

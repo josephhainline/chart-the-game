@@ -1,0 +1,21 @@
+import { useLocalSearchParams } from 'expo-router';
+import React from 'react';
+import { Text } from 'react-native';
+
+import AppHeader from '@/components/AppHeader';
+import Screen from '@/components/Screen';
+import { colors, type } from '@/constants/theme';
+import { gameTitle } from '@/lib/format';
+import { useGame, useTeam } from '@/lib/store';
+
+export default function OpponentScreen() {
+  const { teamId, gameId } = useLocalSearchParams<{ teamId?: string; gameId?: string }>();
+  const team = useTeam(teamId);
+  const game = useGame(gameId);
+  return (
+    <Screen>
+      <AppHeader context={game ? gameTitle(game) : "Game"} contextColor={colors.orange} />
+      <Text style={[type.body, { padding: 20, color: colors.textMuted }]}>OpponentScreen — coming soon</Text>
+    </Screen>
+  );
+}

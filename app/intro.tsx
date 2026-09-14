@@ -1,37 +1,23 @@
-// File: ./app/intro.tsx
-import React, { useEffect } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
+import React from 'react';
+import { Text, View } from 'react-native';
+
+import { Button } from '@/components/ui';
+import { colors, fonts } from '@/constants/theme';
+import { useStore } from '@/lib/store';
 
 export default function IntroScreen() {
   const router = useRouter();
-
-  useEffect(() => {
-    // Navigate to the main app after 3 seconds
-    const timer = setTimeout(() => {
-      router.replace({ pathname: '/(tabs)' });
-    }, 3000);
-
-    return () => clearTimeout(timer);
-  }, [router]);
-
+  const { setOnboarded } = useStore();
+  const enter = () => {
+    setOnboarded(true);
+    router.replace('/');
+  };
   return (
-    <View style={styles.container}>
-      <Text style={styles.introText}>Welcome to Chart The Game!</Text>
+    <View style={{ flex: 1, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+      <Text style={{ fontFamily: fonts.bold, fontSize: 36, color: '#fff' }}>Chart The Game</Text>
+      <Text style={{ fontFamily: fonts.bold, fontSize: 18, color: '#fff', marginBottom: 32 }}>a Coach Rob Floyd app</Text>
+      <Button title="Get Started" variant="orange" onPress={enter} />
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0000FF', // Blue background
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  introText: {
-    color: '#FFFFFF',
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-});
