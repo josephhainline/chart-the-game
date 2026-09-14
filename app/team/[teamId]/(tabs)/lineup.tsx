@@ -1,21 +1,66 @@
-import { useLocalSearchParams } from 'expo-router';
-import React from 'react';
-import { Text } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useState } from 'react';
 
 import AppHeader from '@/components/AppHeader';
+import LineupEditor from '@/components/LineupEditor';
 import Screen from '@/components/Screen';
-import { colors, type } from '@/constants/theme';
-import { gameTitle } from '@/lib/format';
-import { useGame, useTeam } from '@/lib/store';
+import { Button } from '@/components/ui';
+import { rankByHitting } from '@/lib/stats';
+import { useStore, useTeam, useTeamGames, useTeamPlayers } from '@/lib/store';
+import type { LineupSlot } from '@/lib/types';
 
+/** Team level › Lineup: the default batting order every new game starts from. */
 export default function LineupScreen() {
-  const { teamId, gameId } = useLocalSearchParams<{ teamId?: string; gameId?: string }>();
+  const { teamId } = useLocalSearchParams<{ teamId: string }>();
+  const router = useRouter();
+  const { data, setDefaultLineup } = useStore();
   const team = useTeam(teamId);
-  const game = useGame(gameId);
+  const players = useTeamPlayers(teamId);
+  const games = useTeamGames(teamId);
+  const [ranked, setRanked] = useState(false);
+
+  if (!team) return null;
+
+  const change = (slots: LineupSlot[]) => {
+    setRanked(false);
+    setDefaultLineup(team.id, slots);
+  };
+
+  const rankByCtg = () => {
+    const gameIds = new Set(games.map((g) => g.id));
+    const ordered = rankByHitting(
+      team.defaultLineup.map((s) => s.playerId),
+      data.atBats,
+      gameIds,
+    );
+    const slotFor = new Map(team.defaultLineup.map((s) => [s.playerId, s]));
+    const next: LineupSlot[] = [];
+    for (const id of ordered) {
+      const slot = slotFor.get(id);
+      if (slot) next.push(slot);
+    }
+    setDefaultLineup(team.id, next);
+    setRanked(true);
+  };
+
   return (
     <Screen>
-      <AppHeader context={team?.name ?? "Team"} />
-      <Text style={[type.body, { padding: 20, color: colors.textMuted }]}>LineupScreen — coming soon</Text>
+      <AppHeader context={team.name} onBack={() => router.replace('/')} />
+      <LineupEditor
+        slots={team.defaultLineup}
+        players={players}
+        onChange={change}
+        title="Default Lineup:"
+        caption={ranked ? 'Ranked by hitting score (W − L) this season' : undefined}
+        headerRight={
+          <Button
+            title="Rank by CTG"
+            variant="ghost"
+            onPress={rankByCtg}
+            disabled={team.defaultLineup.length < 2}
+          />
+        }
+      />
     </Screen>
   );
 }

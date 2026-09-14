@@ -226,7 +226,8 @@ Each has a stable `OutcomeId` (`k_swinging`, `walk_2_looking`, `error_weak`,
 ## 6. Demo data
 
 Seeded on first launch (and by "Reset demo data"). Dates are relative to
-today so the prototype always shows a recent past and an upcoming game.
+today and land on Saturdays (youth ball is a weekend game) so the prototype
+always shows a recent past and an upcoming game.
 
 Team: **STL Bears 12U Floyd 2026**, season 2026. Roster and default lineup
 (order, position):
@@ -236,15 +237,17 @@ Team: **STL Bears 12U Floyd 2026**, season 2026. Roster and default lineup
 7. Knox Kennedy #8 2B · 8. Weedon Hainline #10 P · 9. Landyn Durbin RF ·
 10. Ben Boncek #99 LF
 
-Games:
-- `@ Redbirds Red`, 7 days ago 9:00am, final, Lost 6-7, notes "4 inning game,
-  lost the lead in the 3rd inning, 1 HR." with at-bats generating roughly
-  12W/10L hitting and 6W/9L pitching.
-- `@ Midland Bandits`, 7 days ago 12:30pm, final, Won 19-5, notes "3 inning
-  game, took the lead in the 1st inning, 1 HR." ~29W/7L hitting, 9W/3L
-  pitching.
-- `@ Tigers`, 4 days from now 2:30pm, scheduled, notes "On a three game
+Games (most recent past Saturday = "last Saturday"):
+- `@ Redbirds Red`, last Saturday 9:00am, final, Lost 6-7, notes "4 inning
+  game, lost the lead in the 3rd inning, 1 HR."
+- `@ Midland Bandits`, last Saturday 12:30pm, final, Won 19-5, notes "3 inning
+  game, took the lead in the 1st inning, 1 HR." (a blowout: many more of our
+  plate appearances than theirs).
+- `@ Tigers`, next Saturday 2:30pm, scheduled, notes "On a three game
   winning streak against the Tigers since April."
+- Four earlier finals spread over the previous nine Saturdays (Eureka Wolves,
+  Tigers, Rockhounds, Fenton Fury) so the season stats and month bands have
+  some depth.
 
 Two more teams appear in My Teams with empty rosters so the list matches the
 prototype: **STL Bears 13U Bernstein**, **STL Bears 15U Floyd 2026**.

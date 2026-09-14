@@ -32,24 +32,27 @@ type SeedPlayer = {
 };
 
 const ROSTER: SeedPlayer[] = [
-  { id: 'p_owen', first: 'Owen', last: 'Haynes', number: '7', position: 'CF', hit: 0.62, pitch: 0.66 },
+  { id: 'p_owen', first: 'Owen', last: 'Haynes', number: '7', position: 'CF', hit: 0.62, pitch: 0.7 },
   { id: 'p_ryder', first: 'Ryder', last: 'Braddy', number: '42', position: '3B', hit: 0.66, pitch: 0.5 },
-  { id: 'p_lucas', first: 'Lucas', last: 'Kloster', number: '13', position: 'SS', hit: 0.62, pitch: 0.35 },
-  { id: 'p_cooper', first: 'Cooper', last: 'Woollen', number: '50', position: '1B', hit: 0.64, pitch: 0.6 },
-  { id: 'p_carsyn', first: 'Carsyn', last: 'Griffith', number: '26', position: 'C', hit: 0.53, pitch: 0.5 },
+  { id: 'p_lucas', first: 'Lucas', last: 'Kloster', number: '13', position: 'SS', hit: 0.62, pitch: 0.4 },
+  { id: 'p_cooper', first: 'Cooper', last: 'Woollen', number: '50', position: '1B', hit: 0.64, pitch: 0.63 },
+  { id: 'p_carsyn', first: 'Carsyn', last: 'Griffith', number: '26', position: 'C', hit: 0.53, pitch: 0.55 },
   { id: 'p_matthew', first: 'Matthew', last: 'Hume', number: '76', position: 'EH', hit: 0.72, pitch: 0.2 },
   { id: 'p_knox', first: 'Knox', last: 'Kennedy', number: '8', position: '2B', hit: 0.42, pitch: 0.5, lastGamesOnly: 2 },
-  { id: 'p_weedon', first: 'Weedon', last: 'Hainline', number: '10', position: 'P', hit: 0.58, pitch: 0.66 },
-  { id: 'p_landyn', first: 'Landyn', last: 'Durbin', position: 'RF', hit: 0.54, pitch: 0.5 },
-  { id: 'p_ben', first: 'Ben', last: 'Boncek', number: '99', position: 'LF', hit: 0.45, pitch: 0.45 },
+  { id: 'p_weedon', first: 'Weedon', last: 'Hainline', number: '10', position: 'P', hit: 0.58, pitch: 0.7 },
+  { id: 'p_landyn', first: 'Landyn', last: 'Durbin', position: 'RF', hit: 0.54, pitch: 0.52 },
+  { id: 'p_ben', first: 'Ben', last: 'Boncek', number: '99', position: 'LF', hit: 0.45, pitch: 0.48 },
 ];
 
 type SeedGame = {
   id: Id;
   opponent: string;
   isAway: boolean;
-  /** Days relative to today (negative = past). */
-  dayOffset: number;
+  /**
+   * Saturdays relative to today: negative = that many Saturdays back from the
+   * most recent past Saturday (-0 is the most recent), +1 = the next Saturday.
+   */
+  weekOffset: number;
   hour: number;
   minute: number;
   status: Game['status'];
@@ -68,7 +71,7 @@ const GAMES: SeedGame[] = [
     id: 'g_wolves',
     opponent: 'Eureka Wolves',
     isAway: false,
-    dayOffset: -63,
+    weekOffset: -8,
     hour: 9,
     minute: 0,
     status: 'final',
@@ -83,7 +86,7 @@ const GAMES: SeedGame[] = [
     id: 'g_tigers_1',
     opponent: 'Tigers',
     isAway: true,
-    dayOffset: -49,
+    weekOffset: -6,
     hour: 11,
     minute: 0,
     status: 'final',
@@ -98,7 +101,7 @@ const GAMES: SeedGame[] = [
     id: 'g_rockhounds',
     opponent: 'Rockhounds',
     isAway: false,
-    dayOffset: -28,
+    weekOffset: -3,
     hour: 13,
     minute: 0,
     status: 'final',
@@ -113,7 +116,7 @@ const GAMES: SeedGame[] = [
     id: 'g_fury',
     opponent: 'Fenton Fury',
     isAway: false,
-    dayOffset: -21,
+    weekOffset: -2,
     hour: 10,
     minute: 0,
     status: 'final',
@@ -128,7 +131,7 @@ const GAMES: SeedGame[] = [
     id: 'g_redbirds',
     opponent: 'Redbirds Red',
     isAway: true,
-    dayOffset: -7,
+    weekOffset: 0,
     hour: 9,
     minute: 0,
     status: 'final',
@@ -143,22 +146,22 @@ const GAMES: SeedGame[] = [
     id: 'g_bandits',
     opponent: 'Midland Bandits',
     isAway: true,
-    dayOffset: -7,
+    weekOffset: 0,
     hour: 12,
     minute: 30,
     status: 'final',
     score: { us: 19, them: 5 },
     notes: '3 inning game, took the lead in the 1st inning, 1 HR.',
     innings: 3,
-    pitchers: ['p_owen', 'p_landyn'],
+    pitchers: ['p_owen', 'p_cooper'],
     switchAfter: 2,
-    tempo: { us: 9, them: 4 },
+    tempo: { us: 11, them: 4 },
   },
   {
     id: 'g_tigers_2',
     opponent: 'Tigers',
     isAway: true,
-    dayOffset: 4,
+    weekOffset: 1,
     hour: 14,
     minute: 30,
     status: 'scheduled',
@@ -168,6 +171,21 @@ const GAMES: SeedGame[] = [
 
 function at(now: Date, dayOffset: number, hour: number, minute: number): Date {
   return setSeconds(setMinutes(setHours(addDays(now, dayOffset), hour), minute), 0);
+}
+
+/**
+ * Youth ball is played on Saturdays. Past games sit on the most recent past
+ * Saturday (weekOffset 0) and earlier ones; the upcoming game is next Saturday.
+ */
+function saturdayOffset(now: Date, weekOffset: number): number {
+  const day = now.getDay(); // 0 = Sunday … 6 = Saturday
+  const daysSinceSaturday = (day + 1) % 7; // Sat → 0, Sun → 1, … Fri → 6
+  if (weekOffset > 0) {
+    const daysUntilNext = 7 - daysSinceSaturday; // always in the future, 1..7
+    return daysUntilNext + (weekOffset - 1) * 7;
+  }
+  // weekOffset 0 → most recent past Saturday; today counts only if it is Saturday.
+  return -daysSinceSaturday + weekOffset * 7;
 }
 
 function opponentLineup(prefix: string): OpponentBatter[] {
@@ -241,7 +259,7 @@ export function buildDemoData(now: Date = new Date()): AppData {
   const pastCount = GAMES.filter((g) => g.status === 'final').length;
 
   GAMES.forEach((sg, gameIndex) => {
-    const startsAt = at(now, sg.dayOffset, sg.hour, sg.minute);
+    const startsAt = at(now, saturdayOffset(now, sg.weekOffset), sg.hour, sg.minute);
     const gamesFromEnd = pastCount - gameIndex; // 1 for the most recent past game
     const lineup = defaultLineup.filter((slot) => {
       const sp = ROSTER.find((r) => r.id === slot.playerId)!;

@@ -1,21 +1,41 @@
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
-import { Text } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
-import AppHeader from '@/components/AppHeader';
-import Screen from '@/components/Screen';
-import { colors, type } from '@/constants/theme';
-import { gameTitle } from '@/lib/format';
-import { useGame, useTeam } from '@/lib/store';
+import GameForm, { useGameForm } from '@/components/GameForm';
+import ModalScreen from '@/components/ModalScreen';
+import { Button } from '@/components/ui';
+import { useStore } from '@/lib/store';
 
+/** Modal form that schedules a new game for the team. */
 export default function NewGameScreen() {
-  const { teamId, gameId } = useLocalSearchParams<{ teamId?: string; gameId?: string }>();
-  const team = useTeam(teamId);
-  const game = useGame(gameId);
+  const { teamId } = useLocalSearchParams<{ teamId: string }>();
+  const router = useRouter();
+  const { addGame } = useStore();
+  const form = useGameForm();
+
+  const close = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace(`/team/${teamId}`);
+  };
+
+  const save = () => {
+    const input = form.submit();
+    if (!input || !teamId) return;
+    addGame(teamId, input);
+    close();
+  };
+
   return (
-    <Screen>
-      <AppHeader context={team?.name ?? "Team"} />
-      <Text style={[type.body, { padding: 20, color: colors.textMuted }]}>NewGameScreen — coming soon</Text>
-    </Screen>
+    <ModalScreen title="New Game" actionLabel="Save" onAction={save} onClose={close}>
+      <GameForm form={form} />
+      <View style={styles.actions}>
+        <Button title="Save Game" onPress={save} />
+      </View>
+    </ModalScreen>
   );
 }
+
+const styles = StyleSheet.create({
+  actions: { marginTop: 8, gap: 12 },
+});

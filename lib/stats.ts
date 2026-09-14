@@ -114,7 +114,7 @@ export type ScorebookRow<T> = {
 
 /**
  * Scorebook grid for one side of a game. `batters` should be the game's
- * batting order; players who batted but are no longer in the order are appended.
+ * batting order; at-bats by batters no longer in the order are not shown.
  */
 export function scorebook<T extends { id: Id }>(
   atBats: AtBat[],

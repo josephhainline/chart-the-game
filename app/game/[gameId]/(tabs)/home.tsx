@@ -1,21 +1,15 @@
-import { useLocalSearchParams } from 'expo-router';
+import { Redirect, useLocalSearchParams } from 'expo-router';
 import React from 'react';
-import { Text } from 'react-native';
 
-import AppHeader from '@/components/AppHeader';
-import Screen from '@/components/Screen';
-import { colors, type } from '@/constants/theme';
-import { gameTitle } from '@/lib/format';
-import { useGame, useTeam } from '@/lib/store';
+import { useGame } from '@/lib/store';
 
+/**
+ * The Home tab leaves the game: the tab layout intercepts the tab press and
+ * navigates to the team's Home. This screen only handles direct navigation
+ * (a typed URL or a stale link) and sends the coach to the same place.
+ */
 export default function GameHomeTab() {
-  const { teamId, gameId } = useLocalSearchParams<{ teamId?: string; gameId?: string }>();
-  const team = useTeam(teamId);
+  const { gameId } = useLocalSearchParams<{ gameId: string }>();
   const game = useGame(gameId);
-  return (
-    <Screen>
-      <AppHeader context={game ? gameTitle(game) : "Game"} contextColor={colors.orange} />
-      <Text style={[type.body, { padding: 20, color: colors.textMuted }]}>GameHomeTab — coming soon</Text>
-    </Screen>
-  );
+  return <Redirect href={game ? `/team/${game.teamId}` : '/'} />;
 }

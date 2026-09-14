@@ -48,7 +48,7 @@ export function gameTitle(game: Pick<Game, 'opponent' | 'isAway' | 'startsAt'>):
   return `${opponentLabel(game)}, ${monthName(d)} ${d.getDate()} ${timeShort(d)}`;
 }
 
-/** "Next Game in 4 Days", "Today", "Tomorrow", "In 3 Weeks", or "" when in the past. */
+/** "Next Game in 4 Days", "Game Day: Today", "Next Game: Tomorrow", "Next Game in 3 Weeks", or "" when in the past. */
 export function upcomingLabel(iso: string, now: Date = new Date()): string {
   const days = differenceInCalendarDays(new Date(iso), now);
   if (days < 0) return '';

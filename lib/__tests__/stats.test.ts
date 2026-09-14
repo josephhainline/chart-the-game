@@ -1,0 +1,416 @@
+import { describe, expect, it } from '@jest/globals';
+
+import { buildDemoData } from '../seed';
+import {
+  ZERO,
+  addResult,
+  gameHitting,
+  gamePitching,
+  hittingFor,
+  pitcherResult,
+  pitchingFor,
+  rankByHitting,
+  scorebook,
+  score,
+  seasonTable,
+  totals,
+} from '../stats';
+import type { AtBat, Game, Half, Id, Player, Result, Side, Team } from '../types';
+
+let seq = 0;
+
+/** Minimal at-bat factory: everything not given defaults to a sensible 'us' at-bat in the 1st. */
+function ab(over: Partial<AtBat> & { batterId: Id; result: Result }): AtBat {
+  seq += 1;
+  return {
+    id: `ab${seq}`,
+    gameId: 'g1',
+    side: 'us',
+    inning: 1,
+    half: 'top',
+    outcomeId: over.result === 'W' ? 'hit' : 'k_swinging',
+    recordedAt: '2026-09-07T14:00:00.000Z',
+    ...over,
+  };
+}
+
+function player(id: Id, teamId: Id, firstName: string, lastName: string): Player {
+  return { id, teamId, firstName, lastName };
+}
+
+function game(id: Id, teamId: Id): Game {
+  return {
+    id,
+    teamId,
+    opponent: 'X',
+    isAway: true,
+    startsAt: '2026-09-07T14:00:00.000Z',
+    status: 'final',
+    lineup: [],
+    opponentLineup: [],
+    inning: 1,
+    half: 'top',
+    ourNextBatter: 0,
+    theirNextBatter: 0,
+    score: { us: 0, them: 0 },
+    createdAt: '2026-09-01T14:00:00.000Z',
+  };
+}
+
+describe('score / addResult / pitcherResult', () => {
+  it('score is W minus L', () => {
+    expect(score({ w: 5, l: 2 })).toBe(3);
+    expect(score({ w: 2, l: 5 })).toBe(-3);
+    expect(score(ZERO)).toBe(0);
+  });
+
+  it('addResult returns a new record without mutating the input', () => {
+    const start = { w: 1, l: 1 };
+    expect(addResult(start, true)).toEqual({ w: 2, l: 1 });
+    expect(addResult(start, false)).toEqual({ w: 1, l: 2 });
+    expect(start).toEqual({ w: 1, l: 1 });
+    expect(ZERO).toEqual({ w: 0, l: 0 });
+  });
+
+  it('pitcherResult is the inverse of the batter result', () => {
+    expect(pitcherResult(ab({ batterId: 'b', result: 'W' }))).toBe('L');
+    expect(pitcherResult(ab({ batterId: 'b', result: 'L' }))).toBe('W');
+  });
+});
+
+describe('hittingFor', () => {
+  const atBats: AtBat[] = [
+    ab({ batterId: 'p1', result: 'W' }),
+    ab({ batterId: 'p1', result: 'L' }),
+    ab({ batterId: 'p1', result: 'W', gameId: 'g2' }),
+    ab({ batterId: 'p2', result: 'W' }),
+    // An opposing batter whose id happens to collide must not count as our hitting.
+    ab({ batterId: 'p1', result: 'W', side: 'them', pitcherId: 'p2' }),
+  ];
+
+  it('counts only our at-bats for that batter across all games', () => {
+    expect(hittingFor(atBats, 'p1')).toEqual({ w: 2, l: 1 });
+    expect(hittingFor(atBats, 'p2')).toEqual({ w: 1, l: 0 });
+  });
+
+  it('limits to one game when a gameId is given', () => {
+    expect(hittingFor(atBats, 'p1', 'g1')).toEqual({ w: 1, l: 1 });
+    expect(hittingFor(atBats, 'p1', 'g2')).toEqual({ w: 1, l: 0 });
+    expect(hittingFor(atBats, 'p1', 'nope')).toEqual(ZERO);
+  });
+
+  it('is zero for a player with no at-bats', () => {
+    expect(hittingFor(atBats, 'p99')).toEqual(ZERO);
+    expect(hittingFor([], 'p1')).toEqual(ZERO);
+  });
+});
+
+describe('pitchingFor', () => {
+  const atBats: AtBat[] = [
+    // Their batter lost -> our pitcher won.
+    ab({ batterId: 'ob1', result: 'L', side: 'them', pitcherId: 'p1' }),
+    ab({ batterId: 'ob2', result: 'L', side: 'them', pitcherId: 'p1' }),
+    // Their batter won -> our pitcher lost.
+    ab({ batterId: 'ob3', result: 'W', side: 'them', pitcherId: 'p1' }),
+    ab({ batterId: 'ob1', result: 'W', side: 'them', pitcherId: 'p1', gameId: 'g2' }),
+    ab({ batterId: 'ob1', result: 'L', side: 'them', pitcherId: 'p2' }),
+    // Our own at-bat with a stray pitcherId must never count as pitching.
+    ab({ batterId: 'p1', result: 'L', side: 'us', pitcherId: 'p1' }),
+  ];
+
+  it('inverts the batter result: batter L is pitcher W', () => {
+    expect(pitchingFor(atBats, 'p1')).toEqual({ w: 2, l: 2 });
+    expect(pitchingFor(atBats, 'p2')).toEqual({ w: 1, l: 0 });
+  });
+
+  it('limits to one game when a gameId is given', () => {
+    expect(pitchingFor(atBats, 'p1', 'g1')).toEqual({ w: 2, l: 1 });
+    expect(pitchingFor(atBats, 'p1', 'g2')).toEqual({ w: 0, l: 1 });
+  });
+
+  it('ignores at-bats where the player was not the pitcher', () => {
+    expect(pitchingFor(atBats, 'ob1')).toEqual(ZERO);
+    expect(pitchingFor(atBats, 'p99')).toEqual(ZERO);
+  });
+});
+
+describe('gameHitting / gamePitching', () => {
+  const atBats: AtBat[] = [
+    ab({ batterId: 'p1', result: 'W' }),
+    ab({ batterId: 'p2', result: 'L' }),
+    ab({ batterId: 'p3', result: 'W' }),
+    ab({ batterId: 'ob1', result: 'L', side: 'them', pitcherId: 'p1' }),
+    ab({ batterId: 'ob2', result: 'W', side: 'them', pitcherId: 'p1' }),
+    ab({ batterId: 'ob3', result: 'L', side: 'them', pitcherId: 'p9' }),
+    ab({ batterId: 'p1', result: 'L', gameId: 'g2' }),
+    ab({ batterId: 'ob1', result: 'W', side: 'them', pitcherId: 'p1', gameId: 'g2' }),
+  ];
+
+  it('gameHitting totals every at-bat where we batted in that game', () => {
+    expect(gameHitting(atBats, 'g1')).toEqual({ w: 2, l: 1 });
+    expect(gameHitting(atBats, 'g2')).toEqual({ w: 0, l: 1 });
+    expect(gameHitting(atBats, 'g3')).toEqual(ZERO);
+  });
+
+  it('gamePitching totals their at-bats from the pitcher perspective regardless of who pitched', () => {
+    expect(gamePitching(atBats, 'g1')).toEqual({ w: 2, l: 1 });
+    expect(gamePitching(atBats, 'g2')).toEqual({ w: 0, l: 1 });
+    expect(gamePitching(atBats, 'g3')).toEqual(ZERO);
+  });
+});
+
+describe('seasonTable', () => {
+  const team: Team = {
+    id: 't1',
+    name: 'Bears',
+    season: '2026',
+    // Only two of the five roster players are in the default lineup; 'ghost' is not on the roster.
+    defaultLineup: [{ playerId: 'p_zed', position: 'P' }, { playerId: 'ghost' }, { playerId: 'p_mia' }, { playerId: 'p_zed' }],
+    createdAt: '2026-06-01T00:00:00.000Z',
+  };
+  const players: Player[] = [
+    player('p_amy', 't1', 'Amy', 'Young'),
+    player('p_bob', 't1', 'Bob', 'Adams'),
+    player('p_mia', 't1', 'Mia', 'Kent'),
+    player('p_zed', 't1', 'Zed', 'Baker'),
+    player('p_cal', 't1', 'Cal', 'Adams'),
+    player('p_other', 't2', 'Other', 'Team'),
+  ];
+  const games: Game[] = [game('g1', 't1'), game('g2', 't1'), game('g_other', 't2')];
+  const atBats: AtBat[] = [
+    ab({ batterId: 'p_zed', result: 'W' }),
+    ab({ batterId: 'p_zed', result: 'W', gameId: 'g2' }),
+    ab({ batterId: 'p_zed', result: 'L', gameId: 'g2' }),
+    ab({ batterId: 'p_mia', result: 'L' }),
+    ab({ batterId: 'p_mia', result: 'L' }),
+    ab({ batterId: 'p_bob', result: 'W' }),
+    ab({ batterId: 'p_bob', result: 'L' }),
+    // Belongs to another team's game: must not count even though the batter id matches.
+    ab({ batterId: 'p_amy', result: 'W', gameId: 'g_other' }),
+    ab({ batterId: 'ob1', result: 'L', side: 'them', pitcherId: 'p_zed' }),
+    ab({ batterId: 'ob2', result: 'L', side: 'them', pitcherId: 'p_zed', gameId: 'g2' }),
+    ab({ batterId: 'ob3', result: 'W', side: 'them', pitcherId: 'p_amy' }),
+    ab({ batterId: 'ob4', result: 'L', side: 'them', pitcherId: 'p_amy', gameId: 'g_other' }),
+  ];
+
+  it('orders the default lineup first (deduped, skipping unknown ids), then the rest by last name', () => {
+    const rows = seasonTable(team, players, games, atBats, 'hitting');
+    expect(rows.map((r) => r.player.id)).toEqual(['p_zed', 'p_mia', 'p_bob', 'p_cal', 'p_amy']);
+  });
+
+  it('excludes players from other teams', () => {
+    const rows = seasonTable(team, players, games, atBats, 'hitting');
+    expect(rows.some((r) => r.player.id === 'p_other')).toBe(false);
+  });
+
+  it('hitting mode: W/L per player, score null when there is no data', () => {
+    const rows = seasonTable(team, players, games, atBats, 'hitting');
+    const byId = Object.fromEntries(rows.map((r) => [r.player.id, r]));
+    expect(byId.p_zed.wl).toEqual({ w: 2, l: 1 });
+    expect(byId.p_zed.score).toBe(1);
+    expect(byId.p_mia.wl).toEqual({ w: 0, l: 2 });
+    expect(byId.p_mia.score).toBe(-2);
+    expect(byId.p_bob.wl).toEqual({ w: 1, l: 1 });
+    expect(byId.p_bob.score).toBe(0);
+    expect(byId.p_cal.wl).toEqual(ZERO);
+    expect(byId.p_cal.score).toBeNull();
+    // Amy's only at-bat was in another team's game.
+    expect(byId.p_amy.wl).toEqual(ZERO);
+    expect(byId.p_amy.score).toBeNull();
+  });
+
+  it('pitching mode: uses the pitcher perspective and only this team’s games', () => {
+    const rows = seasonTable(team, players, games, atBats, 'pitching');
+    const byId = Object.fromEntries(rows.map((r) => [r.player.id, r]));
+    expect(byId.p_zed.wl).toEqual({ w: 2, l: 0 });
+    expect(byId.p_zed.score).toBe(2);
+    expect(byId.p_amy.wl).toEqual({ w: 0, l: 1 });
+    expect(byId.p_amy.score).toBe(-1);
+    expect(byId.p_mia.score).toBeNull();
+  });
+
+  it('totals sums every row', () => {
+    const hitting = seasonTable(team, players, games, atBats, 'hitting');
+    expect(totals(hitting)).toEqual({ w: 3, l: 4 });
+    const pitching = seasonTable(team, players, games, atBats, 'pitching');
+    expect(totals(pitching)).toEqual({ w: 2, l: 1 });
+    expect(totals([])).toEqual(ZERO);
+  });
+});
+
+describe('scorebook', () => {
+  const order = [{ id: 'p1' }, { id: 'p2' }, { id: 'p3' }];
+  const atBats: AtBat[] = [
+    ab({ batterId: 'p1', result: 'W', inning: 1 }),
+    ab({ batterId: 'p2', result: 'L', inning: 1 }),
+    ab({ batterId: 'p3', result: 'W', inning: 2 }),
+    ab({ batterId: 'p1', result: 'L', inning: 3 }),
+    // Same batter twice in one inning (batted around).
+    ab({ batterId: 'p2', result: 'W', inning: 3 }),
+    ab({ batterId: 'p2', result: 'W', inning: 3 }),
+    // Not in the order any more.
+    ab({ batterId: 'p_gone', result: 'W', inning: 2 }),
+    // Other side / other game must be ignored.
+    ab({ batterId: 'p1', result: 'W', inning: 5, side: 'them', pitcherId: 'p3' }),
+    ab({ batterId: 'p1', result: 'W', inning: 7, gameId: 'g2' }),
+  ];
+
+  it('spans innings 1..max inning seen for that game and side', () => {
+    const { innings } = scorebook(atBats, 'g1', 'us', order);
+    expect(innings).toEqual([1, 2, 3]);
+  });
+
+  it('pads to minInnings when the game has fewer innings', () => {
+    expect(scorebook(atBats, 'g1', 'us', order, 5).innings).toEqual([1, 2, 3, 4, 5]);
+    expect(scorebook([], 'g1', 'us', order).innings).toEqual([1]);
+    expect(scorebook([], 'g1', 'us', order, 6).innings).toEqual([1, 2, 3, 4, 5, 6]);
+  });
+
+  it('does not truncate when minInnings is smaller than the innings played', () => {
+    expect(scorebook(atBats, 'g1', 'us', order, 2).innings).toEqual([1, 2, 3]);
+  });
+
+  it('keeps rows in batting order with per-inning cells and a W/L total', () => {
+    const { rows } = scorebook(atBats, 'g1', 'us', order);
+    expect(rows.map((r) => r.batter.id)).toEqual(['p1', 'p2', 'p3']);
+    expect(rows[0].innings.map((cell) => cell.map((x) => x.result))).toEqual([['W'], [], ['L']]);
+    expect(rows[0].wl).toEqual({ w: 1, l: 1 });
+    expect(rows[1].innings.map((cell) => cell.map((x) => x.result))).toEqual([['L'], [], ['W', 'W']]);
+    expect(rows[1].wl).toEqual({ w: 2, l: 1 });
+    expect(rows[2].innings.map((cell) => cell.length)).toEqual([0, 1, 0]);
+    expect(rows[2].wl).toEqual({ w: 1, l: 0 });
+  });
+
+  it('gives every batter a full row of empty cells when nothing was recorded', () => {
+    const { rows } = scorebook([], 'g1', 'us', order, 3);
+    expect(rows).toHaveLength(3);
+    for (const row of rows) {
+      expect(row.innings).toEqual([[], [], []]);
+      expect(row.wl).toEqual(ZERO);
+    }
+  });
+
+  it('ignores at-bats by batters who are not in the given order (no crash, no row)', () => {
+    // NOTE: the doc comment on scorebook() says such batters are "appended", but the
+    // function is generic over the batter type and cannot construct one, so they are
+    // dropped. Callers that want them shown must include them in `batters` themselves.
+    const { rows } = scorebook(atBats, 'g1', 'us', order);
+    expect(rows.some((r) => r.batter.id === 'p_gone')).toBe(false);
+    expect(rows).toHaveLength(3);
+  });
+
+  it('with an empty batting order returns innings but no rows', () => {
+    const { innings, rows } = scorebook(atBats, 'g1', 'us', []);
+    expect(innings).toEqual([1, 2, 3]);
+    expect(rows).toEqual([]);
+  });
+
+  it('for side "them" the row totals are from our pitcher’s perspective', () => {
+    const theirs = [{ id: 'ob1' }, { id: 'ob2' }];
+    const theirAtBats: AtBat[] = [
+      ab({ batterId: 'ob1', result: 'L', side: 'them', pitcherId: 'p1', inning: 1 }),
+      ab({ batterId: 'ob1', result: 'L', side: 'them', pitcherId: 'p1', inning: 2 }),
+      ab({ batterId: 'ob2', result: 'W', side: 'them', pitcherId: 'p1', inning: 1 }),
+      ab({ batterId: 'p1', result: 'W', side: 'us', inning: 4 }),
+    ];
+    const { innings, rows } = scorebook(theirAtBats, 'g1', 'them', theirs);
+    // Our 4th-inning at-bat is the other side, so it does not extend the grid.
+    expect(innings).toEqual([1, 2]);
+    expect(rows[0].wl).toEqual({ w: 2, l: 0 });
+    expect(rows[1].wl).toEqual({ w: 0, l: 1 });
+    // Cells still hold the raw at-bats (batter perspective) so the UI can invert the letter.
+    expect(rows[0].innings[0][0].result).toBe('L');
+  });
+});
+
+describe('rankByHitting', () => {
+  const gameIds = new Set<Id>(['g1', 'g2']);
+  const atBats: AtBat[] = [
+    ab({ batterId: 'a', result: 'W' }),
+    ab({ batterId: 'a', result: 'W' }),
+    ab({ batterId: 'a', result: 'L' }), // a = +1
+    ab({ batterId: 'b', result: 'W', gameId: 'g2' }),
+    ab({ batterId: 'b', result: 'W', gameId: 'g2' }), // b = +2
+    ab({ batterId: 'c', result: 'L' }),
+    ab({ batterId: 'c', result: 'L' }), // c = -2
+    ab({ batterId: 'd', result: 'W' }),
+    ab({ batterId: 'd', result: 'L' }), // d = 0
+    // e has 1 W in a game that is not in the set: should count as 0.
+    ab({ batterId: 'e', result: 'W', gameId: 'g_other' }),
+    ab({ batterId: 'e', result: 'W', gameId: 'g_other' }),
+    // Pitching results for 'c' must not affect hitting rank.
+    ab({ batterId: 'ob1', result: 'L', side: 'them', pitcherId: 'c' }),
+    ab({ batterId: 'ob2', result: 'L', side: 'them', pitcherId: 'c' }),
+    ab({ batterId: 'ob3', result: 'L', side: 'them', pitcherId: 'c' }),
+  ];
+
+  it('orders best score first', () => {
+    expect(rankByHitting(['a', 'b', 'c', 'd'], atBats, gameIds)).toEqual(['b', 'a', 'd', 'c']);
+  });
+
+  it('keeps the given order for ties (stable), including players with no data', () => {
+    // d (0), e (0 within the set), f (no at-bats) all tie at 0 and keep their input order.
+    expect(rankByHitting(['f', 'd', 'e'], atBats, gameIds)).toEqual(['f', 'd', 'e']);
+    expect(rankByHitting(['e', 'f', 'd'], atBats, gameIds)).toEqual(['e', 'f', 'd']);
+    expect(rankByHitting(['c', 'f', 'd', 'a'], atBats, gameIds)).toEqual(['a', 'f', 'd', 'c']);
+  });
+
+  it('only counts games in the given set', () => {
+    expect(rankByHitting(['a', 'e'], atBats, new Set(['g_other']))).toEqual(['e', 'a']);
+    expect(rankByHitting(['a', 'b'], atBats, new Set(['g1']))).toEqual(['a', 'b']);
+  });
+
+  it('does not mutate the input and returns the same ids', () => {
+    const ids = ['c', 'a', 'b'];
+    const ranked = rankByHitting(ids, atBats, gameIds);
+    expect(ids).toEqual(['c', 'a', 'b']);
+    expect([...ranked].sort()).toEqual(['a', 'b', 'c']);
+  });
+});
+
+describe('with the demo data', () => {
+  const data = buildDemoData(new Date('2026-09-14T12:00:00'));
+  const team = data.teams[0];
+  const weBat = (g: Game, half: Half): Side => ((g.isAway ? half === 'top' : half === 'bottom') ? 'us' : 'them');
+
+  it('season hitting totals equal the sum of every game’s hitting line', () => {
+    const rows = seasonTable(team, data.players, data.games, data.atBats, 'hitting');
+    const sum = data.games.map((g) => gameHitting(data.atBats, g.id)).reduce((a, b) => ({ w: a.w + b.w, l: a.l + b.l }), ZERO);
+    expect(totals(rows)).toEqual(sum);
+    expect(sum.w + sum.l).toBe(data.atBats.filter((x) => x.side === 'us').length);
+  });
+
+  it('season pitching totals equal the sum of every game’s pitching line', () => {
+    const rows = seasonTable(team, data.players, data.games, data.atBats, 'pitching');
+    const sum = data.games.map((g) => gamePitching(data.atBats, g.id)).reduce((a, b) => ({ w: a.w + b.w, l: a.l + b.l }), ZERO);
+    expect(totals(rows)).toEqual(sum);
+    expect(sum.w + sum.l).toBe(data.atBats.filter((x) => x.side === 'them').length);
+  });
+
+  it('table rows follow the default lineup order', () => {
+    const rows = seasonTable(team, data.players, data.games, data.atBats, 'hitting');
+    expect(rows.map((r) => r.player.id)).toEqual(team.defaultLineup.map((s) => s.playerId));
+  });
+
+  it('the scorebook for a final game covers every inning and every at-bat', () => {
+    for (const g of data.games.filter((x) => x.status === 'final')) {
+      const ours = scorebook(data.atBats, g.id, 'us', g.lineup.map((s) => ({ id: s.playerId })));
+      const theirs = scorebook(data.atBats, g.id, 'them', g.opponentLineup);
+      const cells = (rows: { innings: AtBat[][] }[]) => rows.flatMap((r) => r.innings.flat());
+      expect(cells(ours.rows)).toHaveLength(data.atBats.filter((x) => x.gameId === g.id && x.side === 'us').length);
+      expect(cells(theirs.rows)).toHaveLength(data.atBats.filter((x) => x.gameId === g.id && x.side === 'them').length);
+      expect(Math.max(ours.innings.length, theirs.innings.length)).toBe(g.inning);
+      for (const x of cells(ours.rows)) expect(weBat(g, x.half)).toBe('us');
+      for (const x of cells(theirs.rows)) expect(weBat(g, x.half)).toBe('them');
+    }
+  });
+
+  it('rankByHitting agrees with the season table scores', () => {
+    const ids = team.defaultLineup.map((s) => s.playerId);
+    const gameIds = new Set(data.games.map((g) => g.id));
+    const ranked = rankByHitting(ids, data.atBats, gameIds);
+    const scores = ranked.map((id) => score(hittingFor(data.atBats, id)));
+    for (let i = 1; i < scores.length; i++) expect(scores[i - 1]).toBeGreaterThanOrEqual(scores[i]);
+    expect(ranked).toHaveLength(ids.length);
+  });
+});

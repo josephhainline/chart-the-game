@@ -115,13 +115,17 @@ export function StoreProvider({ children, initialData }: { children: React.React
   const [data, setData] = useState<AppData>(initialData ?? EMPTY_DATA);
   const [ready, setReady] = useState(Boolean(initialData));
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Mirror of the latest document so back-to-back actions in one tick see each other's results. */
+  const dataRef = useRef<AppData>(data);
 
   useEffect(() => {
     if (initialData) return;
     let cancelled = false;
     readPersisted().then((saved) => {
       if (cancelled) return;
-      setData(saved ?? buildDemoData());
+      const next = saved ?? buildDemoData();
+      dataRef.current = next;
+      setData(next);
       setReady(true);
     });
     return () => {
@@ -140,7 +144,9 @@ export function StoreProvider({ children, initialData }: { children: React.React
 
   /** Apply a pure update to the document. */
   const update = useCallback((fn: (d: AppData) => AppData) => {
-    setData((d) => fn(d));
+    const next = fn(dataRef.current);
+    dataRef.current = next;
+    setData(next);
   }, []);
 
   const updateGameIn = useCallback(
@@ -241,7 +247,7 @@ export function StoreProvider({ children, initialData }: { children: React.React
         })),
 
       addGame: (teamId, input) => {
-        const team = data.teams.find((t) => t.id === teamId);
+        const team = dataRef.current.teams.find((t) => t.id === teamId);
         const lineup = team ? [...team.defaultLineup] : [];
         const pitcher = lineup.find((s) => s.position === 'P')?.playerId;
         const game: Game = {
@@ -309,7 +315,7 @@ export function StoreProvider({ children, initialData }: { children: React.React
         ),
 
       recordAtBat: (gameId, outcomeId) => {
-        const game = data.games.find((g) => g.id === gameId);
+        const game = dataRef.current.games.find((g) => g.id === gameId);
         if (!game) return undefined;
         const side = battingSide(game);
         const order = side === 'us' ? game.lineup : game.opponentLineup;
@@ -346,7 +352,7 @@ export function StoreProvider({ children, initialData }: { children: React.React
       },
 
       undoLastAtBat: (gameId) => {
-        const last = [...data.atBats].reverse().find((ab) => ab.gameId === gameId);
+        const last = [...dataRef.current.atBats].reverse().find((ab) => ab.gameId === gameId);
         if (!last) return undefined;
         update((d) => ({
           ...d,
@@ -356,7 +362,13 @@ export function StoreProvider({ children, initialData }: { children: React.React
             const order = last.side === 'us' ? g.lineup : g.opponentLineup;
             const len = Math.max(1, order.length);
             const current = last.side === 'us' ? g.ourNextBatter : g.theirNextBatter;
-            const rolledBack = (current - 1 + len) % len;
+            // The undone batter is due up again. Fall back to stepping back one
+            // slot if they have since left the order.
+            const undoneIndex =
+              last.side === 'us'
+                ? g.lineup.findIndex((s) => s.playerId === last.batterId)
+                : g.opponentLineup.findIndex((b) => b.id === last.batterId);
+            const rolledBack = undoneIndex >= 0 ? undoneIndex : (current - 1 + len) % len;
             return {
               ...g,
               inning: last.inning,

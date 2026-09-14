@@ -1,21 +1,124 @@
-import { useLocalSearchParams } from 'expo-router';
-import React from 'react';
-import { Text } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useMemo, useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 
-import AppHeader from '@/components/AppHeader';
-import Screen from '@/components/Screen';
-import { colors, type } from '@/constants/theme';
-import { gameTitle } from '@/lib/format';
-import { useGame, useTeam } from '@/lib/store';
+import ModalScreen from '@/components/ModalScreen';
+import PlayerForm, { isPlayerFormValid, playerFormValue, PlayerFormValue } from '@/components/PlayerForm';
+import { Button, ScoreText } from '@/components/ui';
+import { colors, fonts, radii, type } from '@/constants/theme';
+import { confirmAction } from '@/lib/confirm';
+import { playerLabel } from '@/lib/format';
+import { hittingFor, pitchingFor, score, WL } from '@/lib/stats';
+import { useStore, useTeam } from '@/lib/store';
 
+/** Modal: edit a player's name and number, see their season line, or remove them. */
 export default function PlayerScreen() {
-  const { teamId, gameId } = useLocalSearchParams<{ teamId?: string; gameId?: string }>();
+  const { teamId, playerId } = useLocalSearchParams<{ teamId: string; playerId: string }>();
+  const router = useRouter();
   const team = useTeam(teamId);
-  const game = useGame(gameId);
+  const { data, updatePlayer, removePlayer } = useStore();
+  const player = data.players.find((p) => p.id === playerId);
+
+  const [value, setValue] = useState<PlayerFormValue>(() => (player ? playerFormValue(player) : { firstName: '', lastName: '', number: '' }));
+  const valid = isPlayerFormValid(value);
+
+  // Season line: only at-bats from THIS team's games count.
+  const season = useMemo(() => {
+    const gameIds = new Set(data.games.filter((g) => g.teamId === teamId).map((g) => g.id));
+    const atBats = data.atBats.filter((ab) => gameIds.has(ab.gameId));
+    return {
+      hitting: hittingFor(atBats, playerId ?? ''),
+      pitching: pitchingFor(atBats, playerId ?? ''),
+    };
+  }, [data.games, data.atBats, teamId, playerId]);
+
+  const close = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace(`/team/${teamId}/roster`);
+  };
+
+  if (!team || !player) {
+    // Reached after the player is removed (or a stale link); the sheet is already closing.
+    return <ModalScreen title="Player" onClose={close}>{null}</ModalScreen>;
+  }
+
+  const save = () => {
+    if (!valid) return;
+    updatePlayer(player.id, { firstName: value.firstName, lastName: value.lastName, number: value.number });
+    close();
+  };
+
+  const remove = async () => {
+    const ok = await confirmAction(
+      'Remove player?',
+      `${playerLabel(player)} will be removed from ${team.name} and taken out of the lineup. At-bats already charted are kept.`,
+      'Remove',
+    );
+    if (!ok) return;
+    removePlayer(player.id);
+    close();
+  };
+
   return (
-    <Screen>
-      <AppHeader context={team?.name ?? "Team"} />
-      <Text style={[type.body, { padding: 20, color: colors.textMuted }]}>PlayerScreen — coming soon</Text>
-    </Screen>
+    <ModalScreen title={playerLabel(player)} actionLabel="Save" onAction={save} actionDisabled={!valid} onClose={close}>
+      <PlayerForm value={value} onChange={setValue} onSubmit={save} />
+
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <Text style={type.h3}>This season</Text>
+          <Text style={type.caption}>{team.season} Season</Text>
+        </View>
+        <View style={styles.tableHeader}>
+          <Text style={[styles.cell, styles.rowLabel]} />
+          <Text style={[styles.cell, styles.headerCell, { color: colors.win }]}>W</Text>
+          <Text style={[styles.cell, styles.headerCell, { color: colors.loss }]}>L</Text>
+          <Text style={[styles.cell, styles.headerCell]}>Score</Text>
+        </View>
+        <StatLine label="Hitting" color={colors.primaryDark} wl={season.hitting} />
+        <StatLine label="Pitching" color={colors.pitching} wl={season.pitching} />
+      </View>
+
+      <View style={styles.actions}>
+        <Button title="Remove from team" variant="gray" icon="user-minus" onPress={remove} />
+      </View>
+    </ModalScreen>
   );
 }
+
+function StatLine({ label, color, wl }: { label: string; color: string; wl: WL }) {
+  const has = wl.w + wl.l > 0;
+  return (
+    <View style={styles.tableRow}>
+      <Text style={[styles.cell, styles.rowLabel, { color }]}>{label}</Text>
+      <Text style={[styles.cell, styles.num]}>{wl.w}</Text>
+      <Text style={[styles.cell, styles.num]}>{wl.l}</Text>
+      <ScoreText value={has ? score(wl) : null} style={[styles.cell, styles.scoreCell]} />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  card: {
+    marginTop: 12,
+    borderRadius: radii.lg,
+    backgroundColor: colors.chip,
+    padding: 16,
+    gap: 6,
+  },
+  cardHeader: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 },
+  tableHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.band,
+    paddingBottom: 6,
+  },
+  tableRow: { flexDirection: 'row', alignItems: 'center', minHeight: 36 },
+  cell: { flex: 1, textAlign: 'center' },
+  rowLabel: { flex: 1.6, textAlign: 'left', fontFamily: fonts.bold, fontSize: 17 },
+  headerCell: { ...type.label, fontSize: 13, color: colors.text },
+  num: { ...type.numeric, fontSize: 20, fontFamily: fonts.bold },
+  // No color here: ScoreText picks green / red / gray itself.
+  scoreCell: { fontSize: 20 },
+  actions: { marginTop: 28, gap: 12 },
+});
