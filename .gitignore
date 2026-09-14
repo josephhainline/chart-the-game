@@ -37,3 +37,6 @@ yarn-error.*
 
 
 allfiles.txt
+
+# relocatable web build (scripts/build-web-artifact.mjs)
+dist-artifact/

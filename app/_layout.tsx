@@ -1,10 +1,4 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
-import {
-  Lato_400Regular,
-  Lato_400Regular_Italic,
-  Lato_700Bold,
-  Lato_700Bold_Italic,
-} from '@expo-google-fonts/lato';
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Stack, usePathname, useRouter, useSegments } from 'expo-router';
@@ -36,11 +30,13 @@ const navTheme = {
 };
 
 export default function RootLayout() {
+  // Require the four faces we use directly; importing the package index would
+  // bundle all ten Lato weights.
   const [fontsLoaded, fontError] = useFonts({
-    Lato_400Regular,
-    Lato_400Regular_Italic,
-    Lato_700Bold,
-    Lato_700Bold_Italic,
+    Lato_400Regular: require('@expo-google-fonts/lato/Lato_400Regular.ttf'),
+    Lato_400Regular_Italic: require('@expo-google-fonts/lato/Lato_400Regular_Italic.ttf'),
+    Lato_700Bold: require('@expo-google-fonts/lato/Lato_700Bold.ttf'),
+    Lato_700Bold_Italic: require('@expo-google-fonts/lato/Lato_700Bold_Italic.ttf'),
     ...FontAwesome6.font,
   });
 
