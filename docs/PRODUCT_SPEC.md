@@ -71,8 +71,10 @@ Intro (first launch only)  →  App level  →  Team level  →  Game level
 
 **Intro / onboarding** (`/intro`): blue splash ("Chart The Game / a Coach Rob
 Floyd app"), then three swipeable teaser cards over the coach's photos
-(`assets/images/intro/`, cropped from the prototype screens: the ball field,
-the batter, the chalked home plate):
+(`assets/images/intro/`: the ball field, the batter, the chalked home plate).
+The photos were recovered from the prototype screens by inverting Marvel's
+white overlay (`-level` in ImageMagick) and re-faded lightly (25–46% white)
+so the copy stays legible:
 1. "Are you *really* winning the game of baseball?"
 2. "*Every game* is a series of 1-on-1 battles: **Batter vs. Pitcher**"
 3. "Master the game within the game — and take your baseball journey further
