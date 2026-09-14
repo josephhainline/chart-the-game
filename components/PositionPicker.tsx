@@ -87,14 +87,14 @@ export default function PositionPicker({ visible, playerName, position, onSelect
 
 const styles = StyleSheet.create({
   root: { flex: 1, justifyContent: 'flex-end' },
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(4, 11, 113, 0.35)' },
+  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.scrim },
   sheet: {
     width: '100%',
     maxWidth: PHONE_MAX_WIDTH,
     alignSelf: 'center',
     backgroundColor: colors.surface,
-    borderTopLeftRadius: 18,
-    borderTopRightRadius: 18,
+    borderTopLeftRadius: radii.xl,
+    borderTopRightRadius: radii.xl,
     paddingHorizontal: 20,
     paddingTop: 10,
     gap: 12,
@@ -115,7 +115,7 @@ const styles = StyleSheet.create({
   chipWide: { flexGrow: 1 },
   chipActive: { backgroundColor: colors.primaryDark },
   chipText: { fontFamily: fonts.bold, fontSize: 18, color: colors.text },
-  chipTextActive: { color: '#fff' },
+  chipTextActive: { color: colors.white },
   divider: { height: 1, backgroundColor: colors.divider },
   remove: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48 },
   removeText: { fontFamily: fonts.bold, fontSize: 18, color: colors.loss },

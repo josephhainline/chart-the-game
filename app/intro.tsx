@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   LayoutChangeEvent,
@@ -30,6 +30,8 @@ const FOOTER_HEIGHT = 128;
 export default function IntroScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  // Set by the root layout when a first-time deep link was intercepted.
+  const { next } = useLocalSearchParams<{ next?: string }>();
   const { setOnboarded } = useStore();
   const scrollRef = useRef<ScrollView>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -38,7 +40,9 @@ export default function IntroScreen() {
 
   const enter = () => {
     setOnboarded(true);
-    router.replace('/');
+    // Only in-app paths: never follow a "next" that points off the site.
+    const destination = typeof next === 'string' && next.startsWith('/') && !next.startsWith('//') ? next : '/';
+    router.replace(destination);
   };
 
   const goTo = useCallback(

@@ -95,15 +95,20 @@ shows the team name; back chevron returns to My Teams.
   - final: "Final Score: Won 19 - 5" + notes line, and on the right
     "HITTING: 29W / 7L" and "PITCHING: 9W / 3L" (green when W ≥ L, red
     otherwise), or
-  - upcoming: "Next Game in 4 Days" (or "Today", "Tomorrow", "In 2 weeks") +
-    notes, and the orange **Chart The Game** button (gauge icon) on the
-    nearest upcoming game. Later upcoming games get a smaller outlined button.
+  - upcoming: "Next Game in 4 Days" ("Game Day: Today", "Next Game:
+    Tomorrow", "Next Game in 3 Weeks") + notes, and the orange **Chart The
+    Game** button (gauge icon) on the nearest upcoming game. Later upcoming
+    games read "In N Days" and get a smaller outlined button.
+  The list opens scrolled to the next game (or the latest final one).
   - in progress: "Charting in progress" + running W/L, orange button reads
     **Continue Charting**.
   Floating "+ New Game" button opens the new-game form.
 - Team: "Team Roster:" list sorted by last name, "Name (#num)" + chevron,
-  floating "+ Add Player". Tapping a player opens a player sheet (edit name,
-  number, season hitting/pitching line, Remove player).
+  floating "+ Add Player", and an "Edit team" row under the list (name,
+  season, delete team). Tapping a player opens a player sheet (edit name,
+  number, season hitting/pitching line, Remove player). Removing a player
+  keeps their charted at-bats; season tables show them on a muted "Removed
+  players" row so totals still equal the sum of the game lines.
 - Lineup: "Default Lineup:" numbered rows, position badge (dark blue pill,
   tap to change), move up/down controls (drag handle visual). "Rank by CTG"
   button sorts by season hitting score. Players not in the lineup listed below
@@ -118,30 +123,44 @@ shows the team name; back chevron returns to My Teams.
 Orange sub-header "@ Tigers, Oct 5 2:30pm". The Home tab leaves the game and
 returns to the team's Home.
 - Team: this game's batting order (copied from the default lineup when the game
-  is created), same row style as Lineup with position badges and reorder.
+  is created), same row style as Lineup with position badges and reorder, and
+  "Use default lineup" under the list. Giving a batter the P position makes
+  them the game's pitcher. Reordering or removing batters mid-game keeps the
+  same batter due up.
 - Opponent: opponent batting order (default "Batter 1…9", editable names and
   numbers, add/remove) and **Our pitcher** selector (any roster player).
 - CTG (the core screen):
-  - Inning strip at the top: "▲ 1st" / "▼ 1st" with a "Next half" button and
-    who's batting ("Bears batting" / "Tigers batting"). Away team bats in the
-    top half. Score strip: Us N – Them N with +/- steppers.
-  - Scrollable list of the batting team's order. Completed at-bats this
-    inning show the outcome label under the name and a big W or L on the
-    right. The current batter row is expanded: "AT-BAT" label, the CTG gauge,
-    a big red **L** on the left and green **W** on the right, and the outcome
-    buttons in two columns (see §5). Next two batters show "ON DECK" and
-    "IN THE HOLE".
+  - Inning strip at the top: "▲ 1st" / "▼ 1st" with previous/next-half
+    steppers, a HITTING (blue) or PITCHING (purple) pill for who's batting,
+    the pitcher's name when pitching, and "Us N · Them N" with labeled +/-
+    steppers. Away team bats in the top half.
+  - Scrollable list of the batting team's order. At-bats completed in the
+    current half-inning show the outcome label under the name and a big W
+    or L on the right. The current batter row is expanded: "AT-BAT" label,
+    the CTG gauge (seven chunky bars), a big red **L** on the left and green
+    **W** on the right, and the outcome buttons in two columns (see §5).
+    Next two batters show "ON DECK" and "IN THE HOLE". The whole block plus
+    the next two batters fits a 375×812 phone.
   - Tapping an outcome records the at-bat, animates the gauge needle to the
-    L or W side briefly, and advances to the next batter. An **Undo** control
-    removes the last at-bat.
+    L or W side briefly, and advances to the next batter. Tapping another
+    batter's row skips to them (pinch hitter); skipping more than one asks
+    first. A fixed footer holds **Undo** (naming the at-bat it removes) and
+    **End Game**, so neither depends on scroll position.
   - When the opponent is batting, the same buttons record their batter's
     result but the colors flip to the pitcher's perspective: green = our
-    pitcher won the battle. The sub-label reads "Pitching: Weedon H. (#10)".
-  - **End Game** button opens the finish sheet (final score, notes) and marks
-    the game final.
+    pitcher won the battle. If no pitcher is set the buttons are disabled
+    behind a "Set pitcher" prompt; choosing a pitcher credits any
+    unassigned opponent at-bats of the current half-inning.
+  - A game becomes "in progress" on the first at-bat, half-inning change,
+    score change, or batter skip.
+  - **End Game** opens the finish sheet (final score, notes) and marks the
+    game final. A finished game's CTG tab shows our lineup with each
+    player's game W/L and a "Reopen game" action.
 - Stats: scorebook grid — rows are our batters ("Owen H. (#7)"), columns are
-  innings, each cell shows a green W or red L (or a blank diamond). A second
-  section shows the opponent grid (our pitching). Totals column per row.
+  innings, each cell shows a green W or red L with the outcome code under it
+  (or a blank diamond). A second section shows the opponent grid (our
+  pitching). The W-L totals column stays pinned on the right; five or more
+  innings scroll sideways.
 
 ## 4. Data model (persisted as one JSON document in AsyncStorage)
 
@@ -220,7 +239,7 @@ Batter **W** (right column, green):
 Each has a stable `OutcomeId` (`k_swinging`, `walk_2_looking`, `error_weak`,
 `fc_weak`, `bunt`, `k_looking`, `sac_fly`, `walk_clean`, `error_hard`,
 `fc_hard`, `fly_out_hard`, `hit`) and a short label for the scorebook
-("K↯", "BB(2K)", "E-", "FC-", "BUNT", "Kꓘ", "SF", "BB", "E+", "FC+", "F+",
+("K", "BB(2K)", "E-", "FC-", "BUNT", "KL", "SF", "BB", "E+", "FC+", "F+",
 "H").
 
 ## 6. Demo data

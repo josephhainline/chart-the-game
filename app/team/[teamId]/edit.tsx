@@ -3,9 +3,10 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import ModalScreen from '@/components/ModalScreen';
-import { Button, Field } from '@/components/ui';
+import { Button, EmptyState, Field } from '@/components/ui';
 import { colors, type } from '@/constants/theme';
 import { confirmAction } from '@/lib/confirm';
+import { useDismiss } from '@/lib/navigation';
 import { useStore, useTeam } from '@/lib/store';
 
 /** Modal: rename the team / change its season, or delete it. */
@@ -16,16 +17,18 @@ export default function EditTeamScreen() {
   const { updateTeam, deleteTeam } = useStore();
   const [name, setName] = useState(team?.name ?? '');
   const [season, setSeason] = useState(team?.season ?? '');
+  // A stale link to a team that no longer exists, as opposed to the sheet
+  // closing right after Delete.
+  const [missingAtOpen] = useState(() => !team);
   const valid = name.trim().length > 0;
-
-  const close = () => {
-    if (router.canGoBack()) router.back();
-    else router.replace(`/team/${teamId}`);
-  };
+  const close = useDismiss(`/team/${teamId}`);
 
   if (!team) {
-    // Reached right after the team is deleted; we're already on our way to My Teams.
-    return <ModalScreen title="Edit Team" onClose={() => router.replace('/')}>{null}</ModalScreen>;
+    return (
+      <ModalScreen title="Edit Team" onClose={() => router.replace('/')}>
+        {missingAtOpen ? <EmptyState title="Team not found" body="It may have been deleted." /> : null}
+      </ModalScreen>
+    );
   }
 
   const save = () => {

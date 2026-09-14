@@ -1,26 +1,30 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import ModalScreen from '@/components/ModalScreen';
 import PlayerForm, { isPlayerFormValid, playerFormValue, PlayerFormValue } from '@/components/PlayerForm';
-import { Button, ScoreText } from '@/components/ui';
+import { Button, EmptyState, ScoreText } from '@/components/ui';
 import { colors, fonts, radii, type } from '@/constants/theme';
 import { confirmAction } from '@/lib/confirm';
 import { playerLabel } from '@/lib/format';
+import { useDismiss } from '@/lib/navigation';
 import { hittingFor, pitchingFor, score, WL } from '@/lib/stats';
 import { useStore, useTeam } from '@/lib/store';
 
 /** Modal: edit a player's name and number, see their season line, or remove them. */
 export default function PlayerScreen() {
   const { teamId, playerId } = useLocalSearchParams<{ teamId: string; playerId: string }>();
-  const router = useRouter();
   const team = useTeam(teamId);
   const { data, updatePlayer, removePlayer } = useStore();
   const player = data.players.find((p) => p.id === playerId);
 
   const [value, setValue] = useState<PlayerFormValue>(() => (player ? playerFormValue(player) : { firstName: '', lastName: '', number: '' }));
+  // A stale link to a player who no longer exists, as opposed to the sheet
+  // closing right after Remove.
+  const [missingAtOpen] = useState(() => !team || !player);
   const valid = isPlayerFormValid(value);
+  const close = useDismiss(`/team/${teamId}/roster`);
 
   // Season line: only at-bats from THIS team's games count.
   const season = useMemo(() => {
@@ -32,14 +36,12 @@ export default function PlayerScreen() {
     };
   }, [data.games, data.atBats, teamId, playerId]);
 
-  const close = () => {
-    if (router.canGoBack()) router.back();
-    else router.replace(`/team/${teamId}/roster`);
-  };
-
   if (!team || !player) {
-    // Reached after the player is removed (or a stale link); the sheet is already closing.
-    return <ModalScreen title="Player" onClose={close}>{null}</ModalScreen>;
+    return (
+      <ModalScreen title="Player" onClose={close}>
+        {missingAtOpen ? <EmptyState title="Player not found" body="They may have been removed from the roster." /> : null}
+      </ModalScreen>
+    );
   }
 
   const save = () => {

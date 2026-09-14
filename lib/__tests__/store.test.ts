@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import React from 'react';
+import { AppState } from 'react-native';
 
 import { buildDemoData } from '../seed';
-import { StoreProvider, battingSide, useStore } from '../store';
+import { gamePitching, pitchingFor } from '../stats';
+import { BACKUP_KEY, STORAGE_KEY, StoreProvider, battingSide, carryNextBatter, useStore } from '../store';
 import type { Store } from '../store';
 import type { AppData, Game } from '../types';
 
@@ -15,13 +17,68 @@ type Renderer = { unmount(): void };
 type TestRenderer = {
   create(element: React.ReactElement): Renderer;
   act(callback: () => void): void;
+  act(callback: () => Promise<void>): Promise<void>;
 };
 const { create, act } = require('react-test-renderer') as TestRenderer;
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
+type MockStorage = {
+  setItem: jest.Mock<(key: string, value: string) => Promise<void>>;
+  getItem: jest.Mock<(key: string) => Promise<string | null>>;
+  __INTERNAL_MOCK_STORAGE__: Record<string, string>;
+};
+const storage = require('@react-native-async-storage/async-storage') as MockStorage;
+
+type MockAppState = { addEventListener: jest.Mock<(type: string, handler: (state: string) => void) => { remove(): void }> };
+const appState = AppState as unknown as MockAppState;
+
 const NOW = new Date('2026-09-14T12:00:00');
 const SCHEDULED = 'g_tigers_2';
+
+let latest: Store | undefined;
+let renderer: Renderer | undefined;
+
+/** The store as of the most recent render. Always read through this after an action. */
+const store = (): Store => {
+  if (!latest) throw new Error('store not mounted');
+  return latest;
+};
+const game = (id: string): Game => {
+  const g = store().data.games.find((x) => x.id === id);
+  if (!g) throw new Error(`no game ${id}`);
+  return g;
+};
+const run = (fn: (s: Store) => void) => act(() => fn(store()));
+
+function Probe(): null {
+  latest = useStore();
+  return null;
+}
+
+function mount(initialData?: AppData) {
+  act(() => {
+    renderer = create(React.createElement(StoreProvider, { initialData, children: React.createElement(Probe) }));
+  });
+}
+
+function unmount() {
+  act(() => renderer?.unmount());
+  renderer = undefined;
+}
+
+/** The document most recently handed to AsyncStorage.setItem under STORAGE_KEY. */
+function lastWritten(): AppData | undefined {
+  const calls = storage.setItem.mock.calls.filter(([key]) => key === STORAGE_KEY);
+  const last = calls[calls.length - 1];
+  return last ? (JSON.parse(last[1]) as AppData) : undefined;
+}
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+/** Let the async load (getItem/setItem promise chains) settle. Real timers only. */
+const settle = () => act(() => sleep(0));
+/** Wait out the write debounce. Real timers only. */
+const waitForSave = () => act(() => sleep(250));
 
 describe('battingSide', () => {
   it('the away team bats in the top half', () => {
@@ -35,33 +92,37 @@ describe('battingSide', () => {
   });
 });
 
+describe('carryNextBatter', () => {
+  const idOf = (x: string) => x;
+  const order = ['a', 'b', 'c', 'd'];
+
+  it('keeps the same batter due after a reorder', () => {
+    expect(carryNextBatter(order, 2, ['c', 'a', 'd', 'b'], idOf)).toBe(0);
+    expect(carryNextBatter(order, 0, ['d', 'c', 'b', 'a'], idOf)).toBe(3);
+  });
+
+  it('keeps the same batter due when someone ahead of them is removed', () => {
+    expect(carryNextBatter(order, 2, ['b', 'c', 'd'], idOf)).toBe(1);
+  });
+
+  it('moves to the next surviving batter in the old order when the due batter is removed', () => {
+    expect(carryNextBatter(order, 1, ['a', 'c', 'd'], idOf)).toBe(1); // b gone -> c
+    expect(carryNextBatter(order, 1, ['a', 'd'], idOf)).toBe(1); // b, c gone -> d
+    expect(carryNextBatter(order, 3, ['a', 'b', 'c'], idOf)).toBe(0); // last batter gone -> wraps to a
+  });
+
+  it('falls back to the top when nobody from the old order remains or an order is empty', () => {
+    expect(carryNextBatter(order, 2, ['x', 'y'], idOf)).toBe(0);
+    expect(carryNextBatter([], 0, ['x'], idOf)).toBe(0);
+    expect(carryNextBatter(order, 2, [], idOf)).toBe(0);
+  });
+
+  it('tolerates an out-of-range index by wrapping it like the CTG screen does', () => {
+    expect(carryNextBatter(order, 6, order, idOf)).toBe(2);
+  });
+});
+
 describe('StoreProvider actions', () => {
-  let latest: Store | undefined;
-  let renderer: Renderer | undefined;
-
-  /** The store as of the most recent render. Always read through this after an action. */
-  const store = (): Store => {
-    if (!latest) throw new Error('store not mounted');
-    return latest;
-  };
-  const game = (id: string): Game => {
-    const g = store().data.games.find((x) => x.id === id);
-    if (!g) throw new Error(`no game ${id}`);
-    return g;
-  };
-  const run = (fn: (s: Store) => void) => act(() => fn(store()));
-
-  function Probe(): null {
-    latest = useStore();
-    return null;
-  }
-
-  function mount(initialData: AppData) {
-    act(() => {
-      renderer = create(React.createElement(StoreProvider, { initialData, children: React.createElement(Probe) }));
-    });
-  }
-
   beforeEach(() => {
     jest.useFakeTimers();
     latest = undefined;
@@ -69,13 +130,13 @@ describe('StoreProvider actions', () => {
   });
 
   afterEach(() => {
-    act(() => renderer?.unmount());
-    renderer = undefined;
+    unmount();
     jest.useRealTimers();
   });
 
   it('is ready immediately with the given initial data (no storage read)', () => {
     expect(store().ready).toBe(true);
+    expect(store().loadIssue).toBeUndefined();
     expect(store().data.games).toHaveLength(7);
     expect(store().data.onboarded).toBe(false);
   });
@@ -177,6 +238,76 @@ describe('StoreProvider actions', () => {
     it('does not change the status of a final game', () => {
       run((s) => s.recordAtBat('g_bandits', 'hit'));
       expect(game('g_bandits').status).toBe('final');
+    });
+  });
+
+  describe('setPitcher', () => {
+    /** Bottom 1st with no pitcher chosen, then two opponent at-bats nobody is credited for. */
+    const chartWithoutPitcher = () => {
+      run((s) => {
+        s.setPitcher(SCHEDULED, undefined);
+        s.nextHalfInning(SCHEDULED);
+      });
+      run((s) => {
+        s.recordAtBat(SCHEDULED, 'k_swinging');
+        s.recordAtBat(SCHEDULED, 'hit');
+      });
+      const theirs = store().data.atBats.filter((x) => x.gameId === SCHEDULED && x.side === 'them');
+      expect(theirs).toHaveLength(2);
+      expect(theirs.every((x) => x.pitcherId === undefined)).toBe(true);
+    };
+
+    it('credits opponent at-bats charted this half-inning before a pitcher was chosen', () => {
+      chartWithoutPitcher();
+      run((s) => s.setPitcher(SCHEDULED, 'p_owen'));
+      expect(game(SCHEDULED).pitcherId).toBe('p_owen');
+      const theirs = store().data.atBats.filter((x) => x.gameId === SCHEDULED && x.side === 'them');
+      expect(theirs.map((x) => x.pitcherId)).toEqual(['p_owen', 'p_owen']);
+      // The pitcher's line now matches the game's pitching line.
+      expect(pitchingFor(store().data.atBats, 'p_owen', SCHEDULED)).toEqual(gamePitching(store().data.atBats, SCHEDULED));
+      expect(pitchingFor(store().data.atBats, 'p_owen', SCHEDULED)).toEqual({ w: 1, l: 1 });
+    });
+
+    it('never re-credits at-bats that already name a pitcher (a mid-inning relief change)', () => {
+      run((s) => s.nextHalfInning(SCHEDULED));
+      run((s) => s.recordAtBat(SCHEDULED, 'k_swinging')); // credited to Weedon
+      run((s) => s.setPitcher(SCHEDULED, 'p_owen'));
+      run((s) => s.recordAtBat(SCHEDULED, 'hit'));
+      const theirs = store().data.atBats.filter((x) => x.gameId === SCHEDULED && x.side === 'them');
+      expect(theirs.map((x) => x.pitcherId)).toEqual(['p_weedon', 'p_owen']);
+    });
+
+    it('leaves unassigned at-bats from earlier half-innings and other games alone', () => {
+      chartWithoutPitcher();
+      run((s) => {
+        s.nextHalfInning(SCHEDULED); // top 2nd (we bat)
+        s.nextHalfInning(SCHEDULED); // bottom 2nd (they bat)
+      });
+      run((s) => s.recordAtBat(SCHEDULED, 'bunt'));
+      const banditsBefore = store().data.atBats.filter((x) => x.gameId === 'g_bandits');
+      run((s) => s.setPitcher(SCHEDULED, 'p_lucas'));
+      const theirs = store().data.atBats.filter((x) => x.gameId === SCHEDULED && x.side === 'them');
+      expect(theirs.map((x) => [x.inning, x.pitcherId])).toEqual([
+        [1, undefined],
+        [1, undefined],
+        [2, 'p_lucas'],
+      ]);
+      expect(store().data.atBats.filter((x) => x.gameId === 'g_bandits')).toEqual(banditsBefore);
+    });
+
+    it('clearing the pitcher changes nothing about recorded at-bats', () => {
+      run((s) => s.nextHalfInning(SCHEDULED));
+      run((s) => s.recordAtBat(SCHEDULED, 'k_swinging'));
+      const before = store().data.atBats;
+      run((s) => s.setPitcher(SCHEDULED, undefined));
+      expect(game(SCHEDULED).pitcherId).toBeUndefined();
+      expect(store().data.atBats).toEqual(before);
+    });
+
+    it('ignores an unknown game', () => {
+      const before = store().data;
+      run((s) => s.setPitcher('nope', 'p_owen'));
+      expect(store().data).toBe(before);
     });
   });
 
@@ -371,10 +502,69 @@ describe('StoreProvider actions', () => {
       expect(game('g_fury').pitcherId).toBe('p_weedon');
     });
 
+    it('clears the pitcher on an in-progress game too, so later at-bats are not credited to a ghost', () => {
+      run((s) => s.nextHalfInning(SCHEDULED)); // Tigers batting, Weedon pitching
+      run((s) => s.removePlayer('p_weedon'));
+      expect(game(SCHEDULED).status).toBe('in_progress');
+      expect(game(SCHEDULED).pitcherId).toBeUndefined();
+      let recorded: ReturnType<Store['recordAtBat']>;
+      run((s) => {
+        recorded = s.recordAtBat(SCHEDULED, 'k_swinging');
+      });
+      expect(recorded!.side).toBe('them');
+      expect(recorded!.pitcherId).toBeUndefined();
+      expect(game('g_fury').pitcherId).toBe('p_weedon');
+    });
+
     it('does not prune an in-progress game’s lineup', () => {
       run((s) => s.nextHalfInning(SCHEDULED));
       run((s) => s.removePlayer('p_knox'));
       expect(game(SCHEDULED).lineup.some((x) => x.playerId === 'p_knox')).toBe(true);
+    });
+
+    describe('keeps the right batter due when a scheduled game’s order is pruned', () => {
+      /** Every action that moves the due batter also starts the game, so seed the index directly. */
+      const mountScheduledWithDue = (index: number) => {
+        unmount();
+        const data = buildDemoData(NOW);
+        data.games = data.games.map((g) => (g.id === SCHEDULED ? { ...g, ourNextBatter: index } : g));
+        mount(data);
+      };
+
+      it('the same batter stays due when someone ahead of them is removed', () => {
+        mountScheduledWithDue(5); // Matthew
+        run((s) => s.removePlayer('p_owen'));
+        const g = game(SCHEDULED);
+        expect(g.status).toBe('scheduled');
+        expect(g.ourNextBatter).toBe(4);
+        expect(g.lineup[g.ourNextBatter].playerId).toBe('p_matthew');
+      });
+
+      it('the index stays in range when the last batter in the order is due and gets removed', () => {
+        mountScheduledWithDue(9); // Ben, last slot
+        run((s) => s.removePlayer('p_ben'));
+        const g = game(SCHEDULED);
+        expect(g.lineup).toHaveLength(9);
+        expect(g.ourNextBatter).toBeLessThan(g.lineup.length);
+        expect(g.lineup[g.ourNextBatter].playerId).toBe('p_owen'); // wraps to the top
+      });
+
+      it('the next batter in the old order is due when the due batter is removed', () => {
+        mountScheduledWithDue(1); // Ryder
+        run((s) => s.removePlayer('p_ryder'));
+        const g = game(SCHEDULED);
+        expect(g.ourNextBatter).toBe(1);
+        expect(g.lineup[g.ourNextBatter].playerId).toBe('p_lucas');
+      });
+    });
+
+    it('keeps the due batter of an in-progress game (order untouched)', () => {
+      run((s) => s.setNextBatter(SCHEDULED, 'us', 5)); // Matthew; game now in progress
+      run((s) => s.removePlayer('p_owen'));
+      const g = game(SCHEDULED);
+      expect(g.lineup).toHaveLength(10);
+      expect(g.ourNextBatter).toBe(5);
+      expect(g.lineup[g.ourNextBatter].playerId).toBe('p_matthew');
     });
   });
 
@@ -466,24 +656,104 @@ describe('StoreProvider actions', () => {
       expect(store().data.atBats.some((x) => x.gameId === 'g_redbirds')).toBe(true);
     });
 
-    it('setGameLineup clamps our next batter to the new order', () => {
-      run((s) => s.setNextBatter(SCHEDULED, 'us', 8));
-      run((s) => s.setGameLineup(SCHEDULED, [{ playerId: 'p_owen' }, { playerId: 'p_ben' }]));
-      expect(game(SCHEDULED).ourNextBatter).toBe(1);
-      run((s) => s.setGameLineup(SCHEDULED, []));
-      expect(game(SCHEDULED).ourNextBatter).toBe(0);
+    it('updateGame only accepts the game details, never the order, status or progress', () => {
+      type Patch = Parameters<Store['updateGame']>[1];
+      const details: Patch = { opponent: 'X', isAway: false, startsAt: NOW.toISOString(), notes: 'n' };
+      // @ts-expect-error status is owned by finishGame/reopenGame/recordAtBat
+      const status: Patch = { status: 'final' };
+      // @ts-expect-error the batting order goes through setGameLineup so the due batter is kept
+      const lineup: Patch = { lineup: [] };
+      // @ts-expect-error progress goes through setNextBatter
+      const progress: Patch = { ourNextBatter: 3 };
+      expect([details, status, lineup, progress]).toHaveLength(4);
     });
 
-    it('setOpponentLineup clamps their next batter to the new order', () => {
-      run((s) => s.setNextBatter(SCHEDULED, 'them', 5));
-      run((s) => s.setOpponentLineup(SCHEDULED, [{ id: 'x1', name: 'A' }, { id: 'x2', name: 'B' }]));
-      expect(game(SCHEDULED).theirNextBatter).toBe(1);
-      expect(game(SCHEDULED).opponentLineup.map((b) => b.id)).toEqual(['x1', 'x2']);
+    describe('setGameLineup keeps the same batter due', () => {
+      it('after a reorder', () => {
+        run((s) => s.recordAtBat(SCHEDULED, 'hit')); // Owen batted; Ryder due
+        const order = game(SCHEDULED).lineup;
+        const [owen, ryder, lucas, ...rest] = order;
+        run((s) => s.setGameLineup(SCHEDULED, [lucas, ryder, owen, ...rest]));
+        const g = game(SCHEDULED);
+        expect(g.ourNextBatter).toBe(1);
+        expect(g.lineup[g.ourNextBatter].playerId).toBe('p_ryder');
+      });
+
+      it('after removing someone ahead of them', () => {
+        run((s) => s.recordAtBat(SCHEDULED, 'hit')); // Ryder due
+        run((s) => s.setGameLineup(SCHEDULED, game(SCHEDULED).lineup.filter((x) => x.playerId !== 'p_owen')));
+        const g = game(SCHEDULED);
+        expect(g.ourNextBatter).toBe(0);
+        expect(g.lineup[g.ourNextBatter].playerId).toBe('p_ryder');
+      });
+
+      it('and moves to the next surviving batter (in the old order) when the due batter is removed', () => {
+        run((s) => s.recordAtBat(SCHEDULED, 'hit')); // Ryder due
+        run((s) => s.setGameLineup(SCHEDULED, game(SCHEDULED).lineup.filter((x) => x.playerId !== 'p_ryder')));
+        const g = game(SCHEDULED);
+        expect(g.ourNextBatter).toBe(1);
+        expect(g.lineup[g.ourNextBatter].playerId).toBe('p_lucas');
+      });
+
+      it('and stays in range when the order shrinks or empties', () => {
+        run((s) => s.setNextBatter(SCHEDULED, 'us', 8)); // Landyn due
+        run((s) => s.setGameLineup(SCHEDULED, [{ playerId: 'p_owen' }, { playerId: 'p_ben' }]));
+        expect(game(SCHEDULED).ourNextBatter).toBe(1); // Landyn gone -> Ben, who is now slot 2
+        run((s) => s.setGameLineup(SCHEDULED, [{ playerId: 'p_lucas' }]));
+        expect(game(SCHEDULED).ourNextBatter).toBe(0); // nobody carried over -> top of the order
+        run((s) => s.setGameLineup(SCHEDULED, []));
+        expect(game(SCHEDULED).ourNextBatter).toBe(0);
+      });
+    });
+
+    describe('setOpponentLineup keeps the same batter due', () => {
+      it('after removing the batter who just hit', () => {
+        run((s) => s.nextHalfInning(SCHEDULED));
+        run((s) => s.recordAtBat(SCHEDULED, 'hit')); // Batter 1 hit; Batter 2 due
+        const [b1, ...rest] = game(SCHEDULED).opponentLineup;
+        run((s) => s.setOpponentLineup(SCHEDULED, rest));
+        const g = game(SCHEDULED);
+        expect(g.theirNextBatter).toBe(0);
+        expect(g.opponentLineup[0].name).toBe('Batter 2');
+        expect(g.opponentLineup.some((b) => b.id === b1.id)).toBe(false);
+      });
+
+      it('after a reorder', () => {
+        run((s) => s.setNextBatter(SCHEDULED, 'them', 2)); // Batter 3 due
+        const order = game(SCHEDULED).opponentLineup;
+        run((s) => s.setOpponentLineup(SCHEDULED, [...order].reverse()));
+        const g = game(SCHEDULED);
+        expect(g.theirNextBatter).toBe(6);
+        expect(g.opponentLineup[g.theirNextBatter].name).toBe('Batter 3');
+      });
+
+      it('and starts at the top when nobody from the old order remains', () => {
+        run((s) => s.setNextBatter(SCHEDULED, 'them', 5));
+        run((s) => s.setOpponentLineup(SCHEDULED, [{ id: 'x1', name: 'A' }, { id: 'x2', name: 'B' }]));
+        expect(game(SCHEDULED).theirNextBatter).toBe(0);
+        expect(game(SCHEDULED).opponentLineup.map((b) => b.id)).toEqual(['x1', 'x2']);
+      });
     });
 
     it('setScore never stores a negative run total', () => {
       run((s) => s.setScore(SCHEDULED, { us: -1, them: 3 }));
       expect(game(SCHEDULED).score).toEqual({ us: 0, them: 3 });
+    });
+
+    it('setScore starts a scheduled game once a run is on the board, but 0-0 leaves it scheduled', () => {
+      run((s) => s.setScore(SCHEDULED, { us: 0, them: 0 }));
+      expect(game(SCHEDULED).status).toBe('scheduled');
+      run((s) => s.setScore(SCHEDULED, { us: 0, them: 1 }));
+      expect(game(SCHEDULED).status).toBe('in_progress');
+      run((s) => s.setScore('g_bandits', { us: 20, them: 5 }));
+      expect(game('g_bandits').status).toBe('final');
+    });
+
+    it('setNextBatter starts a scheduled game and never touches a final one', () => {
+      run((s) => s.setNextBatter(SCHEDULED, 'us', 3));
+      expect(game(SCHEDULED)).toMatchObject({ status: 'in_progress', ourNextBatter: 3 });
+      run((s) => s.setNextBatter('g_bandits', 'them', 2));
+      expect(game('g_bandits')).toMatchObject({ status: 'final', theirNextBatter: 2 });
     });
 
     it('finishGame marks the game final with score, notes and finishedAt; reopenGame reverts', () => {
@@ -499,18 +769,162 @@ describe('StoreProvider actions', () => {
     });
   });
 
-  it('persists the document to storage shortly after a change', () => {
-    const storage = require('@react-native-async-storage/async-storage') as {
-      setItem: jest.Mock;
-    };
-    storage.setItem.mockClear();
-    run((s) => s.setOnboarded(true));
-    act(() => {
-      jest.advanceTimersByTime(200);
+  describe('persistence', () => {
+    beforeEach(() => {
+      storage.setItem.mockClear();
     });
-    expect(storage.setItem).toHaveBeenCalledTimes(1);
-    const [key, raw] = storage.setItem.mock.calls[0] as [string, string];
-    expect(key).toBe('ctg:data:v1');
-    expect((JSON.parse(raw) as AppData).onboarded).toBe(true);
+
+    it('persists the document to storage shortly after a change', () => {
+      run((s) => s.setOnboarded(true));
+      expect(storage.setItem).not.toHaveBeenCalled();
+      act(() => {
+        jest.advanceTimersByTime(200);
+      });
+      expect(storage.setItem).toHaveBeenCalledTimes(1);
+      const [key, raw] = storage.setItem.mock.calls[0];
+      expect(key).toBe(STORAGE_KEY);
+      expect((JSON.parse(raw) as AppData).onboarded).toBe(true);
+    });
+
+    it('coalesces a burst of edits into one write', () => {
+      run((s) => {
+        s.updatePlayer('p_owen', { firstName: 'O' });
+        s.updatePlayer('p_owen', { firstName: 'Ow' });
+      });
+      run((s) => s.updatePlayer('p_owen', { firstName: 'Owe' }));
+      act(() => {
+        jest.advanceTimersByTime(200);
+      });
+      expect(storage.setItem).toHaveBeenCalledTimes(1);
+      expect(lastWritten()!.players.find((p) => p.id === 'p_owen')!.firstName).toBe('Owe');
+    });
+
+    it('writes an at-bat, an undo and a finished game immediately, without waiting for the debounce', () => {
+      run((s) => s.recordAtBat(SCHEDULED, 'hit'));
+      expect(storage.setItem).toHaveBeenCalledTimes(1);
+      expect(lastWritten()!.atBats.some((x) => x.gameId === SCHEDULED && x.batterId === 'p_owen')).toBe(true);
+
+      run((s) => s.undoLastAtBat(SCHEDULED));
+      expect(storage.setItem).toHaveBeenCalledTimes(2);
+      expect(lastWritten()!.atBats.some((x) => x.gameId === SCHEDULED)).toBe(false);
+
+      run((s) => s.finishGame(SCHEDULED, { score: { us: 1, them: 0 } }));
+      expect(storage.setItem).toHaveBeenCalledTimes(3);
+      expect(lastWritten()!.games.find((g) => g.id === SCHEDULED)!.status).toBe('final');
+
+      // Nothing is left pending afterwards.
+      act(() => {
+        jest.advanceTimersByTime(500);
+      });
+      expect(storage.setItem).toHaveBeenCalledTimes(3);
+    });
+
+    it('flushes a pending write when the provider unmounts before the debounce fires', () => {
+      run((s) => s.updateTeam('t_bears13u', { name: 'Flushed' }));
+      expect(storage.setItem).not.toHaveBeenCalled();
+      unmount();
+      expect(storage.setItem).toHaveBeenCalledTimes(1);
+      expect(lastWritten()!.teams.find((t) => t.id === 't_bears13u')!.name).toBe('Flushed');
+    });
+
+    it('flushes a pending write when the app goes to the background', () => {
+      const handler = appState.addEventListener.mock.calls[appState.addEventListener.mock.calls.length - 1][1];
+      run((s) => s.updateTeam('t_bears13u', { name: 'Backgrounded' }));
+      expect(storage.setItem).not.toHaveBeenCalled();
+      act(() => handler('background'));
+      expect(storage.setItem).toHaveBeenCalledTimes(1);
+      expect(lastWritten()!.teams.find((t) => t.id === 't_bears13u')!.name).toBe('Backgrounded');
+      // A flush with nothing pending writes nothing.
+      act(() => handler('background'));
+      act(() => {
+        jest.advanceTimersByTime(500);
+      });
+      expect(storage.setItem).toHaveBeenCalledTimes(1);
+    });
+  });
+});
+
+describe('StoreProvider loading', () => {
+  const demo = buildDemoData(NOW);
+  let warn: ReturnType<typeof jest.spyOn> | undefined;
+
+  beforeEach(() => {
+    latest = undefined;
+    storage.__INTERNAL_MOCK_STORAGE__ = {};
+    storage.setItem.mockClear();
+    storage.getItem.mockClear();
+    warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+
+  afterEach(async () => {
+    unmount();
+    await settle();
+    warn?.mockRestore();
+  });
+
+  it('is not ready until the saved document has been read, then loads it as-is', async () => {
+    const saved: AppData = { ...demo, onboarded: true };
+    storage.__INTERNAL_MOCK_STORAGE__[STORAGE_KEY] = JSON.stringify(saved);
+    mount();
+    expect(store().ready).toBe(false);
+    await settle();
+    expect(store().ready).toBe(true);
+    expect(store().loadIssue).toBeUndefined();
+    expect(store().data).toEqual(saved);
+    // Nothing changed, so nothing is written back.
+    await settle();
+    expect(storage.setItem).not.toHaveBeenCalled();
+    expect(storage.__INTERNAL_MOCK_STORAGE__[BACKUP_KEY]).toBeUndefined();
+  });
+
+  it('seeds and persists the demo data on a first launch', async () => {
+    mount();
+    await settle();
+    expect(store().ready).toBe(true);
+    expect(store().loadIssue).toBeUndefined();
+    expect(store().data.games).toHaveLength(7);
+    await waitForSave();
+    expect(lastWritten()!.games).toHaveLength(7);
+    expect(storage.__INTERNAL_MOCK_STORAGE__[BACKUP_KEY]).toBeUndefined();
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('backs up a corrupt document under BACKUP_KEY before seeding, and reports it', async () => {
+    const raw = '{"version":1,"teams":[';
+    storage.__INTERNAL_MOCK_STORAGE__[STORAGE_KEY] = raw;
+    mount();
+    await settle();
+    expect(store().ready).toBe(true);
+    expect(store().loadIssue).toBe('backed_up');
+    expect(store().data.games).toHaveLength(7);
+    expect(storage.__INTERNAL_MOCK_STORAGE__[BACKUP_KEY]).toBe(raw);
+    expect(warn).toHaveBeenCalled();
+    // The backup lands before anything is written over the original key.
+    const keys = storage.setItem.mock.calls.map(([key]) => key);
+    expect(keys[0]).toBe(BACKUP_KEY);
+    await waitForSave();
+    expect(lastWritten()!.version).toBe(1);
+    expect(keys.indexOf(BACKUP_KEY)).toBeLessThan(storage.setItem.mock.calls.findIndex(([key]) => key === STORAGE_KEY));
+    expect(storage.__INTERNAL_MOCK_STORAGE__[BACKUP_KEY]).toBe(raw);
+  });
+
+  it('backs up a document from another schema version instead of overwriting it', async () => {
+    const raw = JSON.stringify({ ...demo, version: 2 });
+    storage.__INTERNAL_MOCK_STORAGE__[STORAGE_KEY] = raw;
+    mount();
+    await settle();
+    expect(store().loadIssue).toBe('backed_up');
+    expect(storage.__INTERNAL_MOCK_STORAGE__[BACKUP_KEY]).toBe(raw);
+    expect(store().data.version).toBe(1);
+  });
+
+  it('treats a version-1 document with a broken shape as unreadable', async () => {
+    const raw = JSON.stringify({ version: 1, onboarded: true });
+    storage.__INTERNAL_MOCK_STORAGE__[STORAGE_KEY] = raw;
+    mount();
+    await settle();
+    expect(store().loadIssue).toBe('backed_up');
+    expect(storage.__INTERNAL_MOCK_STORAGE__[BACKUP_KEY]).toBe(raw);
+    expect(Array.isArray(store().data.teams)).toBe(true);
   });
 });

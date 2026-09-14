@@ -21,28 +21,35 @@ type Props = {
   width?: number;
 };
 
-/* Geometry in viewBox units. */
+/*
+ * Geometry in viewBox units, proportioned from the prototype's gauge
+ * (~80pt wide: a 6pt gray arc sweeping 20° past horizontal on each side,
+ * seven 12x6pt bars on a 35° pitch with a small gap to the arc, and the
+ * caption tucked right under the arc ends).
+ */
 const VB_W = 120;
-const VB_H = 76;
+const VB_H = 82;
 const CX = 60;
 const CY = 60;
 const R_ARC = 54;
 const ARC_STROKE = 6.5;
-const TICK_INNER = 35;
-const TICK_OUTER = 46;
-const TICK_STROKE = 4.5;
-const TICKS = 13; // six red, one amber, six green
+const ARC_END_DEG = 20; // how far below the hub's horizontal the arc ends drop
+const TICK_INNER = 31;
+const TICK_OUTER = 47;
+const TICK_STROKE = 8;
+const TICKS = 7; // three red, one amber, three green
+const TICK_PITCH_DEG = 35;
 const HUB_BOX = 64; // side of the square that the needle rotates inside
 const SWING_DEG = 62;
 
-const NEEDLE_PATH = 'M 0 -30 L 11 -4.8 A 12 12 0 1 1 -11 -4.8 Z';
+const NEEDLE_PATH = 'M 0 -22 L 11 -4.8 A 12 12 0 1 1 -11 -4.8 Z';
 
 /**
- * The "Chart The Game" gauge from the prototype: a gray semicircle, thirteen
- * tick marks (loss side, amber center, win side) and a gray teardrop needle
- * that swings toward the recorded result and eases back to center.
+ * The "Chart The Game" gauge from the prototype: a gray arc, seven chunky
+ * bars (loss side, amber center, win side) and a gray teardrop needle that
+ * swings toward the recorded result and eases back to center.
  */
-export default function CTGGauge({ needle, pulse = 0, perspective = 'batter', width = 112 }: Props) {
+export default function CTGGauge({ needle, pulse = 0, perspective = 'batter', width = 80 }: Props) {
   const angle = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -70,7 +77,8 @@ export default function CTGGauge({ needle, pulse = 0, perspective = 'batter', wi
 
   const mid = (TICKS - 1) / 2;
   const ticks = Array.from({ length: TICKS }, (_, i) => {
-    const deg = 180 - (i * 180) / (TICKS - 1);
+    // Left to right: the end bars sit 15° below horizontal, the middle one straight up.
+    const deg = 90 + (mid - i) * TICK_PITCH_DEG;
     const rad = (deg * Math.PI) / 180;
     const cos = Math.cos(rad);
     const sin = Math.sin(rad);
@@ -85,17 +93,20 @@ export default function CTGGauge({ needle, pulse = 0, perspective = 'batter', wi
         y2={CY - TICK_OUTER * sin}
         stroke={color}
         strokeWidth={TICK_STROKE}
-        strokeLinecap="round"
+        strokeLinecap="butt"
       />
     );
   });
+
+  const endX = R_ARC * Math.cos((ARC_END_DEG * Math.PI) / 180);
+  const endY = R_ARC * Math.sin((ARC_END_DEG * Math.PI) / 180);
 
   return (
     <View style={styles.wrap} accessibilityRole="image" accessibilityLabel="Chart The Game gauge">
       <View style={{ width, height }}>
         <Svg width={width} height={height} viewBox={`0 0 ${VB_W} ${VB_H}`} style={StyleSheet.absoluteFill}>
           <Path
-            d={`M ${CX - R_ARC} ${CY} A ${R_ARC} ${R_ARC} 0 0 1 ${CX + R_ARC} ${CY}`}
+            d={`M ${CX - endX} ${CY + endY} A ${R_ARC} ${R_ARC} 0 1 1 ${CX + endX} ${CY + endY}`}
             stroke={colors.buttonGray}
             strokeWidth={ARC_STROKE}
             fill="none"
@@ -124,5 +135,5 @@ export default function CTGGauge({ needle, pulse = 0, perspective = 'batter', wi
 
 const styles = StyleSheet.create({
   wrap: { alignItems: 'center' },
-  caption: { fontFamily: fonts.bold, fontSize: 13, color: colors.textMuted, marginTop: 2 },
+  caption: { fontFamily: fonts.bold, fontSize: 11, lineHeight: 13, color: colors.textMuted, marginTop: -1 },
 });

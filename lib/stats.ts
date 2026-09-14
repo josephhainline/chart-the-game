@@ -67,11 +67,21 @@ export type StatRow = {
   wl: WL;
   /** null when the player has no at-bats in this mode (rendered as "-"). */
   score: number | null;
+  /** Synthetic row aggregating at-bats of players no longer on the roster. */
+  removed?: boolean;
 };
+
+/** `player.id` of the synthetic "Removed players" row (see `seasonTable`). */
+export const REMOVED_ROW_ID = '__removed__';
 
 /**
  * Season table rows for a team. Order: the default lineup first, then the rest
  * of the roster by last name. Only games belonging to the team count.
+ *
+ * At-bats that no roster player claims (the batter or pitcher was removed from
+ * the team, or an opponent at-bat was charted with no pitcher set) still count
+ * in every game line, so they are appended as one last "Removed players" row
+ * (`removed: true`) and `totals()` always equals the sum of the game lines.
  */
 export function seasonTable(
   team: Team,
@@ -94,11 +104,29 @@ export function seasonTable(
     if (!ordered.includes(p)) ordered.push(p);
   }
 
-  return ordered.map((player) => {
+  const rows: StatRow[] = ordered.map((player) => {
     const wl = mode === 'hitting' ? hittingFor(teamAtBats, player.id) : pitchingFor(teamAtBats, player.id);
     const has = wl.w + wl.l > 0;
     return { player, wl, score: has ? score(wl) : null };
   });
+
+  const side = mode === 'hitting' ? 'us' : 'them';
+  let orphan = ZERO;
+  for (const ab of teamAtBats) {
+    if (ab.side !== side) continue;
+    const owner = mode === 'hitting' ? ab.batterId : ab.pitcherId;
+    if (owner !== undefined && byId.has(owner)) continue;
+    orphan = addResult(orphan, mode === 'hitting' ? ab.result === 'W' : ab.result === 'L');
+  }
+  if (orphan.w + orphan.l > 0) {
+    rows.push({
+      player: { id: REMOVED_ROW_ID, teamId: team.id, firstName: 'Removed', lastName: 'players' },
+      wl: orphan,
+      score: score(orphan),
+      removed: true,
+    });
+  }
+  return rows;
 }
 
 export function totals(rows: StatRow[]): WL {

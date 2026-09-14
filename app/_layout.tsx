@@ -7,7 +7,7 @@ import {
 } from '@expo-google-fonts/lato';
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
+import { Stack, usePathname, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
@@ -67,16 +67,38 @@ export default function RootLayout() {
 }
 
 function AppStack() {
-  const { ready } = useStore();
+  const { ready, data } = useStore();
+  const router = useRouter();
+  const segments = useSegments();
+  const pathname = usePathname();
+
+  // First launch: show the intro once, whatever URL the coach arrived on, and
+  // then return them to it. This lives at the root (not in the (app) group) so
+  // a deep link into a team or game sees the intro too. The Stack stays
+  // mounted so the router is ready when the redirect fires; a splash covers
+  // the destination screen for the frame it takes.
+  const needsIntro = ready && !data.onboarded && segments[0] !== 'intro';
+  useEffect(() => {
+    if (!needsIntro) return;
+    router.replace(pathname === '/' ? '/intro' : { pathname: '/intro', params: { next: pathname } });
+  }, [needsIntro, pathname, router]);
+
   if (!ready) return <Splash />;
   return (
-    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.surface } }}>
-      <Stack.Screen name="intro" options={{ animation: 'fade' }} />
-      <Stack.Screen name="(app)" />
-      <Stack.Screen name="team/[teamId]" />
-      <Stack.Screen name="game/[gameId]" />
-      <Stack.Screen name="new-team" options={{ presentation: 'modal' }} />
-    </Stack>
+    <>
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.surface } }}>
+        <Stack.Screen name="intro" options={{ animation: 'fade' }} />
+        <Stack.Screen name="(app)" />
+        <Stack.Screen name="team/[teamId]" />
+        <Stack.Screen name="game/[gameId]" />
+        <Stack.Screen name="new-team" options={{ presentation: 'modal' }} />
+      </Stack>
+      {needsIntro ? (
+        <View style={styles.cover}>
+          <Splash />
+        </View>
+      ) : null}
+    </>
   );
 }
 
@@ -91,6 +113,7 @@ function Splash() {
 }
 
 const styles = StyleSheet.create({
+  cover: { ...StyleSheet.absoluteFillObject },
   splash: {
     flex: 1,
     backgroundColor: colors.primary,

@@ -6,7 +6,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-n
 import AppHeader from '@/components/AppHeader';
 import Screen from '@/components/Screen';
 import { Button, Divider, EmptyState, FloatingButton } from '@/components/ui';
-import { colors, fonts } from '@/constants/theme';
+import { colors, type } from '@/constants/theme';
 import { byLastName, playerLabel } from '@/lib/format';
 import { useTeam, useTeamPlayers } from '@/lib/store';
 import type { Player } from '@/lib/types';
@@ -25,33 +25,30 @@ export default function RosterScreen() {
 
   const addPlayer = () => router.push(`/team/${teamId}/new-player`);
   const openPlayer = (p: Player) => router.push(`/team/${teamId}/player/${p.id}`);
+  const editTeam = () => router.push(`/team/${teamId}/edit`);
+  // Team settings live in the body (like the player sheet), not in the header
+  // band, which the prototype keeps to a back chevron and the team name.
+  const editTeamRow = (
+    <View style={styles.footer}>
+      <Button title="Edit team" variant="ghost" icon="pen" onPress={editTeam} />
+    </View>
+  );
 
   return (
     <Screen>
-      <AppHeader
-        context={team.name}
-        onBack={() => router.replace('/')}
-        right={
-          <Pressable
-            onPress={() => router.push(`/team/${teamId}/edit`)}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel="Edit team"
-            style={({ pressed }) => [styles.editButton, pressed && styles.pressed]}
-          >
-            <FontAwesome6 name="pen" size={18} color="#fff" />
-          </Pressable>
-        }
-      />
+      <AppHeader context={team.name}  />
       <View style={styles.body}>
         <ScrollView contentContainerStyle={styles.content}>
           <Text style={styles.title}>Team Roster:</Text>
           {roster.length === 0 ? (
-            <EmptyState
-              title="No players yet"
-              body="Add your players to start charting at-bats."
-              action={<Button title="Add Player" icon="plus" onPress={addPlayer} />}
-            />
+            <>
+              <EmptyState
+                title="No players yet"
+                body="Add your players to start charting at-bats."
+                action={<Button title="Add Player" icon="plus" onPress={addPlayer} />}
+              />
+              {editTeamRow}
+            </>
           ) : (
             roster.map((p, i) => (
               <React.Fragment key={p.id}>
@@ -70,7 +67,12 @@ export default function RosterScreen() {
               </React.Fragment>
             ))
           )}
-          {roster.length > 0 ? <Divider /> : null}
+          {roster.length > 0 ? (
+            <>
+              <Divider />
+              {editTeamRow}
+            </>
+          ) : null}
         </ScrollView>
         {roster.length > 0 ? <FloatingButton title="Add Player" onPress={addPlayer} /> : null}
       </View>
@@ -80,32 +82,24 @@ export default function RosterScreen() {
 
 const styles = StyleSheet.create({
   body: { flex: 1 },
-  content: { paddingTop: 20, paddingBottom: 96 },
+  content: { paddingTop: 14, paddingBottom: 96 },
+  // Prototype (5cc002e9…): 20pt underlined title, 56pt rows, names at x=59, chevron 24pt from the edge.
   title: {
-    fontFamily: fonts.bold,
-    fontSize: 24,
-    color: colors.text,
+    ...type.screenTitle,
     textDecorationLine: 'underline',
-    paddingHorizontal: 16,
-    marginBottom: 8,
+    paddingHorizontal: 12,
+    marginBottom: 5,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 64,
-    paddingLeft: 64,
-    paddingRight: 20,
-    paddingVertical: 12,
+    minHeight: 56,
+    paddingLeft: 60,
+    paddingRight: 24,
+    paddingVertical: 8,
     backgroundColor: colors.surface,
   },
-  rowPressed: { backgroundColor: '#F4F6FA' },
-  name: { flex: 1, fontFamily: fonts.bold, fontSize: 24, color: colors.text, marginRight: 12 },
-  editButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as any) : null),
-  },
-  pressed: { opacity: 0.6 },
+  rowPressed: { backgroundColor: colors.pressed },
+  name: { ...type.rowTitle, flex: 1, marginRight: 12 },
+  footer: { paddingHorizontal: 8, paddingTop: 12, alignItems: 'flex-start' },
 });

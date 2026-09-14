@@ -15,13 +15,15 @@ type Props = {
   /** The team's roster; anyone not in `slots` is listed on the bench. */
   players: Player[];
   onChange: (slots: LineupSlot[]) => void;
-  /** Heading above the list, e.g. "Default Lineup:". */
-  title: string;
+  /** Heading above the list, e.g. "Default Lineup:". Omit it (and headerRight) to start the list at the top. */
+  title?: string;
   /** Rendered to the right of the title (an action button). */
   headerRight?: React.ReactNode;
   benchTitle?: string;
   /** Optional one-line note under the title. */
   caption?: string;
+  /** Rendered after the bench, inside the scroll view (a secondary action). */
+  footer?: React.ReactNode;
 };
 
 type Row = { slot: LineupSlot; index: number; player: Player };
@@ -31,7 +33,7 @@ type Row = { slot: LineupSlot; index: number; player: Player };
  * controls on each row, followed by the bench of players not in the lineup.
  * Shared by the team's Default Lineup screen and the in-game Team tab.
  */
-export default function LineupEditor({ slots, players, onChange, title, headerRight, benchTitle = 'Bench', caption }: Props) {
+export default function LineupEditor({ slots, players, onChange, title, headerRight, benchTitle = 'Bench', caption, footer }: Props) {
   const [editing, setEditing] = useState<number | null>(null);
 
   const rows = useMemo<Row[]>(() => {
@@ -58,7 +60,14 @@ export default function LineupEditor({ slots, players, onChange, title, headerRi
   };
 
   const setPosition = (index: number, position: Position | undefined) => {
-    onChange(slots.map((s, i) => (i === index ? (position ? { playerId: s.playerId, position } : { playerId: s.playerId }) : s)));
+    onChange(
+      slots.map((s, i) => {
+        if (i === index) return position ? { playerId: s.playerId, position } : { playerId: s.playerId };
+        // Only one pitcher at a time: giving this slot P takes it off any other slot.
+        if (position === 'P' && s.position === 'P') return { playerId: s.playerId };
+        return s;
+      }),
+    );
     setEditing(null);
   };
 
@@ -74,14 +83,18 @@ export default function LineupEditor({ slots, players, onChange, title, headerRi
   return (
     <View style={styles.root}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-        <View style={styles.titleRow}>
-          <Text style={styles.title} numberOfLines={1}>
-            {title}
-          </Text>
-          {headerRight}
-        </View>
-        {caption ? <Text style={styles.caption}>{caption}</Text> : null}
-        <View style={styles.rule} />
+        {title || headerRight ? (
+          <>
+            <View style={styles.titleRow}>
+              <Text style={styles.title} numberOfLines={1}>
+                {title}
+              </Text>
+              {headerRight}
+            </View>
+            {caption ? <Text style={styles.caption}>{caption}</Text> : null}
+            <View style={styles.rule} />
+          </>
+        ) : null}
 
         {rows.length === 0 ? (
           players.length === 0 ? (
@@ -95,7 +108,7 @@ export default function LineupEditor({ slots, players, onChange, title, headerRi
             return (
               <View key={slot.playerId} style={styles.row}>
                 <Text style={styles.num}>{index + 1}.</Text>
-                <Text style={styles.name} numberOfLines={2}>
+                <Text style={styles.name} numberOfLines={1}>
                   {label}
                 </Text>
                 <PositionBadge position={slot.position} onPress={() => setEditing(index)} />
@@ -129,7 +142,7 @@ export default function LineupEditor({ slots, players, onChange, title, headerRi
               const label = playerLabel(player);
               return (
                 <View key={player.id} style={styles.row}>
-                  <Text style={[styles.name, styles.benchName]} numberOfLines={2}>
+                  <Text style={[styles.name, styles.benchName]} numberOfLines={1}>
                     {label}
                   </Text>
                   <Pressable
@@ -138,13 +151,15 @@ export default function LineupEditor({ slots, players, onChange, title, headerRi
                     accessibilityLabel={`Add ${label} to lineup`}
                     style={({ pressed }) => [styles.addButton, pressed && styles.pressed, webCursor]}
                   >
-                    <FontAwesome6 name="plus" size={20} color="#fff" />
+                    <FontAwesome6 name="plus" size={20} color={colors.white} />
                   </Pressable>
                 </View>
               );
             })}
           </View>
         ) : null}
+
+        {footer ? <View style={styles.footer}>{footer}</View> : null}
       </ScrollView>
 
       <PositionPicker
@@ -180,7 +195,7 @@ function ArrowButton({
       accessibilityState={{ disabled }}
       style={({ pressed }) => [styles.arrow, pressed && !disabled && styles.pressed, disabled && styles.arrowDisabled, !disabled && webCursor]}
     >
-      <FontAwesome6 name={direction === 'up' ? 'chevron-up' : 'chevron-down'} size={18} color={colors.textMuted} />
+      <FontAwesome6 name={direction === 'up' ? 'chevron-up' : 'chevron-down'} size={16} color={colors.textMuted} />
     </Pressable>
   );
 }
@@ -196,28 +211,30 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingLeft: 16,
     paddingRight: 6,
-    paddingTop: 10,
-    minHeight: 58,
+    paddingTop: 4,
+    minHeight: 50,
   },
-  title: { ...type.h1, flexShrink: 1 },
+  title: { ...type.screenTitle, flexShrink: 1 },
   caption: { ...type.caption, paddingHorizontal: 16, paddingBottom: 8 },
   rule: { height: 1, backgroundColor: colors.divider },
+  // Prototype (6a45802c…): 56pt rows, 20pt number and name, name at x=59, 44pt badge.
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
     paddingLeft: 16,
-    paddingRight: 6,
-    minHeight: 82,
+    paddingRight: 4,
+    minHeight: 56,
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
     backgroundColor: colors.surface,
   },
-  num: { fontFamily: fonts.regular, fontSize: 22, color: colors.text, width: 36 },
-  name: { fontFamily: fonts.bold, fontSize: 24, color: colors.text, flex: 1, lineHeight: 28 },
+  num: { fontFamily: fonts.regular, fontSize: 20, lineHeight: 24, color: colors.text, width: 38 },
+  name: { ...type.rowTitle, flex: 1 },
   benchName: { marginLeft: 44, color: colors.textMuted },
+  // Up/down stacked in the 56px row: two 44x28 halves (the row height caps them).
   arrows: { width: 44 },
-  arrow: { width: 44, height: 40, alignItems: 'center', justifyContent: 'center' },
+  arrow: { width: 44, height: 28, alignItems: 'center', justifyContent: 'center' },
   arrowDisabled: { opacity: 0.25 },
   pressed: { opacity: 0.6 },
   bench: { marginTop: 12 },
@@ -228,6 +245,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 6,
+    marginRight: 4,
   },
+  footer: { paddingHorizontal: 16, paddingTop: 16, alignItems: 'flex-start' },
 });

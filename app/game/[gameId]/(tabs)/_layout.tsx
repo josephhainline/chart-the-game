@@ -20,7 +20,7 @@ export default function GameTabsLayout() {
   return (
     <Tabs
       initialRouteName="index"
-      screenOptions={{ headerShown: false, tabBarActiveTintColor: colors.orange }}
+      screenOptions={{ headerShown: false }}
       tabBar={(props) => <TabBar {...props} activeColor={colors.orange} />}
     >
       <Tabs.Screen

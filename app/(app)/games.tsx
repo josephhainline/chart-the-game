@@ -27,7 +27,7 @@ export default function AllGamesScreen() {
           ) : (
             groups.map((group) => (
               <View key={group.key}>
-                <SectionBand title={group.title} />
+                <SectionBand title={group.title} weight="regular" />
                 {group.games.map((game) => (
                   <GameRow
                     key={game.id}

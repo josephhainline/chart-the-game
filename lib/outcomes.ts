@@ -17,7 +17,7 @@ export const LOSS_OUTCOMES: Outcome[] = [
   { id: 'error_weak', label: 'Error,\nWeak Hit Ball', short: 'E-', result: 'L' },
   { id: 'fc_weak', label: "Fielder's Choice,\nWeak Hit Ball", short: 'FC-', result: 'L' },
   { id: 'bunt', label: 'Bunt', short: 'BUNT', result: 'L' },
-  { id: 'k_looking', label: 'Strikeout\nLooking', short: 'ꓘ', result: 'L' },
+  { id: 'k_looking', label: 'Strikeout\nLooking', short: 'KL', result: 'L' },
 ];
 
 export const WIN_OUTCOMES: Outcome[] = [

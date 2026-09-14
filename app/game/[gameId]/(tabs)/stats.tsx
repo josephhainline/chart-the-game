@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import React, { useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -8,6 +8,7 @@ import Screen from '@/components/Screen';
 import { WLText } from '@/components/ui';
 import { colors, fonts } from '@/constants/theme';
 import { gameTitle, opponentBatterLabel, playerShort } from '@/lib/format';
+import { getOutcome } from '@/lib/outcomes';
 import { gameHitting, gamePitching, pitcherResult, scorebook } from '@/lib/stats';
 import { useGame, useGameAtBats, useStore } from '@/lib/store';
 import type { Player } from '@/lib/types';
@@ -15,7 +16,6 @@ import type { Player } from '@/lib/types';
 /** Game-level Stats tab: the scorebook grids for our hitting and our pitching. */
 export default function GameStatsScreen() {
   const { gameId } = useLocalSearchParams<{ gameId: string }>();
-  const router = useRouter();
   const game = useGame(gameId);
   const atBats = useGameAtBats(gameId);
   const { data } = useStore();
@@ -34,7 +34,7 @@ export default function GameStatsScreen() {
         slot: String(r.batter.index + 1),
         name: player ? playerShort(player) : 'Removed player',
         position: r.batter.slot.position,
-        innings: r.innings.map((abs) => abs.map((ab) => ab.result)),
+        innings: r.innings.map((abs) => abs.map((ab) => ({ result: ab.result, short: getOutcome(ab.outcomeId).short }))),
         wl: r.wl,
       };
     });
@@ -49,7 +49,7 @@ export default function GameStatsScreen() {
       slot: String(index + 1),
       name: opponentBatterLabel(r.batter),
       // Shown from our pitcher's side: green when our pitcher won the battle.
-      innings: r.innings.map((abs) => abs.map(pitcherResult)),
+      innings: r.innings.map((abs) => abs.map((ab) => ({ result: pitcherResult(ab), short: getOutcome(ab.outcomeId).short }))),
       wl: r.wl,
     }));
     return { innings: book.innings, rows };
@@ -65,22 +65,21 @@ export default function GameStatsScreen() {
       <AppHeader
         context={gameTitle(game)}
         contextColor={colors.orange}
-        onBack={() => router.replace(`/team/${game.teamId}`)}
+        backHref={`/team/${game.teamId}`}
       />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
         <View style={styles.summary}>
           <View style={styles.summaryItem}>
             <Text style={styles.summaryLabel}>HITTING</Text>
-            <WLText wl={teamHitting} />
+            <WLText wl={teamHitting} style={styles.summaryValue} />
           </View>
-          <View style={styles.summaryDivider} />
           <View style={styles.summaryItem}>
             <Text style={styles.summaryLabel}>PITCHING</Text>
-            <WLText wl={teamPitching} />
+            <WLText wl={teamPitching} style={styles.summaryValue} />
           </View>
         </View>
 
-        <Scorebook title="Hitting" color={colors.primaryDark} innings={hitting.innings} rows={hitting.rows} />
+        <Scorebook innings={hitting.innings} rows={hitting.rows} />
         <View style={styles.gap} />
         <Scorebook title="Pitching" color={colors.pitching} innings={pitching.innings} rows={pitching.rows} />
       </ScrollView>
@@ -91,17 +90,16 @@ export default function GameStatsScreen() {
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: { paddingBottom: 32 },
+  /** One compact line of the game's W/L totals; the grids start right under it. */
   summary: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-evenly',
-    paddingVertical: 10,
+    height: 28,
     paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.divider,
   },
-  summaryItem: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
-  summaryLabel: { fontFamily: fonts.bold, fontSize: 15, color: colors.text, letterSpacing: 0.5 },
-  summaryDivider: { width: 1, height: 28, backgroundColor: colors.divider },
+  summaryItem: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
+  summaryLabel: { fontFamily: fonts.bold, fontSize: 12, color: colors.textMuted, letterSpacing: 0.5 },
+  summaryValue: { fontSize: 15 },
   gap: { height: 16 },
 });

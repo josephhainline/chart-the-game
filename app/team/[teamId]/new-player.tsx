@@ -1,25 +1,21 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import React, { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import ModalScreen from '@/components/ModalScreen';
 import PlayerForm, { EMPTY_PLAYER_FORM, isPlayerFormValid, PlayerFormValue } from '@/components/PlayerForm';
 import { Button } from '@/components/ui';
+import { useDismiss } from '@/lib/navigation';
 import { useStore, useTeam } from '@/lib/store';
 
 /** Modal: add a player to the team roster. */
 export default function NewPlayerScreen() {
   const { teamId } = useLocalSearchParams<{ teamId: string }>();
-  const router = useRouter();
   const team = useTeam(teamId);
   const { addPlayer } = useStore();
   const [value, setValue] = useState<PlayerFormValue>(EMPTY_PLAYER_FORM);
   const valid = isPlayerFormValid(value);
-
-  const close = () => {
-    if (router.canGoBack()) router.back();
-    else router.replace(`/team/${teamId}/roster`);
-  };
+  const close = useDismiss(`/team/${teamId}/roster`);
 
   const save = () => {
     if (!valid || !team) return;

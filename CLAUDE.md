@@ -13,8 +13,8 @@ FontAwesome6 from `@expo/vector-icons` only. No react-native-paper, no lucide.
 
 ## Commands
 - `yarn web` — dev server at http://localhost:8081 (web)
-- `npx tsc --noEmit -p .` — type check (must be clean)
-- `npx jest lib --ci` — unit tests for `lib/`
+- `yarn typecheck` — `tsc --noEmit` (must be clean)
+- `yarn test` — `jest lib --ci`, unit tests for `lib/`
 - `node scripts/build-web-artifact.mjs <outDir>` — relocatable static web build
   for hosting as a Claude Artifact (see script header)
 
@@ -25,8 +25,9 @@ FontAwesome6 from `@expo/vector-icons` only. No react-native-paper, no lucide.
   Opponent · CTG · Stats). Modal forms sit beside each `(tabs)` group.
 - `lib/` — `types.ts` (data model), `store.tsx` (single-document state +
   AsyncStorage persistence + every action), `stats.ts` (derived W/L),
-  `seed.ts` (deterministic demo data, dates relative to today),
-  `outcomes.ts` (the twelve at-bat outcomes), `format.ts`, `confirm.ts`.
+  `seed.ts` (deterministic demo data, games on Saturdays relative to today),
+  `outcomes.ts` (the twelve at-bat outcomes), `format.ts`, `dates.ts` (game
+  date/time parsing), `navigation.ts` (shared back/dismiss rule), `confirm.ts`.
 - `components/` — `AppHeader` (two-band header), `TabBar` (chip tabs),
   `ModalScreen`, `PhoneFrame` (430px column on wide web), `ui.tsx` primitives,
   plus feature components (`CTGGauge`, `OutcomeButtons`, `LineupEditor`,
@@ -38,4 +39,9 @@ FontAwesome6 from `@expo/vector-icons` only. No react-native-paper, no lucide.
 - `AtBat.result` is always from the batter's perspective; pitching stats invert it.
 - React Native Web's `Alert` is a no-op: use `confirmAction()` from `lib/confirm.ts`.
 - Reorder controls are up/down arrows (web drag-and-drop is unreliable).
+- Tab layouts must pass `initialParams={{ teamId }}` / `{{ gameId }}` to every
+  `Tabs.Screen`, or unvisited tabs render without their route id.
+- Headless QA: puppeteer-core driving the local Chrome works well (see the
+  session scratchpad pattern); the Metro dev server needs
+  `NODE_OPTIONS=--max-old-space-size=8192` under parallel browser load.
 - Keep `docs/PRODUCT_SPEC.md` in sync when behavior changes.

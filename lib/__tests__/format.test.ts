@@ -2,6 +2,7 @@ import { describe, expect, it } from '@jest/globals';
 
 import {
   byLastName,
+  countdownLabel,
   gameDateLine,
   gameTitle,
   inningOrdinal,
@@ -14,7 +15,6 @@ import {
   playerName,
   playerShort,
   signed,
-  splitName,
   timeShort,
   upcomingLabel,
 } from '../format';
@@ -161,26 +161,27 @@ describe('upcomingLabel', () => {
   });
 });
 
-describe('splitName', () => {
-  it('splits a two-word name', () => {
-    expect(splitName('Owen Haynes')).toEqual({ firstName: 'Owen', lastName: 'Haynes' });
+describe('countdownLabel', () => {
+  const now = local(2026, 9, 14, 12, 0);
+
+  it('is the plain relative day, without the "Next Game" prefix', () => {
+    expect(countdownLabel(local(2026, 9, 14, 8, 0).toISOString(), now)).toBe('Today');
+    expect(countdownLabel(local(2026, 9, 15, 0, 1).toISOString(), now)).toBe('Tomorrow');
+    expect(countdownLabel(local(2026, 9, 19, 9, 0).toISOString(), now)).toBe('In 5 Days');
+    expect(countdownLabel(local(2026, 9, 27, 12, 0).toISOString(), now)).toBe('In 13 Days');
+    expect(countdownLabel(local(2026, 10, 5, 12, 0).toISOString(), now)).toBe('In 3 Weeks');
   });
 
-  it('trims and collapses whitespace', () => {
-    expect(splitName('  Owen   Haynes ')).toEqual({ firstName: 'Owen', lastName: 'Haynes' });
+  it('is empty for games in the past', () => {
+    expect(countdownLabel(local(2026, 9, 13, 23, 0).toISOString(), now)).toBe('');
   });
 
-  it('treats a single word as the first name', () => {
-    expect(splitName('Owen')).toEqual({ firstName: 'Owen', lastName: '' });
-  });
-
-  it('keeps everything but the last word as the first name', () => {
-    expect(splitName('Mary Ann Smith')).toEqual({ firstName: 'Mary Ann', lastName: 'Smith' });
-  });
-
-  it('returns empty strings for blank input', () => {
-    expect(splitName('')).toEqual({ firstName: '', lastName: '' });
-    expect(splitName('   ')).toEqual({ firstName: '', lastName: '' });
+  it('gives two games on the same day distinct lines when only one is the next game', () => {
+    const morning = local(2026, 9, 19, 9, 0).toISOString();
+    const afternoon = local(2026, 9, 19, 12, 30).toISOString();
+    expect(upcomingLabel(morning, now)).toBe('Next Game in 5 Days');
+    expect(countdownLabel(afternoon, now)).toBe('In 5 Days');
+    expect(upcomingLabel(morning, now)).not.toBe(countdownLabel(afternoon, now));
   });
 });
 

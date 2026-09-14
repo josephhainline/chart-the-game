@@ -1,12 +1,11 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import React, { useMemo, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
 
 import AppHeader from '@/components/AppHeader';
 import Screen from '@/components/Screen';
 import StatsTable from '@/components/StatsTable';
-import { Divider, Segmented } from '@/components/ui';
-import { colors, fonts } from '@/constants/theme';
+import { Divider, SectionBand, Segmented } from '@/components/ui';
+import { colors } from '@/constants/theme';
 import { seasonTable, type StatMode } from '@/lib/stats';
 import { useStore, useTeam, useTeamGames, useTeamPlayers } from '@/lib/store';
 
@@ -22,7 +21,6 @@ function modeColor(mode: StatMode): string {
 /** Team-level Stats tab: Hitting / Pitching season table. */
 export default function StatsScreen() {
   const { teamId } = useLocalSearchParams<{ teamId: string }>();
-  const router = useRouter();
   const team = useTeam(teamId);
   const players = useTeamPlayers(teamId);
   const games = useTeamGames(teamId);
@@ -38,12 +36,10 @@ export default function StatsScreen() {
 
   return (
     <Screen>
-      <AppHeader context={team.name} onBack={() => router.replace('/')} />
+      <AppHeader context={team.name}  />
       <Segmented options={MODES} value={mode} onChange={setMode} colorsFor={modeColor} />
       <Divider />
-      <View style={[styles.band, { backgroundColor: modeColor(mode) }]}>
-        <Text style={styles.bandText}>Statistics: {team.season} Season</Text>
-      </View>
+      <SectionBand title={`Statistics: ${team.season} Season`} color={modeColor(mode)} textColor={colors.white} />
       <StatsTable
         rows={rows}
         emptyTitle="No players yet"
@@ -52,8 +48,3 @@ export default function StatsScreen() {
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  band: { paddingHorizontal: 16, paddingVertical: 8 },
-  bandText: { fontFamily: fonts.bold, fontSize: 24, color: '#fff' },
-});

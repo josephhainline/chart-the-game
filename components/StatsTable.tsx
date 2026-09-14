@@ -10,7 +10,10 @@ const webCursor = Platform.OS === 'web' ? ({ cursor: 'pointer' } as any) : null;
 
 export type StatsSort = 'lineup' | 'score';
 
-/** Width of each numeric column; the name column takes the rest so full names fit at 400px. */
+/**
+ * Width of each numeric column (the prototype's ≈64px). The name column takes
+ * the rest: 183px at 375px, enough for the longest full name at 14px.
+ */
 const COL_WIDTH = 64;
 
 type Props = {
@@ -21,11 +24,18 @@ type Props = {
   emptyBody?: string;
 };
 
+/** Sort bucket for the score order: scored players, then "-" rows, then the removed-players row. */
+function sortRank(row: StatRow): number {
+  if (row.removed) return 2;
+  return row.score === null ? 1 : 0;
+}
+
 /**
  * Season stats table: Name · Wins · Losses · Score with a Totals row.
  * Tapping "Score" toggles sorting by score (best first, players with no data
  * last); tapping "Name" returns to lineup order. Scrolls vertically with the
- * header row pinned.
+ * header row pinned. A synthetic "removed players" row renders muted and
+ * always stays last.
  */
 export default function StatsTable({ rows, emptyTitle = 'No players yet', emptyBody }: Props) {
   const [sort, setSort] = useState<StatsSort>('lineup');
@@ -35,10 +45,9 @@ export default function StatsTable({ rows, emptyTitle = 'No players yet', emptyB
     return rows
       .map((row, index) => ({ row, index }))
       .sort((a, b) => {
-        if (a.row.score === null && b.row.score === null) return a.index - b.index;
-        if (a.row.score === null) return 1;
-        if (b.row.score === null) return -1;
-        return b.row.score - a.row.score || a.index - b.index;
+        const rank = sortRank(a.row) - sortRank(b.row);
+        if (rank !== 0) return rank;
+        return (b.row.score ?? 0) - (a.row.score ?? 0) || a.index - b.index;
       })
       .map((x) => x.row);
   }, [rows, sort]);
@@ -79,18 +88,18 @@ export default function StatsTable({ rows, emptyTitle = 'No players yet', emptyB
         <EmptyState title={emptyTitle} body={emptyBody} />
       ) : (
         <>
-          {ordered.map(({ player, wl, score }) => (
+          {ordered.map(({ player, wl, score, removed }) => (
             <View key={player.id} style={styles.row}>
               <View style={styles.nameCell}>
-                <Text style={styles.nameText} numberOfLines={1}>
+                <Text style={[styles.nameText, removed && styles.removedText]} numberOfLines={2}>
                   {playerLabel(player)}
                 </Text>
               </View>
               <View style={[styles.numCell, styles.rowSeparator]}>
-                <Text style={styles.numText}>{score === null ? '-' : wl.w}</Text>
+                <Text style={[styles.numText, removed && styles.removedNum]}>{score === null ? '-' : wl.w}</Text>
               </View>
               <View style={[styles.numCell, styles.rowSeparator]}>
-                <Text style={styles.numText}>{score === null ? '-' : wl.l}</Text>
+                <Text style={[styles.numText, removed && styles.removedNum]}>{score === null ? '-' : wl.l}</Text>
               </View>
               <View style={[styles.numCell, styles.rowSeparator]}>
                 <ScoreText value={score} style={styles.scoreText} />
@@ -123,27 +132,31 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
     backgroundColor: colors.band,
-    minHeight: 52,
+    minHeight: 28,
   },
-  headerText: { fontFamily: fonts.bold, fontSize: 21, color: colors.text },
+  headerText: { fontFamily: fonts.bold, fontSize: 16, color: colors.text },
   headerActive: { color: colors.primaryDark, textDecorationLine: 'underline' },
   headerSeparator: { borderLeftWidth: 1, borderLeftColor: colors.buttonGray },
   rowSeparator: { borderLeftWidth: 1, borderLeftColor: colors.divider },
-  nameCell: { flex: 1, justifyContent: 'center', paddingLeft: 16, paddingRight: 6, minHeight: 48 },
-  numCell: { width: COL_WIDTH, alignItems: 'center', justifyContent: 'center', minHeight: 48 },
+  nameCell: { flex: 1, justifyContent: 'center', paddingLeft: 12, paddingRight: 6, minHeight: 28 },
+  numCell: { width: COL_WIDTH, alignItems: 'center', justifyContent: 'center', minHeight: 28 },
   row: {
     flexDirection: 'row',
+    minHeight: 32,
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
     backgroundColor: colors.surface,
   },
-  nameText: { fontFamily: fonts.regular, fontSize: 18, color: colors.text },
-  numText: { fontFamily: fonts.regular, fontSize: 20, color: colors.text, fontVariant: ['tabular-nums'] },
-  scoreText: { fontSize: 20 },
+  nameText: { fontFamily: fonts.regular, fontSize: 14, color: colors.text },
+  removedText: { fontFamily: fonts.italic, color: colors.textMuted },
+  removedNum: { color: colors.textMuted },
+  numText: { fontFamily: fonts.regular, fontSize: 15, color: colors.text, fontVariant: ['tabular-nums'] },
+  scoreText: { fontSize: 15 },
   totalsRow: {
     flexDirection: 'row',
+    minHeight: 28,
     backgroundColor: colors.band,
   },
   totalsLabelCell: { alignItems: 'flex-end', paddingRight: 12 },
-  totalsLabel: { fontFamily: fonts.bold, fontSize: 21, color: colors.text },
+  totalsLabel: { fontFamily: fonts.bold, fontSize: 16, color: colors.text },
 });

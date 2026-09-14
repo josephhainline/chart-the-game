@@ -48,15 +48,33 @@ export function gameTitle(game: Pick<Game, 'opponent' | 'isAway' | 'startsAt'>):
   return `${opponentLabel(game)}, ${monthName(d)} ${d.getDate()} ${timeShort(d)}`;
 }
 
-/** "Next Game in 4 Days", "Game Day: Today", "Next Game: Tomorrow", "Next Game in 3 Weeks", or "" when in the past. */
+/** "4 Days" / "3 Weeks" for a game two or more calendar days out. */
+function spanLabel(days: number): string {
+  return days < 14 ? `${days} Days` : `${Math.round(days / 7)} Weeks`;
+}
+
+/**
+ * "Today", "Tomorrow", "In 4 Days", "In 3 Weeks", or "" when in the past.
+ * The plain countdown for upcoming games that are not the team's next one.
+ */
+export function countdownLabel(iso: string, now: Date = new Date()): string {
+  const days = differenceInCalendarDays(new Date(iso), now);
+  if (days < 0) return '';
+  if (days === 0) return 'Today';
+  if (days === 1) return 'Tomorrow';
+  return `In ${spanLabel(days)}`;
+}
+
+/**
+ * "Next Game in 4 Days", "Game Day: Today", "Next Game: Tomorrow", "Next Game in 3 Weeks", or "" when in the past.
+ * Only the team's next game says "Next Game"; see `countdownLabel` for the others.
+ */
 export function upcomingLabel(iso: string, now: Date = new Date()): string {
   const days = differenceInCalendarDays(new Date(iso), now);
   if (days < 0) return '';
   if (days === 0) return 'Game Day: Today';
   if (days === 1) return 'Next Game: Tomorrow';
-  if (days < 14) return `Next Game in ${days} Days`;
-  const weeks = Math.round(days / 7);
-  return `Next Game in ${weeks} Weeks`;
+  return `Next Game in ${spanLabel(days)}`;
 }
 
 export function playerName(p: Pick<Player, 'firstName' | 'lastName'>): string {
@@ -84,14 +102,6 @@ export function opponentBatterLabel(b: OpponentBatter): string {
 /** Roster order: by last name, then first name. */
 export function byLastName(a: Player, b: Player): number {
   return a.lastName.localeCompare(b.lastName) || a.firstName.localeCompare(b.firstName);
-}
-
-/** Split "Owen Haynes" into first/last. A single word becomes the first name. */
-export function splitName(full: string): { firstName: string; lastName: string } {
-  const parts = full.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return { firstName: '', lastName: '' };
-  if (parts.length === 1) return { firstName: parts[0], lastName: '' };
-  return { firstName: parts.slice(0, -1).join(' '), lastName: parts[parts.length - 1] };
 }
 
 /** "+24", "-6", "0" */

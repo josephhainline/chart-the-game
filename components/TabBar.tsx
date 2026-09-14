@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors, type } from '@/constants/theme';
 
-export type TabIconName = React.ComponentProps<typeof FontAwesome6>['name'];
+type TabIconName = React.ComponentProps<typeof FontAwesome6>['name'];
 
 /**
  * Bottom tab bar matching the prototype: each tab is a rounded light-gray chip
@@ -16,10 +16,9 @@ export default function TabBar({ state, descriptors, navigation, activeColor = c
   const insets = useSafeAreaInsets();
 
   return (
-    <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+    <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 8) }]} accessibilityRole="tablist">
       {state.routes.map((route, index) => {
         const { options } = descriptors[route.key];
-        if ((options as any).href === null) return null;
         const focused = state.index === index;
         const label =
           typeof options.tabBarLabel === 'string' ? options.tabBarLabel : options.title ?? route.name;
@@ -38,6 +37,7 @@ export default function TabBar({ state, descriptors, navigation, activeColor = c
             onPress={onPress}
             accessibilityRole="tab"
             accessibilityState={{ selected: focused }}
+            aria-selected={focused}
             accessibilityLabel={label}
             style={({ pressed }) => [styles.tab, pressed && styles.pressed]}
           >
@@ -54,8 +54,8 @@ export default function TabBar({ state, descriptors, navigation, activeColor = c
   );
 }
 
-export function TabIcon({ name, color, size = 26 }: { name: TabIconName; color: string; size?: number }) {
-  return <FontAwesome6 name={name} size={size} color={color} />;
+export function TabIcon({ name, color }: { name: TabIconName; color: string }) {
+  return <FontAwesome6 name={name} size={26} color={color} />;
 }
 
 const styles = StyleSheet.create({

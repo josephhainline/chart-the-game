@@ -1,18 +1,14 @@
-import { Redirect, Tabs } from 'expo-router';
+import { Tabs } from 'expo-router';
 import React from 'react';
 
 import TabBar, { TabIcon } from '@/components/TabBar';
 import { colors } from '@/constants/theme';
-import { useStore } from '@/lib/store';
 
-/** App level: Home (My Teams) · Games · About · Account. */
+/** App level: Home (My Teams) · Games · About · Account. The first-launch intro gate lives in app/_layout.tsx. */
 export default function AppTabsLayout() {
-  const { data } = useStore();
-  if (!data.onboarded) return <Redirect href="/intro" />;
-
   return (
     <Tabs
-      screenOptions={{ headerShown: false, tabBarActiveTintColor: colors.primary }}
+      screenOptions={{ headerShown: false }}
       tabBar={(props) => <TabBar {...props} activeColor={colors.primary} />}
     >
       <Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: ({ color }) => <TabIcon name="house" color={color} /> }} />

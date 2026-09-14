@@ -15,7 +15,7 @@ export default function TeamTabsLayout() {
   // team id into every tab; otherwise tapping a fresh tab renders it without a team.
   return (
     <Tabs
-      screenOptions={{ headerShown: false, tabBarActiveTintColor: colors.primary }}
+      screenOptions={{ headerShown: false }}
       tabBar={(props) => <TabBar {...props} activeColor={colors.primary} />}
     >
       <Tabs.Screen name="index" initialParams={{ teamId }} options={{ title: 'Home', tabBarIcon: ({ color }) => <TabIcon name="house" color={color} /> }} />

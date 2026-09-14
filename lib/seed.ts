@@ -49,8 +49,9 @@ type SeedGame = {
   opponent: string;
   isAway: boolean;
   /**
-   * Saturdays relative to today: negative = that many Saturdays back from the
-   * most recent past Saturday (-0 is the most recent), +1 = the next Saturday.
+   * Saturdays relative to today: 0 = the most recent Saturday whose games are
+   * already over (last week's when today is a Saturday), negative = that many
+   * Saturdays before it, +1 = the next Saturday.
    */
   weekOffset: number;
   hour: number;
@@ -174,8 +175,11 @@ function at(now: Date, dayOffset: number, hour: number, minute: number): Date {
 }
 
 /**
- * Youth ball is played on Saturdays. Past games sit on the most recent past
- * Saturday (weekOffset 0) and earlier ones; the upcoming game is next Saturday.
+ * Youth ball is played on Saturdays. Past games sit on the most recent Saturday
+ * that is fully behind us (weekOffset 0) and earlier ones; the upcoming game is
+ * next Saturday. On a Saturday the seeded finals (9:00 to mid-afternoon) may
+ * still be ahead of `now`, so that day never counts as "past": weekOffset 0 is
+ * last week's Saturday and the result is the same all day long.
  */
 function saturdayOffset(now: Date, weekOffset: number): number {
   const day = now.getDay(); // 0 = Sunday … 6 = Saturday
@@ -184,8 +188,8 @@ function saturdayOffset(now: Date, weekOffset: number): number {
     const daysUntilNext = 7 - daysSinceSaturday; // always in the future, 1..7
     return daysUntilNext + (weekOffset - 1) * 7;
   }
-  // weekOffset 0 → most recent past Saturday; today counts only if it is Saturday.
-  return -daysSinceSaturday + weekOffset * 7;
+  const daysSinceLastPlayed = daysSinceSaturday === 0 ? 7 : daysSinceSaturday; // always in the past, 1..7
+  return -daysSinceLastPlayed + weekOffset * 7;
 }
 
 function opponentLineup(prefix: string): OpponentBatter[] {

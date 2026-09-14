@@ -7,6 +7,7 @@ import ModalScreen from '@/components/ModalScreen';
 import { Button, EmptyState } from '@/components/ui';
 import { colors } from '@/constants/theme';
 import { confirmAction } from '@/lib/confirm';
+import { useDismiss } from '@/lib/navigation';
 import { useGame, useStore } from '@/lib/store';
 
 /** Modal form that edits a game's opponent, home/away, date & time and notes, or deletes it. */
@@ -16,11 +17,7 @@ export default function EditGameScreen() {
   const { updateGame, deleteGame } = useStore();
   const game = useGame(gameId);
   const form = useGameForm(game);
-
-  const close = () => {
-    if (router.canGoBack()) router.back();
-    else router.replace(game ? `/game/${game.id}` : '/');
-  };
+  const close = useDismiss(game ? `/game/${game.id}` : '/');
 
   const save = () => {
     const input = form.submit();

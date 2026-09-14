@@ -12,7 +12,7 @@ import { useStore } from '@/lib/store';
 
 export default function AccountScreen() {
   const router = useRouter();
-  const { setOnboarded, resetDemoData, clearAllData } = useStore();
+  const { setOnboarded, resetDemoData, clearAllData, loadIssue } = useStore();
 
   const replayIntro = () => {
     setOnboarded(false);
@@ -49,6 +49,9 @@ export default function AccountScreen() {
             <Text style={styles.role}>COACH</Text>
             <Text style={styles.name}>Demo coach</Text>
             <Text style={styles.caption}>Signed in locally — data stays in this browser</Text>
+            {loadIssue === 'backed_up' ? (
+              <Text style={[styles.caption, { color: colors.loss }]}>Saved data couldn't be read; a backup was kept and the demo was reloaded.</Text>
+            ) : null}
           </View>
         </View>
 

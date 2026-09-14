@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { AppState, Platform } from 'react-native';
 
 import { newId } from './ids';
 import { getOutcome } from './outcomes';
@@ -20,6 +21,13 @@ import type {
 import { EMPTY_DATA } from './types';
 
 export const STORAGE_KEY = 'ctg:data:v1';
+/** Where a saved document that could not be read is parked before demo data replaces it. */
+export const BACKUP_KEY = 'ctg:data:backup';
+/** Back-to-back changes (e.g. typing a name) are coalesced into one write. */
+const SAVE_DEBOUNCE_MS = 150;
+
+/** Why the saved document was not loaded on launch. */
+export type LoadIssue = 'backed_up';
 
 /** Which side is batting given the game's half-inning. The away team bats in the top. */
 export function battingSide(game: Pick<Game, 'isAway' | 'half'>): Side {
@@ -34,6 +42,23 @@ function nextHalf(inning: number, half: Half): { inning: number; half: Half } {
 function prevHalf(inning: number, half: Half): { inning: number; half: Half } {
   if (half === 'bottom') return { inning, half: 'top' };
   return inning > 1 ? { inning: inning - 1, half: 'bottom' } : { inning, half };
+}
+
+/**
+ * Keep the same batter due after a batting order changes. If the batter who
+ * was due is gone, the next one after them (in the old order) who is still
+ * present is due; falls back to the top of the order.
+ */
+export function carryNextBatter<T>(oldOrder: T[], oldIndex: number, newOrder: T[], idOf: (x: T) => Id): number {
+  const n = oldOrder.length;
+  if (n === 0 || newOrder.length === 0) return 0;
+  const start = ((oldIndex % n) + n) % n;
+  for (let k = 0; k < n; k++) {
+    const id = idOf(oldOrder[(start + k) % n]);
+    const idx = newOrder.findIndex((x) => idOf(x) === id);
+    if (idx >= 0) return idx;
+  }
+  return 0;
 }
 
 function defaultOpponentLineup(): OpponentBatter[] {
@@ -57,6 +82,8 @@ export type Store = {
   data: AppData;
   /** false until the persisted document has been read. */
   ready: boolean;
+  /** Set when the saved document could not be read on launch and was moved to BACKUP_KEY. */
+  loadIssue?: LoadIssue;
 
   setOnboarded: (value: boolean) => void;
 
@@ -70,7 +97,8 @@ export type Store = {
   removePlayer: (playerId: Id) => void;
 
   addGame: (teamId: Id, input: NewGameInput) => Game;
-  updateGame: (gameId: Id, patch: Partial<Omit<Game, 'id' | 'teamId'>>) => void;
+  /** Edits the game's details only; the order, status and progress go through the dedicated actions. */
+  updateGame: (gameId: Id, patch: Partial<Pick<Game, 'opponent' | 'isAway' | 'startsAt' | 'notes'>>) => void;
   deleteGame: (gameId: Id) => void;
   setGameLineup: (gameId: Id, lineup: LineupSlot[]) => void;
   setOpponentLineup: (gameId: Id, batters: OpponentBatter[]) => void;
@@ -90,16 +118,49 @@ export type Store = {
 
 const StoreContext = createContext<Store | undefined>(undefined);
 
-async function readPersisted(): Promise<AppData | null> {
+type Persisted =
+  | { kind: 'none' }
+  | { kind: 'ok'; data: AppData }
+  /** The key holds something this build cannot use (corrupt JSON, another schema version). */
+  | { kind: 'unreadable'; raw: string };
+
+function isAppData(value: unknown): value is AppData {
+  if (!value || typeof value !== 'object') return false;
+  const doc = value as Partial<AppData>;
+  return (
+    doc.version === 1 &&
+    Array.isArray(doc.teams) &&
+    Array.isArray(doc.players) &&
+    Array.isArray(doc.games) &&
+    Array.isArray(doc.atBats)
+  );
+}
+
+async function readPersisted(): Promise<Persisted> {
+  let raw: string | null;
   try {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as AppData;
-    if (!parsed || parsed.version !== 1) return null;
-    return parsed;
+    raw = await AsyncStorage.getItem(STORAGE_KEY);
   } catch (error) {
     console.warn('Could not read saved data; starting fresh.', error);
-    return null;
+    return { kind: 'none' };
+  }
+  if (!raw) return { kind: 'none' };
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (isAppData(parsed)) return { kind: 'ok', data: parsed };
+    const version = parsed && typeof parsed === 'object' ? (parsed as { version?: unknown }).version : undefined;
+    console.warn(`Saved data is not a version 1 document (version ${String(version)}); keeping a backup.`);
+  } catch (error) {
+    console.warn('Could not parse saved data; keeping a backup.', error);
+  }
+  return { kind: 'unreadable', raw };
+}
+
+async function backupUnreadable(raw: string): Promise<void> {
+  try {
+    await AsyncStorage.setItem(BACKUP_KEY, raw);
+  } catch (error) {
+    console.warn('Could not back up the unreadable saved data.', error);
   }
 }
 
@@ -114,38 +175,99 @@ async function writePersisted(data: AppData): Promise<void> {
 export function StoreProvider({ children, initialData }: { children: React.ReactNode; initialData?: AppData }) {
   const [data, setData] = useState<AppData>(initialData ?? EMPTY_DATA);
   const [ready, setReady] = useState(Boolean(initialData));
+  const [loadIssue, setLoadIssue] = useState<LoadIssue | undefined>(undefined);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Mirror of the latest document so back-to-back actions in one tick see each other's results. */
   const dataRef = useRef<AppData>(data);
+  const readyRef = useRef(ready);
+  /** true when `dataRef.current` has changes that are not yet on disk. */
+  const dirty = useRef(false);
+
+  /** Write the document now if anything is pending (cancels the debounce). */
+  const flushNow = useCallback(() => {
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+    if (!dirty.current || !readyRef.current) return;
+    dirty.current = false;
+    void writePersisted(dataRef.current);
+  }, []);
 
   useEffect(() => {
     if (initialData) return;
     let cancelled = false;
-    readPersisted().then((saved) => {
+    (async () => {
+      const saved = await readPersisted();
       if (cancelled) return;
-      const next = saved ?? buildDemoData();
+      let next: AppData;
+      if (saved.kind === 'ok') {
+        next = saved.data;
+      } else {
+        if (saved.kind === 'unreadable') {
+          // Never overwrite something we could not read: park it first.
+          await backupUnreadable(saved.raw);
+          if (cancelled) return;
+          setLoadIssue('backed_up');
+        }
+        next = buildDemoData();
+        // Persist the seed so its relative dates stop moving from day to day.
+        dirty.current = true;
+      }
       dataRef.current = next;
+      readyRef.current = true;
       setData(next);
       setReady(true);
-    });
+    })();
     return () => {
       cancelled = true;
     };
   }, [initialData]);
 
+  // Debounced write after every change; flushNow() short-circuits it.
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || !dirty.current) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => writePersisted(data), 150);
+    saveTimer.current = setTimeout(flushNow, SAVE_DEBOUNCE_MS);
     return () => {
-      if (saveTimer.current) clearTimeout(saveTimer.current);
+      if (saveTimer.current) {
+        clearTimeout(saveTimer.current);
+        saveTimer.current = null;
+      }
     };
-  }, [data, ready]);
+  }, [data, ready, flushNow]);
+
+  // Flush before the page/app goes away so the last tap is never lost. On web
+  // localStorage writes are synchronous, so pagehide/beforeunload complete.
+  useEffect(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof document !== 'undefined') {
+      const onVisibility = () => {
+        if (document.visibilityState === 'hidden') flushNow();
+      };
+      window.addEventListener('pagehide', flushNow);
+      window.addEventListener('beforeunload', flushNow);
+      document.addEventListener('visibilitychange', onVisibility);
+      return () => {
+        window.removeEventListener('pagehide', flushNow);
+        window.removeEventListener('beforeunload', flushNow);
+        document.removeEventListener('visibilitychange', onVisibility);
+        flushNow();
+      };
+    }
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'background' || state === 'inactive') flushNow();
+    });
+    return () => {
+      subscription.remove();
+      flushNow();
+    };
+  }, [flushNow]);
 
   /** Apply a pure update to the document. */
   const update = useCallback((fn: (d: AppData) => AppData) => {
     const next = fn(dataRef.current);
     dataRef.current = next;
+    dirty.current = true;
     setData(next);
   }, []);
 
@@ -162,6 +284,7 @@ export function StoreProvider({ children, initialData }: { children: React.React
     return {
       data,
       ready,
+      loadIssue,
 
       setOnboarded: (value) => update((d) => ({ ...d, onboarded: value })),
 
@@ -229,21 +352,26 @@ export function StoreProvider({ children, initialData }: { children: React.React
           ),
         })),
 
-      // Historical at-bats are kept so past games and season totals stay honest.
+      // Historical at-bats are kept so past games and season totals stay honest
+      // (the season table shows them under a "Removed players" row).
       removePlayer: (playerId) =>
         update((d) => ({
           ...d,
           players: d.players.filter((p) => p.id !== playerId),
           teams: d.teams.map((t) => ({ ...t, defaultLineup: t.defaultLineup.filter((s) => s.playerId !== playerId) })),
-          games: d.games.map((g) =>
-            g.status === 'scheduled'
-              ? {
-                  ...g,
-                  lineup: g.lineup.filter((s) => s.playerId !== playerId),
-                  pitcherId: g.pitcherId === playerId ? undefined : g.pitcherId,
-                }
-              : g,
-          ),
+          games: d.games.map((g) => {
+            if (g.status === 'final') return g;
+            // Upcoming games drop the slot. A game in progress keeps its order
+            // (the CTG screen shows the slot as "Removed player"), but no
+            // further at-bat is ever credited to the missing pitcher.
+            const lineup = g.status === 'scheduled' ? g.lineup.filter((s) => s.playerId !== playerId) : g.lineup;
+            return {
+              ...g,
+              lineup,
+              ourNextBatter: carryNextBatter(g.lineup, g.ourNextBatter, lineup, (s) => s.playerId),
+              pitcherId: g.pitcherId === playerId ? undefined : g.pitcherId,
+            };
+          }),
         })),
 
       addGame: (teamId, input) => {
@@ -285,20 +413,45 @@ export function StoreProvider({ children, initialData }: { children: React.React
         updateGameIn(gameId, (g) => ({
           ...g,
           lineup,
-          ourNextBatter: lineup.length ? Math.min(g.ourNextBatter, lineup.length - 1) : 0,
+          ourNextBatter: carryNextBatter(g.lineup, g.ourNextBatter, lineup, (s) => s.playerId),
         })),
 
       setOpponentLineup: (gameId, batters) =>
         updateGameIn(gameId, (g) => ({
           ...g,
           opponentLineup: batters,
-          theirNextBatter: batters.length ? Math.min(g.theirNextBatter, batters.length - 1) : 0,
+          theirNextBatter: carryNextBatter(g.opponentLineup, g.theirNextBatter, batters, (b) => b.id),
         })),
 
-      setPitcher: (gameId, playerId) => updateGameIn(gameId, (g) => ({ ...g, pitcherId: playerId })),
+      setPitcher: (gameId, playerId) =>
+        update((d) => {
+          const game = d.games.find((g) => g.id === gameId);
+          if (!game) return d;
+          // Opponent at-bats charted this half-inning before a pitcher was
+          // chosen were thrown by this pitcher: credit them now. At-bats that
+          // already name a pitcher are never re-credited.
+          const atBats =
+            playerId === undefined
+              ? d.atBats
+              : d.atBats.map((ab) =>
+                  ab.gameId === gameId &&
+                  ab.side === 'them' &&
+                  ab.pitcherId === undefined &&
+                  ab.inning === game.inning &&
+                  ab.half === game.half
+                    ? { ...ab, pitcherId: playerId }
+                    : ab,
+                );
+          return { ...d, atBats, games: d.games.map((g) => (g.id === gameId ? { ...g, pitcherId: playerId } : g)) };
+        }),
 
+      // Any run on the board means the game is under way.
       setScore: (gameId, score) =>
-        updateGameIn(gameId, (g) => ({ ...g, score: { us: Math.max(0, score.us), them: Math.max(0, score.them) } })),
+        updateGameIn(gameId, (g) => {
+          const next = { us: Math.max(0, score.us), them: Math.max(0, score.them) };
+          const started = next.us > 0 || next.them > 0;
+          return { ...g, score: next, status: g.status === 'scheduled' && started ? 'in_progress' : g.status };
+        }),
 
       nextHalfInning: (gameId) =>
         updateGameIn(gameId, (g) => ({
@@ -310,9 +463,11 @@ export function StoreProvider({ children, initialData }: { children: React.React
       prevHalfInning: (gameId) => updateGameIn(gameId, (g) => ({ ...g, ...prevHalf(g.inning, g.half) })),
 
       setNextBatter: (gameId, side, index) =>
-        updateGameIn(gameId, (g) =>
-          side === 'us' ? { ...g, ourNextBatter: index } : { ...g, theirNextBatter: index },
-        ),
+        updateGameIn(gameId, (g) => ({
+          ...g,
+          status: g.status === 'scheduled' ? 'in_progress' : g.status,
+          ...(side === 'us' ? { ourNextBatter: index } : { theirNextBatter: index }),
+        })),
 
       recordAtBat: (gameId, outcomeId) => {
         const game = dataRef.current.games.find((g) => g.id === gameId);
@@ -348,6 +503,8 @@ export function StoreProvider({ children, initialData }: { children: React.React
             };
           }),
         }));
+        // One tap every few seconds: write it straight away.
+        flushNow();
         return atBat;
       },
 
@@ -377,25 +534,34 @@ export function StoreProvider({ children, initialData }: { children: React.React
             };
           }),
         }));
+        flushNow();
         return last;
       },
 
-      finishGame: (gameId, input) =>
+      finishGame: (gameId, input) => {
         updateGameIn(gameId, (g) => ({
           ...g,
           status: 'final',
           score: input.score,
           notes: input.notes?.trim() || undefined,
           finishedAt: now(),
-        })),
+        }));
+        flushNow();
+      },
 
       reopenGame: (gameId) => updateGameIn(gameId, (g) => ({ ...g, status: 'in_progress', finishedAt: undefined })),
 
-      resetDemoData: () => update((d) => ({ ...buildDemoData(), onboarded: d.onboarded })),
+      resetDemoData: () => {
+        update((d) => ({ ...buildDemoData(), onboarded: d.onboarded }));
+        flushNow();
+      },
 
-      clearAllData: () => update((d) => ({ ...EMPTY_DATA, onboarded: d.onboarded })),
+      clearAllData: () => {
+        update((d) => ({ ...EMPTY_DATA, onboarded: d.onboarded }));
+        flushNow();
+      },
     };
-  }, [data, ready, update, updateGameIn]);
+  }, [data, ready, loadIssue, update, updateGameIn, flushNow]);
 
   return <StoreContext.Provider value={store}>{children}</StoreContext.Provider>;
 }

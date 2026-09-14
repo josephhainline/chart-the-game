@@ -1,12 +1,12 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
-import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
+import { Redirect, useLocalSearchParams } from 'expo-router';
 import React, { useMemo } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import AppHeader from '@/components/AppHeader';
 import Screen from '@/components/Screen';
 import { Button } from '@/components/ui';
-import { colors, fonts, radii, spacing, type } from '@/constants/theme';
+import { colors, fonts, radii, type } from '@/constants/theme';
 import { confirmAction } from '@/lib/confirm';
 import { byLastName, gameTitle, playerShort } from '@/lib/format';
 import { newId } from '@/lib/ids';
@@ -34,7 +34,6 @@ function isCustomized(batters: OpponentBatter[]): boolean {
  */
 export default function OpponentScreen() {
   const { gameId } = useLocalSearchParams<{ gameId: string }>();
-  const router = useRouter();
   const game = useGame(gameId);
   const players = useTeamPlayers(game?.teamId);
   const atBats = useGameAtBats(gameId);
@@ -113,7 +112,7 @@ export default function OpponentScreen() {
       <AppHeader
         context={gameTitle(game)}
         contextColor={colors.orange}
-        onBack={() => router.replace(`/team/${game.teamId}`)}
+        backHref={`/team/${game.teamId}`}
       />
       <View style={styles.body}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
@@ -266,9 +265,9 @@ function IconButton({
 
 const styles = StyleSheet.create({
   body: { flex: 1 },
-  content: { paddingHorizontal: spacing.lg, paddingTop: spacing.xl, paddingBottom: 40, gap: spacing.xxl },
-  section: { gap: spacing.md },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  content: { paddingHorizontal: 16, paddingTop: 24, paddingBottom: 40, gap: 32 },
+  section: { gap: 12 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     height: 44,
     paddingHorizontal: 14,
@@ -279,13 +278,13 @@ const styles = StyleSheet.create({
   },
   chipSelected: { backgroundColor: colors.primaryDark },
   chipText: { fontFamily: fonts.bold, fontSize: 16, color: colors.text },
-  chipTextSelected: { color: '#fff' },
+  chipTextSelected: { color: colors.white },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
+    gap: 8,
     minHeight: 60,
-    paddingVertical: spacing.sm,
+    paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
@@ -295,7 +294,7 @@ const styles = StyleSheet.create({
     fontSize: 17,
     color: colors.text,
     borderWidth: 1,
-    borderColor: '#CFD5DE',
+    borderColor: colors.inputBorder,
     borderRadius: radii.md,
     paddingHorizontal: 10,
     height: 44,

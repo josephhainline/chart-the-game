@@ -25,11 +25,12 @@ export default function FinishGameScreen() {
 
   const save = () => {
     finishGame(game.id, { score: { us, them }, notes });
+    // Back to the team's Home, where the game now shows as a final.
     router.replace(`/team/${game.teamId}`);
   };
 
   return (
-    <ModalScreen title="End Game" color={colors.orange} actionLabel="Save & Finish" onAction={save}>
+    <ModalScreen title="End Game" color={colors.orange} actionLabel="Save & Finish" onAction={save} fallbackHref={`/game/${game.id}`}>
       <Text style={styles.sectionLabel}>Final score</Text>
       <View style={styles.scoreRow}>
         <BigStepper label="Us" value={us} onChange={setUs} />

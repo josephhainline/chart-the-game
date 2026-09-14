@@ -167,6 +167,44 @@ describe('buildDemoData: games', () => {
     });
   });
 
+  describe('relative dates', () => {
+    const finalsOf = (d: ReturnType<typeof buildDemoData>) => d.games.filter((g) => g.status === 'final');
+    const nextOf = (d: ReturnType<typeof buildDemoData>) => d.games.find((g) => g.status === 'scheduled')!;
+
+    it('on a Saturday morning every final game is already over and the next game is a week out', () => {
+      const sat = new Date('2026-09-19T08:00:00');
+      const d = buildDemoData(sat);
+      for (const g of finalsOf(d)) {
+        expect(new Date(g.finishedAt!).getTime()).toBeLessThan(sat.getTime());
+      }
+      const latest = finalsOf(d).map((g) => new Date(g.startsAt))[finalsOf(d).length - 1];
+      expect(differenceInCalendarDays(latest, sat)).toBe(-7);
+      expect(latest.getDay()).toBe(6);
+      expect(differenceInCalendarDays(new Date(nextOf(d).startsAt), sat)).toBe(7);
+    });
+
+    it('on a Saturday evening the finals still sit on last Saturday, so the seed does not move during the day', () => {
+      const morning = buildDemoData(new Date('2026-09-19T08:00:00'));
+      const evening = buildDemoData(new Date('2026-09-19T20:00:00'));
+      expect(evening.games.map((g) => g.startsAt)).toEqual(morning.games.map((g) => g.startsAt));
+    });
+
+    it.each([
+      ['Sunday', '2026-09-20T10:00:00', -1, 6],
+      ['Wednesday', '2026-09-16T10:00:00', -4, 3],
+      ['Friday', '2026-09-18T23:00:00', -6, 1],
+    ])('on a %s the finals are on the previous Saturday and the next game on the coming one', (_day, iso, back, ahead) => {
+      const now = new Date(iso);
+      const d = buildDemoData(now);
+      const finals = finalsOf(d);
+      const latest = new Date(finals[finals.length - 1].startsAt);
+      expect(latest.getDay()).toBe(6);
+      expect(differenceInCalendarDays(latest, now)).toBe(back);
+      for (const g of finals) expect(new Date(g.finishedAt!).getTime()).toBeLessThan(now.getTime());
+      expect(differenceInCalendarDays(new Date(nextOf(d).startsAt), now)).toBe(ahead);
+    });
+  });
+
   it('final games have finishedAt after first pitch and end in the bottom of the last inning', () => {
     for (const g of finalGames) {
       expect(g.finishedAt).toBeDefined();

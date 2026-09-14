@@ -1,5 +1,6 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import React from 'react';
+import { StyleSheet } from 'react-native';
 
 import AppHeader from '@/components/AppHeader';
 import LineupEditor from '@/components/LineupEditor';
@@ -9,17 +10,26 @@ import { colors } from '@/constants/theme';
 import { confirmAction } from '@/lib/confirm';
 import { gameTitle } from '@/lib/format';
 import { useGame, useStore, useTeam, useTeamPlayers } from '@/lib/store';
+import type { LineupSlot } from '@/lib/types';
 
 /** Game level › Team: this game's batting order (starts as a copy of the default lineup). */
 export default function GameTeamScreen() {
   const { gameId } = useLocalSearchParams<{ gameId: string }>();
-  const router = useRouter();
-  const { setGameLineup } = useStore();
+  const { setGameLineup, setPitcher } = useStore();
   const game = useGame(gameId);
   const team = useTeam(game?.teamId);
   const players = useTeamPlayers(game?.teamId);
 
   if (!game) return null;
+
+  // The P badge and the pitcher are one thing during a game: giving a batter
+  // the P position makes them the pitcher that pitching W/L are credited to.
+  const applyLineup = (slots: LineupSlot[]) => {
+    setGameLineup(game.id, slots);
+    const wasP = new Set(game.lineup.filter((s) => s.position === 'P').map((s) => s.playerId));
+    const newP = slots.find((s) => s.position === 'P' && !wasP.has(s.playerId));
+    if (newP && newP.playerId !== game.pitcherId) setPitcher(game.id, newP.playerId);
+  };
 
   const useDefaultLineup = async () => {
     if (!team) return;
@@ -28,7 +38,7 @@ export default function GameTeamScreen() {
       "This replaces this game's batting order with the team's default lineup.",
       'Replace',
     );
-    if (ok) setGameLineup(game.id, team.defaultLineup.map((s) => ({ ...s })));
+    if (ok) applyLineup(team.defaultLineup.map((s) => ({ ...s })));
   };
 
   return (
@@ -36,19 +46,18 @@ export default function GameTeamScreen() {
       <AppHeader
         context={gameTitle(game)}
         contextColor={colors.orange}
-        onBack={() => router.replace(`/team/${game.teamId}`)}
+        backHref={`/team/${game.teamId}`}
       />
+      {/* No title block: like the prototype (cecb2d5c…) the order starts right under the game band. */}
       <LineupEditor
         slots={game.lineup}
         players={players}
-        onChange={(slots) => setGameLineup(game.id, slots)}
-        title="Batting Order"
-        caption="Changes only apply to this game"
-        headerRight={
+        onChange={applyLineup}
+        footer={
           <Button
             title="Use default lineup"
             variant="ghost"
-            textStyle={{ color: colors.orange }}
+            textStyle={styles.footerText}
             onPress={useDefaultLineup}
             disabled={!team}
           />
@@ -57,3 +66,7 @@ export default function GameTeamScreen() {
     </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  footerText: { color: colors.orange },
+});

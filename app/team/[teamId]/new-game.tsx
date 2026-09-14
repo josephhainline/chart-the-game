@@ -1,23 +1,19 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import GameForm, { useGameForm } from '@/components/GameForm';
 import ModalScreen from '@/components/ModalScreen';
 import { Button } from '@/components/ui';
+import { useDismiss } from '@/lib/navigation';
 import { useStore } from '@/lib/store';
 
 /** Modal form that schedules a new game for the team. */
 export default function NewGameScreen() {
   const { teamId } = useLocalSearchParams<{ teamId: string }>();
-  const router = useRouter();
   const { addGame } = useStore();
   const form = useGameForm();
-
-  const close = () => {
-    if (router.canGoBack()) router.back();
-    else router.replace(`/team/${teamId}`);
-  };
+  const close = useDismiss(`/team/${teamId}`);
 
   const save = () => {
     const input = form.submit();

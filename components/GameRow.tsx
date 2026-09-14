@@ -4,8 +4,8 @@ import React from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Button, WLText } from '@/components/ui';
-import { colors, fonts, radii } from '@/constants/theme';
-import { gameDateLine, inningOrdinal, monthBand, monthKey, opponentLabel, upcomingLabel } from '@/lib/format';
+import { colors, fonts, radii, type } from '@/constants/theme';
+import { countdownLabel, gameDateLine, inningOrdinal, monthBand, monthKey, opponentLabel, upcomingLabel } from '@/lib/format';
 import { gameHitting, gamePitching } from '@/lib/stats';
 import type { AtBat, Game } from '@/lib/types';
 
@@ -71,10 +71,11 @@ export function inProgressLabel(game: Pick<Game, 'inning' | 'half'>): string {
   return `Charting in progress · ${game.half === 'top' ? 'Top' : 'Bottom'} ${inningOrdinal(game.inning)}`;
 }
 
-function statusLine(game: Game): string {
+function statusLine(game: Game, featured: boolean): string {
   if (game.status === 'final') return finalScoreLabel(game);
   if (game.status === 'in_progress') return inProgressLabel(game);
-  return upcomingLabel(game.startsAt) || 'Not charted yet';
+  // Only the team's next game says "Next Game"; later ones just count down.
+  return (featured ? upcomingLabel(game.startsAt) : countdownLabel(game.startsAt)) || 'Not charted yet';
 }
 
 /**
@@ -106,7 +107,7 @@ export default function GameRow({ game, atBats, featured, teamName, onPress }: P
         <View style={styles.details}>
           <Text style={styles.date}>{gameDateLine(game.startsAt)}</Text>
           <View style={styles.status}>
-            <Text style={styles.statusLine}>{statusLine(game)}</Text>
+            <Text style={styles.statusLine}>{statusLine(game, Boolean(featured))}</Text>
             {game.notes ? <Text style={styles.notes}>{game.notes}</Text> : null}
           </View>
         </View>
@@ -142,61 +143,68 @@ function ChartTheGameButton({ onPress }: { onPress: () => void }) {
       accessibilityLabel="Chart The Game"
       style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed, webCursor]}
     >
-      <FontAwesome6 name="gauge-high" size={44} color="#fff" />
+      <FontAwesome6 name="gauge-high" size={34} color={colors.white} />
       <Text style={styles.ctaText}>Chart The Game</Text>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  // The divider and the detail lines are inset 36px like the prototype; the
-  // opponent title hangs 18px back into that margin.
+  // Type and spacing measured at 3x on the prototype (37310de8…): opponent
+  // 18pt bold, date / status / notes 12pt, W/L labels 12pt over 16pt figures,
+  // a final-score row ≈116pt tall. The divider and the detail lines are inset
+  // 36px like the prototype; the opponent title hangs 18px back into that margin.
   row: {
     flexDirection: 'row',
     alignItems: 'stretch',
     marginLeft: 36,
     paddingRight: 12,
-    paddingTop: 16,
-    paddingBottom: 14,
+    paddingTop: 11,
+    paddingBottom: 9,
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
     backgroundColor: colors.surface,
     gap: 8,
   },
-  rowPressed: { backgroundColor: '#F4F6FA' },
+  rowPressed: { backgroundColor: colors.pressed },
   left: { flex: 1, minWidth: 0 },
-  teamName: { fontFamily: fonts.bold, fontSize: 12, color: colors.textMuted, letterSpacing: 0.4, marginLeft: -18, marginBottom: 2 },
-  opponent: { fontFamily: fonts.bold, fontSize: 24, color: colors.text, marginLeft: -18, lineHeight: 30 },
-  details: { marginTop: 6, gap: 12 },
-  date: { fontFamily: fonts.regular, fontSize: 16, color: colors.textMuted, lineHeight: 20 },
-  status: { gap: 2 },
-  statusLine: { fontFamily: fonts.bold, fontSize: 16, color: colors.text, lineHeight: 20 },
-  notes: { fontFamily: fonts.regular, fontSize: 16, color: colors.text, lineHeight: 19 },
-  right: { width: 150, alignItems: 'center', paddingTop: 6 },
+  teamName: { fontFamily: fonts.bold, fontSize: 11, lineHeight: 14, color: colors.textMuted, letterSpacing: 0.4, marginLeft: -18, marginBottom: 1 },
+  opponent: { fontFamily: fonts.bold, fontSize: 18, color: colors.text, marginLeft: -18, lineHeight: 22 },
+  details: { marginTop: 5, gap: 12 },
+  date: { ...type.rowMeta },
+  status: { gap: 1 },
+  statusLine: { ...type.rowMetaBold },
+  notes: { ...type.rowMeta, color: colors.text },
+  // Sized to its content (never narrower than the widest W/L figure) so the
+  // left column keeps ~200px at 375 wide and dates stay on one line; 120 puts the
+  // HITTING label near the prototype's x=224pt.
+  right: { minWidth: 120, flexShrink: 0, alignItems: 'center', paddingTop: 6 },
   rightCentered: { justifyContent: 'center', paddingTop: 0 },
   wlLabel: {
     alignSelf: 'flex-start',
     fontFamily: fonts.bold,
-    fontSize: 15,
+    fontSize: 12,
+    lineHeight: 15,
     color: colors.textMuted,
     textDecorationLine: 'underline',
     letterSpacing: 0.2,
   },
   wlLabelSpaced: { marginTop: 14 },
-  wl: { fontSize: 22, marginTop: 4, lineHeight: 26 },
-  continueButton: { marginTop: 12, alignSelf: 'stretch' },
+  wl: { fontSize: 16, marginTop: 2, lineHeight: 20 },
+  continueButton: { marginTop: 10, alignSelf: 'stretch' },
+  // Prototype: 121x69pt orange panel, gauge over 14pt "Chart The Game".
   cta: {
-    width: 140,
-    height: 82,
+    width: 122,
+    height: 68,
     borderRadius: radii.sm,
     backgroundColor: colors.orange,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
+    gap: 3,
     ...(Platform.OS === 'web'
-      ? ({ boxShadow: '2px 3px 4px rgba(0, 0, 0, 0.25)' } as any)
-      : { shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 3, shadowOffset: { width: 2, height: 3 }, elevation: 4 }),
+      ? ({ boxShadow: `2px 3px 4px ${colors.shadow}` } as any)
+      : { shadowColor: colors.black, shadowOpacity: 0.25, shadowRadius: 3, shadowOffset: { width: 2, height: 3 }, elevation: 4 }),
   },
   ctaPressed: { opacity: 0.85 },
-  ctaText: { fontFamily: fonts.bold, fontSize: 17, color: '#fff' },
+  ctaText: { fontFamily: fonts.bold, fontSize: 14, color: colors.white },
 });

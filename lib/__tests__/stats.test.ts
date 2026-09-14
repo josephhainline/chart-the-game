@@ -2,6 +2,7 @@ import { describe, expect, it } from '@jest/globals';
 
 import { buildDemoData } from '../seed';
 import {
+  REMOVED_ROW_ID,
   ZERO,
   addResult,
   gameHitting,
@@ -236,6 +237,56 @@ describe('seasonTable', () => {
     expect(totals(pitching)).toEqual({ w: 2, l: 1 });
     expect(totals([])).toEqual(ZERO);
   });
+
+  it('adds no synthetic row while every at-bat belongs to a roster player', () => {
+    for (const mode of ['hitting', 'pitching'] as const) {
+      const rows = seasonTable(team, players, games, atBats, mode);
+      expect(rows.some((r) => r.removed)).toBe(false);
+      expect(rows.some((r) => r.player.id === REMOVED_ROW_ID)).toBe(false);
+    }
+  });
+
+  describe('"Removed players" row', () => {
+    // Bob left the team: his two at-bats no longer have a roster row.
+    const withoutBob = players.filter((p) => p.id !== 'p_bob');
+
+    it('hitting: aggregates the at-bats of batters no longer on the roster, last in the table', () => {
+      const rows = seasonTable(team, withoutBob, games, atBats, 'hitting');
+      expect(rows.map((r) => r.player.id)).toEqual(['p_zed', 'p_mia', 'p_cal', 'p_amy', REMOVED_ROW_ID]);
+      const last = rows[rows.length - 1];
+      expect(last).toMatchObject({ removed: true, wl: { w: 1, l: 1 }, score: 0 });
+      expect(last.player).toMatchObject({ teamId: 't1', firstName: 'Removed', lastName: 'players' });
+      expect(rows.slice(0, -1).every((r) => !r.removed)).toBe(true);
+      // The table still adds up to the game lines.
+      expect(totals(rows)).toEqual({ w: 3, l: 4 });
+    });
+
+    it('pitching: aggregates removed pitchers and at-bats charted with no pitcher', () => {
+      const withoutAmy = players.filter((p) => p.id !== 'p_amy');
+      const orphaned = [
+        ...atBats,
+        // Charted while no pitcher was set.
+        ab({ batterId: 'ob9', result: 'L', side: 'them' }),
+        ab({ batterId: 'ob9', result: 'L', side: 'them', gameId: 'g2' }),
+        // Other team's game: never counted.
+        ab({ batterId: 'ob9', result: 'W', side: 'them', gameId: 'g_other' }),
+      ];
+      const rows = seasonTable(team, withoutAmy, games, orphaned, 'pitching');
+      const last = rows[rows.length - 1];
+      expect(last.player.id).toBe(REMOVED_ROW_ID);
+      // Amy's L (batter W) + two batter Ls with no pitcher = 2W 1L from the pitcher's side.
+      expect(last).toMatchObject({ removed: true, wl: { w: 2, l: 1 }, score: 1 });
+      expect(rows.some((r) => r.player.id === 'p_amy')).toBe(false);
+      const sum = games.filter((g) => g.teamId === 't1').map((g) => gamePitching(orphaned, g.id)).reduce((a, b) => ({ w: a.w + b.w, l: a.l + b.l }), ZERO);
+      expect(totals(rows)).toEqual(sum);
+    });
+
+    it('only counts at-bats from this team’s games', () => {
+      // Amy's removed-batter hitting at-bat is in another team's game: no row.
+      const rows = seasonTable(team, players.filter((p) => p.id !== 'p_amy'), games, atBats, 'hitting');
+      expect(rows.some((r) => r.removed)).toBe(false);
+    });
+  });
 });
 
 describe('scorebook', () => {
@@ -392,6 +443,44 @@ describe('with the demo data', () => {
     expect(rows.map((r) => r.player.id)).toEqual(team.defaultLineup.map((s) => s.playerId));
   });
 
+  describe('after a player with at-bats is removed from the roster', () => {
+    const sumOf = (wls: { w: number; l: number }[]) => wls.reduce((a, b) => ({ w: a.w + b.w, l: a.l + b.l }), ZERO);
+    /** Mimic the store's removePlayer: gone from the roster and the default lineup, at-bats kept. */
+    const without = (id: string) => ({
+      players: data.players.filter((p) => p.id !== id),
+      team: { ...team, defaultLineup: team.defaultLineup.filter((s) => s.playerId !== id) },
+    });
+
+    it('season hitting totals still equal the sum of every game’s hitting line', () => {
+      const { players, team: t } = without('p_owen');
+      const rows = seasonTable(t, players, data.games, data.atBats, 'hitting');
+      expect(totals(rows)).toEqual(sumOf(data.games.map((g) => gameHitting(data.atBats, g.id))));
+      const last = rows[rows.length - 1];
+      expect(last.removed).toBe(true);
+      expect(last.wl).toEqual(hittingFor(data.atBats, 'p_owen'));
+      expect(rows.filter((r) => r.removed)).toHaveLength(1);
+      expect(rows.some((r) => r.player.id === 'p_owen')).toBe(false);
+    });
+
+    it('season pitching totals still equal the sum of every game’s pitching line', () => {
+      const { players, team: t } = without('p_weedon');
+      const rows = seasonTable(t, players, data.games, data.atBats, 'pitching');
+      expect(totals(rows)).toEqual(sumOf(data.games.map((g) => gamePitching(data.atBats, g.id))));
+      const last = rows[rows.length - 1];
+      expect(last.removed).toBe(true);
+      expect(last.wl).toEqual(pitchingFor(data.atBats, 'p_weedon'));
+    });
+
+    it('two removed players share the one synthetic row', () => {
+      const players = data.players.filter((p) => p.id !== 'p_owen' && p.id !== 'p_knox');
+      const rows = seasonTable(team, players, data.games, data.atBats, 'hitting');
+      expect(rows.filter((r) => r.removed)).toHaveLength(1);
+      const expected = sumOf([hittingFor(data.atBats, 'p_owen'), hittingFor(data.atBats, 'p_knox')]);
+      expect(rows[rows.length - 1].wl).toEqual(expected);
+      expect(totals(rows)).toEqual(sumOf(data.games.map((g) => gameHitting(data.atBats, g.id))));
+    });
+  });
+
   it('the scorebook for a final game covers every inning and every at-bat', () => {
     for (const g of data.games.filter((x) => x.status === 'final')) {
       const ours = scorebook(data.atBats, g.id, 'us', g.lineup.map((s) => ({ id: s.playerId })));
@@ -412,5 +501,20 @@ describe('with the demo data', () => {
     const scores = ranked.map((id) => score(hittingFor(data.atBats, id)));
     for (let i = 1; i < scores.length; i++) expect(scores[i - 1]).toBeGreaterThanOrEqual(scores[i]);
     expect(ranked).toHaveLength(ids.length);
+  });
+});
+
+describe('outcome catalog', () => {
+  it('every outcome has a stable id, a label and a non-empty scorebook code', () => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { OUTCOMES } = require('../outcomes') as typeof import('../outcomes');
+    expect(OUTCOMES).toHaveLength(12);
+    for (const o of OUTCOMES) {
+      expect(o.id).toMatch(/^[a-z_0-9]+$/);
+      expect(o.label.length).toBeGreaterThan(0);
+      expect(o.short.length).toBeGreaterThan(0);
+      // Lato has no glyph for the mirrored K some scorebooks use.
+      expect(o.short).toMatch(/^[A-Z0-9()+-]+$/);
+    }
   });
 });

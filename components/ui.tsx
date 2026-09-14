@@ -36,12 +36,12 @@ type ButtonProps = {
 };
 
 const variantStyles: Record<ButtonVariant, { bg: string; fg: string; border?: string }> = {
-  primary: { bg: colors.primary, fg: '#fff' },
-  orange: { bg: colors.orange, fg: '#fff' },
-  gray: { bg: colors.buttonGray, fg: '#fff' },
+  primary: { bg: colors.primary, fg: colors.white },
+  orange: { bg: colors.orange, fg: colors.white },
+  gray: { bg: colors.buttonGray, fg: colors.white },
   outline: { bg: colors.surface, fg: colors.primaryDark, border: colors.primaryDark },
   win: { bg: colors.win, fg: colors.text },
-  loss: { bg: colors.loss, fg: '#fff' },
+  loss: { bg: colors.loss, fg: colors.white },
   ghost: { bg: 'transparent', fg: colors.primaryDark },
 };
 
@@ -79,7 +79,7 @@ export function FloatingButton({ title, onPress, style }: { title: string; onPre
       accessibilityLabel={title}
       style={({ pressed }) => [styles.fab, pressed && styles.pressed, webCursor, style]}
     >
-      <FontAwesome6 name="plus" size={20} color="#fff" />
+      <FontAwesome6 name="plus" size={20} color={colors.white} />
       <Text style={styles.fabText}>{title}</Text>
     </Pressable>
   );
@@ -87,11 +87,26 @@ export function FloatingButton({ title, onPress, style }: { title: string; onPre
 
 /* ---------- Rows & sections ---------- */
 
-/** Gray band with a heading, like the "Sept 2026" month bands. */
-export function SectionBand({ title, color = colors.band, textColor = colors.text, style }: { title: string; color?: string; textColor?: string; style?: StyleProp<ViewStyle> }) {
+/**
+ * Full-width band with a heading: the gray "Sept 2026" month bands (regular
+ * weight) and the colored "Statistics: 2026 Season" band (bold, the default).
+ */
+export function SectionBand({
+  title,
+  color = colors.band,
+  textColor = colors.text,
+  weight = 'bold',
+  style,
+}: {
+  title: string;
+  color?: string;
+  textColor?: string;
+  weight?: 'regular' | 'bold';
+  style?: StyleProp<ViewStyle>;
+}) {
   return (
     <View style={[styles.band, { backgroundColor: color }, style]}>
-      <Text style={[type.h2, { color: textColor }]}>{title}</Text>
+      <Text style={[styles.bandText, weight === 'bold' && styles.bandTextBold, { color: textColor }]}>{title}</Text>
     </View>
   );
 }
@@ -147,12 +162,13 @@ export function EmptyState({ title, body, action }: { title: string; body?: stri
 
 /* ---------- Form ---------- */
 
-export function Field({ label, style, ...props }: TextInputProps & { label?: string }) {
+export function Field({ label, style, accessibilityLabel, ...props }: TextInputProps & { label?: string }) {
   return (
     <View style={styles.field}>
       {label ? <Text style={styles.fieldLabel}>{label}</Text> : null}
       <TextInput
         placeholderTextColor={colors.textMuted}
+        accessibilityLabel={accessibilityLabel ?? label}
         style={[styles.input, style]}
         {...props}
       />
@@ -184,9 +200,11 @@ export function Segmented<T extends string>({
             onPress={() => onChange(o.value)}
             accessibilityRole="button"
             accessibilityState={{ selected: active }}
-            style={({ pressed }) => [styles.segment, { backgroundColor: bg }, pressed && styles.pressed, webCursor]}
+            style={({ pressed }) => [styles.segmentHit, pressed && styles.pressed, webCursor]}
           >
-            <Text style={[styles.segmentText, { color: active ? '#fff' : colors.textMuted }]}>{o.label}</Text>
+            <View style={[styles.segment, { backgroundColor: bg }]}>
+              <Text style={[styles.segmentText, { color: active ? colors.white : colors.text }]}>{o.label}</Text>
+            </View>
           </Pressable>
         );
       })}
@@ -220,15 +238,11 @@ export function PositionBadge({ position, onPress, muted }: { position?: string;
       disabled={!onPress}
       accessibilityRole={onPress ? 'button' : undefined}
       accessibilityLabel={position ? `Position ${position}` : 'Set position'}
-      style={({ pressed }) => [
-        styles.badge,
-        { backgroundColor: position ? colors.primaryDark : colors.chip },
-        muted && { opacity: 0.5 },
-        pressed && styles.pressed,
-        onPress && webCursor,
-      ]}
+      style={({ pressed }) => [styles.badgeHit, muted && { opacity: 0.5 }, pressed && styles.pressed, onPress && webCursor]}
     >
-      <Text style={[styles.badgeText, { color: position ? '#fff' : colors.textMuted }]}>{position ?? '—'}</Text>
+      <View style={[styles.badge, { backgroundColor: position ? colors.primaryDark : colors.chip }]}>
+        <Text style={[styles.badgeText, { color: position ? colors.white : colors.textMuted }]}>{position ?? '—'}</Text>
+      </View>
     </Pressable>
   );
 }
@@ -255,24 +269,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     height: 56,
     ...(Platform.OS === 'web'
-      ? ({ boxShadow: '0 6px 18px rgba(0, 166, 255, 0.35)' } as any)
+      ? ({ boxShadow: `0 6px 18px ${colors.primaryGlow}` } as any)
       : { shadowColor: colors.primary, shadowOpacity: 0.35, shadowRadius: 10, shadowOffset: { width: 0, height: 6 }, elevation: 6 }),
   },
-  fabText: { fontFamily: fonts.bold, fontSize: 20, color: '#fff' },
-  band: { paddingHorizontal: 16, paddingVertical: 10 },
+  fabText: { fontFamily: fonts.bold, fontSize: 20, color: colors.white },
+  // 27px tall like the prototype's 25pt month / Statistics bands.
+  band: { paddingHorizontal: 16, paddingVertical: 3 },
+  bandText: { ...type.band },
+  bandTextBold: { fontFamily: fonts.bold },
   divider: { height: 1, backgroundColor: colors.divider },
   listRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    minHeight: 64,
-    paddingVertical: 12,
+    minHeight: 56,
+    paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
     backgroundColor: colors.surface,
   },
-  rowPressed: { backgroundColor: '#F4F6FA' },
-  listRowTitle: { fontFamily: fonts.bold, fontSize: 20, color: colors.text },
+  rowPressed: { backgroundColor: colors.pressed },
+  listRowTitle: { ...type.rowTitle },
   empty: { padding: 32, alignItems: 'center' },
   field: { marginBottom: 14 },
   fieldLabel: { ...type.label, marginBottom: 6, textTransform: 'uppercase' },
@@ -281,15 +298,20 @@ const styles = StyleSheet.create({
     fontSize: 17,
     color: colors.text,
     borderWidth: 1,
-    borderColor: '#CFD5DE',
+    borderColor: colors.inputBorder,
     borderRadius: radii.md,
     paddingHorizontal: 12,
     height: 46,
     backgroundColor: colors.surface,
   },
-  segmented: { flexDirection: 'row', gap: 16, paddingHorizontal: 16, paddingVertical: 12 },
-  segment: { flex: 1, height: 44, borderRadius: radii.pill, alignItems: 'center', justifyContent: 'center' },
-  segmentText: { fontFamily: fonts.bold, fontSize: 18 },
-  badge: { minWidth: 52, height: 40, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10 },
+  segmented: { flexDirection: 'row', gap: 16, paddingHorizontal: 16, paddingVertical: 4 },
+  // Prototype: 147x26pt rounded rectangles with 14pt bold labels; the
+  // pressable around each one keeps a 44px-tall target.
+  segmentHit: { flex: 1, height: 44, justifyContent: 'center' },
+  segment: { height: 28, borderRadius: radii.sm, alignItems: 'center', justifyContent: 'center' },
+  segmentText: { fontFamily: fonts.bold, fontSize: 14 },
+  // The pill itself is 44x32 like the prototype; the pressable keeps a 44px-tall target.
+  badgeHit: { minHeight: 44, justifyContent: 'center' },
+  badge: { minWidth: 44, height: 32, borderRadius: radii.sm, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
   badgeText: { fontFamily: fonts.bold, fontSize: 20 },
 });

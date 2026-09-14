@@ -1,68 +1,33 @@
-import { addDays, format, isSaturday, isSunday, isValid, nextSaturday, nextSunday, parse, setHours, setMinutes, setSeconds, startOfDay } from 'date-fns';
+import { format } from 'date-fns';
 import React, { useCallback, useMemo, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Field, Segmented } from '@/components/ui';
 import { colors, fonts, radii, type } from '@/constants/theme';
-import { gameDateLine } from '@/lib/format';
+import { parseGameDate, parseSchedule, quickDates, scheduleLine } from '@/lib/dates';
 import type { NewGameInput } from '@/lib/store';
 
 const webCursor = Platform.OS === 'web' ? ({ cursor: 'pointer' } as any) : null;
 
-export type GameFormValues = {
+type GameFormValues = {
   opponent: string;
   isAway: boolean;
-  /** Free text, normally "2026-10-05". */
+  /** Free text: "2026-10-05", "Sept 19" or "9/19" (see lib/dates.ts). */
   date: string;
-  /** Free text, normally "2:30 PM"; "14:30" is accepted too. */
+  /** Free text: "2:30 PM", "2:30pm" or "14:30" (see lib/dates.ts). */
   time: string;
   notes: string;
 };
 
-export type GameFormErrors = Partial<Record<'opponent' | 'date' | 'time', string>>;
+type GameFormErrors = Partial<Record<'opponent' | 'date' | 'time', string>>;
 
-const DATE_FORMATS = ['yyyy-MM-dd', 'M/d/yy', 'M/d/yyyy', 'M/d', 'MMM d, yyyy', 'MMM d', 'MMMM d, yyyy', 'MMMM d'];
-const TIME_FORMATS = ['h:mm a', 'h:mma', 'h a', 'ha', 'H:mm'];
-
-function parseWith(text: string, formats: string[], ref: Date): { date: Date; format: string } | null {
-  const trimmed = text.trim();
-  if (!trimmed) return null;
-  for (const f of formats) {
-    const d = parse(trimmed, f, ref);
-    if (isValid(d)) return { date: d, format: f };
-  }
-  return null;
-}
-
-/** Calendar day from the Date field, or null when it can't be read. */
-export function parseGameDate(text: string, now: Date = new Date()): Date | null {
-  const hit = parseWith(text, DATE_FORMATS, now);
-  return hit ? startOfDay(hit.date) : null;
-}
-
-/** Hours and minutes from the Time field, or null when it can't be read. */
-export function parseGameTime(text: string): { hours: number; minutes: number } | null {
-  const hit = parseWith(text, TIME_FORMATS, new Date(2000, 0, 1));
-  if (!hit) return null;
-  let hours = hit.date.getHours();
-  const minutes = hit.date.getMinutes();
-  // A bare "2:30" (no AM/PM) means the afternoon: nobody plays at 2:30 in the morning.
-  if (hit.format === 'H:mm' && hours >= 1 && hours <= 7) hours += 12;
-  return { hours, minutes };
-}
-
-function combine(day: Date, time: { hours: number; minutes: number }): Date {
-  return setSeconds(setMinutes(setHours(day, time.hours), time.minutes), 0);
-}
-
-export function validateGameForm(values: GameFormValues, now: Date = new Date()): { errors: GameFormErrors; startsAt: Date | null } {
+function validateGameForm(values: GameFormValues, now: Date = new Date()): { errors: GameFormErrors; startsAt: Date | null } {
   const errors: GameFormErrors = {};
   if (!values.opponent.trim()) errors.opponent = 'Enter the opponent.';
-  const day = parseGameDate(values.date, now);
-  if (!day) errors.date = values.date.trim() ? 'Enter a date like 2026-10-05.' : 'Enter the date.';
-  const time = parseGameTime(values.time);
-  if (!time) errors.time = values.time.trim() ? 'Enter a time like 2:30 PM.' : 'Enter the start time.';
-  return { errors, startsAt: day && time ? combine(day, time) : null };
+  const { startsAt, dateError, timeError } = parseSchedule(values.date, values.time, now);
+  if (dateError) errors.date = dateError;
+  if (timeError) errors.time = timeError;
+  return { errors, startsAt };
 }
 
 function valuesFrom(initial?: Partial<NewGameInput>): GameFormValues {
@@ -112,22 +77,6 @@ export function useGameForm(initial?: Partial<NewGameInput>): GameFormState {
   }, [values]);
 
   return { values, errors, showErrors, startsAt, set, submit };
-}
-
-type QuickDate = { label: string; date: Date };
-
-/** "Today", "Tomorrow", "This Saturday", "This Sunday", "Next Saturday". */
-export function quickDates(now: Date = new Date()): QuickDate[] {
-  const today = startOfDay(now);
-  const thisSaturday = isSaturday(today) ? today : nextSaturday(today);
-  const thisSunday = isSunday(today) ? today : nextSunday(today);
-  return [
-    { label: 'Today', date: today },
-    { label: 'Tomorrow', date: addDays(today, 1) },
-    { label: 'This Saturday', date: thisSaturday },
-    { label: 'This Sunday', date: thisSunday },
-    { label: 'Next Saturday', date: addDays(thisSaturday, 7) },
-  ];
 }
 
 type Side = 'home' | 'away';
@@ -194,7 +143,7 @@ export default function GameForm({ form }: { form: GameFormState }) {
       <Field
         value={values.date}
         onChangeText={(t) => set('date', t)}
-        placeholder="2026-10-05"
+        placeholder="Sept 19 or 9/19"
         autoCorrect={false}
         autoCapitalize="none"
         keyboardType={Platform.OS === 'web' ? 'default' : 'numbers-and-punctuation'}
@@ -212,7 +161,7 @@ export default function GameForm({ form }: { form: GameFormState }) {
         accessibilityLabel="Time"
       />
       {errorFor('time', values.time)}
-      {startsAt ? <Text style={styles.preview}>{gameDateLine(startsAt.toISOString())}</Text> : null}
+      {startsAt ? <Text style={styles.preview}>{scheduleLine(startsAt)}</Text> : null}
 
       <View style={styles.notes}>
         <Field

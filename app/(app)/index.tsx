@@ -16,6 +16,7 @@ export default function MyTeamsScreen() {
   const router = useRouter();
   const { data } = useStore();
   const [query, setQuery] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
 
   const teams = useMemo(() => {
     const sorted = [...data.teams].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
@@ -30,11 +31,13 @@ export default function MyTeamsScreen() {
       <AppHeader subtitle />
 
       <View style={styles.searchWrap}>
-        <View style={styles.search}>
+        <View style={[styles.search, searchFocused && styles.searchFocused]}>
           <FontAwesome6 name="magnifying-glass" size={18} color={colors.textMuted} />
           <TextInput
             value={query}
             onChangeText={setQuery}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setSearchFocused(false)}
             placeholder="Search"
             placeholderTextColor={colors.textMuted}
             accessibilityLabel="Search teams"
@@ -108,16 +111,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     height: 44,
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     borderRadius: radii.md,
+    // The border is always there (in the chip's own color) so focusing does
+    // not shift the content; focus only recolors it.
+    borderWidth: 2,
+    borderColor: colors.chip,
     backgroundColor: colors.chip,
+  },
+  searchFocused: {
+    borderColor: colors.primary,
   },
   searchInput: {
     flex: 1,
-    height: 44,
+    height: 40,
     fontFamily: fonts.regular,
     fontSize: 19,
     color: colors.text,
+    // The focus ring is drawn on the rounded chip instead of the inner input.
     ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as any) : null),
   },
   headingRow: {

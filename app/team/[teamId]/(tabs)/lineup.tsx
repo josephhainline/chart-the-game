@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import React, { useState } from 'react';
 
 import AppHeader from '@/components/AppHeader';
@@ -12,7 +12,6 @@ import type { LineupSlot } from '@/lib/types';
 /** Team level › Lineup: the default batting order every new game starts from. */
 export default function LineupScreen() {
   const { teamId } = useLocalSearchParams<{ teamId: string }>();
-  const router = useRouter();
   const { data, setDefaultLineup } = useStore();
   const team = useTeam(teamId);
   const players = useTeamPlayers(teamId);
@@ -45,7 +44,7 @@ export default function LineupScreen() {
 
   return (
     <Screen>
-      <AppHeader context={team.name} onBack={() => router.replace('/')} />
+      <AppHeader context={team.name}  />
       <LineupEditor
         slots={team.defaultLineup}
         players={players}
