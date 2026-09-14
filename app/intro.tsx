@@ -1,6 +1,8 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Image,
+  ImageBackground,
   LayoutChangeEvent,
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -14,7 +16,6 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import Dots from '@/components/intro/Dots';
-import { BaseballScene, ChalkScene, FieldScene } from '@/components/intro/scenes';
 import { Button } from '@/components/ui';
 import { colors, fonts } from '@/constants/theme';
 import { useStore } from '@/lib/store';
@@ -22,6 +23,18 @@ import { useStore } from '@/lib/store';
 const PAGE_COUNT = 3;
 /** Height reserved at the bottom of every page for the dots and buttons. */
 const FOOTER_HEIGHT = 128;
+
+/**
+ * The coach's own photos, cropped from the prototype's teaser screens (the
+ * text-free regions, already faded toward white so copy stays legible).
+ */
+const PHOTOS = {
+  field: require('../assets/images/intro/field.jpg'),
+  batter: require('../assets/images/intro/batter.jpg'),
+  infieldEdge: require('../assets/images/intro/infield-edge.jpg'),
+  homePlate: require('../assets/images/intro/home-plate.jpg'),
+  chalkLines: require('../assets/images/intro/chalk-lines.jpg'),
+};
 
 /**
  * First-launch onboarding: the title band, then three swipeable teaser pages.
@@ -83,7 +96,14 @@ export default function IntroScreen() {
   }, [goTo, index]);
 
   const pageStyle = { width, height };
-  const bodyStyle = { paddingTop: height * 0.16, paddingBottom: FOOTER_HEIGHT + insets.bottom + 12 };
+  const footerHeight = FOOTER_HEIGHT + insets.bottom + 12;
+  // Copy sits in the pale sky/overlay above each photo, like the prototype.
+  const copyStyle = { paddingTop: Math.round(height * 0.1), paddingBottom: 18 };
+  // Page 3 stacks a strip of outfield, the band, home plate, then chalk lines
+  // under the closing line and the buttons. Keep the chalk block from eating
+  // the whole page on short phones.
+  const stripHeight = Math.round(height * 0.14);
+  const chalkHeight = Math.min(footerHeight + 150, Math.round(height * 0.6));
   // Scale the teaser type down on narrow phones so the prototype's line breaks hold.
   const teaserSize = { fontSize: Math.min(30, Math.round(width * 0.07)), lineHeight: Math.min(40, Math.round(width * 0.093)) };
   const last = index === PAGE_COUNT - 1;
@@ -119,39 +139,39 @@ export default function IntroScreen() {
             style={styles.scroll}
           >
             <View style={[styles.page, pageStyle]}>
-              <FieldScene width={width} height={height} />
-              <View style={[styles.body, bodyStyle]}>
+              <View style={[styles.copy, copyStyle]}>
                 <Text style={[styles.teaser, teaserSize]}>
                   Are you <Text style={styles.accent}>really</Text> winning{'\n'}the game of baseball?
                 </Text>
               </View>
+              <Image source={PHOTOS.field} style={styles.photoFill} resizeMode="cover" accessibilityIgnoresInvertColors />
             </View>
 
             <View style={[styles.page, pageStyle]}>
-              <BaseballScene width={width} height={height} />
-              <View style={[styles.body, bodyStyle]}>
+              <View style={[styles.copy, copyStyle]}>
                 <Text style={[styles.teaser, teaserSize]}>
                   <Text style={styles.accent}>Every game</Text> is a series of{'\n'}1-on-1 battles:
                 </Text>
+              </View>
+              <ImageBackground source={PHOTOS.batter} style={styles.photoFill} resizeMode="cover" accessibilityIgnoresInvertColors>
                 <View style={styles.grow} />
-                <View style={styles.orangeBand}>
+                <View style={[styles.orangeBand, { marginBottom: footerHeight }]}>
                   <Text style={styles.bandText}>Batter vs. Pitcher</Text>
                 </View>
-              </View>
+              </ImageBackground>
             </View>
 
             <View style={[styles.page, pageStyle]}>
-              <ChalkScene width={width} height={height} />
-              <View style={[styles.body, bodyStyle]}>
-                <View style={styles.orangeBand}>
-                  <Text style={styles.bandText}>Master the game{'\n'}within the game</Text>
-                </View>
-                <View style={[styles.grow, styles.center]}>
-                  <Text style={[styles.teaser, teaserSize, styles.teaserOrange]}>
-                    and take your baseball{'\n'}journey further than{'\n'}you thought possible!
-                  </Text>
-                </View>
+              <Image source={PHOTOS.infieldEdge} style={[styles.photoStrip, { height: stripHeight }]} resizeMode="cover" accessibilityIgnoresInvertColors />
+              <View style={styles.orangeBand}>
+                <Text style={styles.bandText}>Master the game{'\n'}within the game</Text>
               </View>
+              <Image source={PHOTOS.homePlate} style={styles.photoFill} resizeMode="cover" accessibilityIgnoresInvertColors />
+              <ImageBackground source={PHOTOS.chalkLines} style={[styles.photoStrip, { height: chalkHeight }]} resizeMode="cover" accessibilityIgnoresInvertColors>
+                <Text style={[styles.teaser, teaserSize, styles.teaserOrange, styles.closing]}>
+                  and take your baseball{'\n'}journey further than{'\n'}you thought possible!
+                </Text>
+              </ImageBackground>
             </View>
           </ScrollView>
         ) : null}
@@ -196,10 +216,12 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.6 },
   carousel: { flex: 1, overflow: 'hidden' },
   scroll: { flex: 1 },
-  page: { overflow: 'hidden' },
-  body: { flex: 1 },
+  page: { overflow: 'hidden', backgroundColor: colors.surface },
+  copy: { backgroundColor: colors.surface },
+  photoFill: { flex: 1, width: '100%' },
+  photoStrip: { width: '100%' },
+  closing: { paddingTop: 28 },
   grow: { flex: 1 },
-  center: { justifyContent: 'center' },
   teaser: {
     fontFamily: fonts.italic,
     fontSize: 30,
