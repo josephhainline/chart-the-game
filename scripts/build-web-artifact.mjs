@@ -9,7 +9,8 @@
  *
  * Usage: node scripts/build-web-artifact.mjs <outputDir>
  * Output: <outputDir>/index.html (a body fragment: title + styles + root div +
- *         loader script), <outputDir>/_expo/..., <outputDir>/assets/...
+ *         loader script), <outputDir>/bundle/entry-*.js, <outputDir>/assets/...,
+ *         <outputDir>/files.json (published path → source path manifest)
  */
 import { execSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -34,10 +35,17 @@ try {
   fs.writeFileSync(appJsonPath, original);
 }
 
-// 1. Patch the JS bundle: string literals starting with the sentinel become
+// 1. Move the bundle out of `_expo/`: some hosts reserve top-level names that
+//    start with an underscore. The bundle never references its own directory.
+const expoDir = path.join(outDir, '_expo', 'static', 'js', 'web');
+const jsDir = path.join(outDir, 'bundle');
+fs.mkdirSync(jsDir, { recursive: true });
+for (const f of fs.readdirSync(expoDir)) fs.renameSync(path.join(expoDir, f), path.join(jsDir, f));
+fs.rmSync(path.join(outDir, '_expo'), { recursive: true, force: true });
+
+// 2. Patch the JS bundle: string literals starting with the sentinel become
 //    runtime concatenations with the detected base; the escaped copy inside the
 //    embedded app config is blanked.
-const jsDir = path.join(outDir, '_expo', 'static', 'js', 'web');
 const bundles = fs.readdirSync(jsDir).filter((f) => f.endsWith('.js'));
 if (bundles.length !== 1) throw new Error(`Expected one bundle, found ${bundles.join(', ')}`);
 const bundlePath = path.join(jsDir, bundles[0]);
@@ -50,13 +58,13 @@ if (leftover) throw new Error(`Sentinel still present ${leftover} times after pa
 fs.writeFileSync(bundlePath, js);
 console.log(`Patched ${before} base-path references in ${bundles[0]}`);
 
-// 2. Rewrite index.html into a fragment the artifact host can wrap: keep the
+// 3. Rewrite index.html into a fragment the artifact host can wrap: keep the
 //    title and styles, drop preloads/links that bake in the base, and load the
 //    bundle from the runtime-detected base.
 const htmlPath = path.join(outDir, 'index.html');
 const html = fs.readFileSync(htmlPath, 'utf8');
 const styles = [...html.matchAll(/<style[^>]*>[\s\S]*?<\/style>/g)].map((m) => m[0]).join('\n');
-const bundleRel = path.posix.join('_expo/static/js/web', bundles[0]);
+const bundleRel = path.posix.join('bundle', bundles[0]);
 
 const fragment = `<title>Chart The Game</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover">
@@ -88,12 +96,12 @@ ${styles}
 `;
 fs.writeFileSync(htmlPath, fragment);
 
-// 3. Remove files the fragment doesn't reference.
-for (const f of ['+not-found.html', '_sitemap.html']) {
+// 4. Remove files the fragment doesn't reference.
+for (const f of ['+not-found.html', '_sitemap.html', 'metadata.json']) {
   fs.rmSync(path.join(outDir, f), { force: true });
 }
 
-// 4. Emit a manifest of supporting files (published path → source path).
+// 5. Emit a manifest of supporting files (published path → source path).
 const files = {};
 const walk = (dir) => {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
