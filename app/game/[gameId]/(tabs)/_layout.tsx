@@ -16,6 +16,7 @@ export default function GameTabsLayout() {
   const router = useRouter();
   if (!game) return <Redirect href="/" />;
 
+  // Seed the game id into every tab (see the team tabs layout for why).
   return (
     <Tabs
       initialRouteName="index"
@@ -24,6 +25,7 @@ export default function GameTabsLayout() {
     >
       <Tabs.Screen
         name="home"
+        initialParams={{ gameId }}
         options={{ title: 'Home', tabBarIcon: ({ color }) => <TabIcon name="house" color={color} /> }}
         listeners={{
           tabPress: (e) => {
@@ -32,10 +34,10 @@ export default function GameTabsLayout() {
           },
         }}
       />
-      <Tabs.Screen name="team" options={{ title: 'Team', tabBarIcon: ({ color }) => <TabIcon name="users" color={color} /> }} />
-      <Tabs.Screen name="opponent" options={{ title: 'Opponent', tabBarIcon: ({ color }) => <TabIcon name="people-group" color={color} /> }} />
-      <Tabs.Screen name="index" options={{ title: 'CTG', tabBarIcon: ({ color }) => <TabIcon name="gauge-high" color={color} /> }} />
-      <Tabs.Screen name="stats" options={{ title: 'Stats', tabBarIcon: ({ color }) => <TabIcon name="chart-simple" color={color} /> }} />
+      <Tabs.Screen name="team" initialParams={{ gameId }} options={{ title: 'Team', tabBarIcon: ({ color }) => <TabIcon name="users" color={color} /> }} />
+      <Tabs.Screen name="opponent" initialParams={{ gameId }} options={{ title: 'Opponent', tabBarIcon: ({ color }) => <TabIcon name="people-group" color={color} /> }} />
+      <Tabs.Screen name="index" initialParams={{ gameId }} options={{ title: 'CTG', tabBarIcon: ({ color }) => <TabIcon name="gauge-high" color={color} /> }} />
+      <Tabs.Screen name="stats" initialParams={{ gameId }} options={{ title: 'Stats', tabBarIcon: ({ color }) => <TabIcon name="chart-simple" color={color} /> }} />
     </Tabs>
   );
 }

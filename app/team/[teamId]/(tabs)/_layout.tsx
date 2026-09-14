@@ -11,15 +11,17 @@ export default function TeamTabsLayout() {
   const team = useTeam(teamId);
   if (!team) return <Redirect href="/" />;
 
+  // Tabs that have never been focused have no params of their own, so seed the
+  // team id into every tab; otherwise tapping a fresh tab renders it without a team.
   return (
     <Tabs
       screenOptions={{ headerShown: false, tabBarActiveTintColor: colors.primary }}
       tabBar={(props) => <TabBar {...props} activeColor={colors.primary} />}
     >
-      <Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: ({ color }) => <TabIcon name="house" color={color} /> }} />
-      <Tabs.Screen name="roster" options={{ title: 'Team', tabBarIcon: ({ color }) => <TabIcon name="users" color={color} /> }} />
-      <Tabs.Screen name="lineup" options={{ title: 'Lineup', tabBarIcon: ({ color }) => <TabIcon name="rectangle-list" color={color} /> }} />
-      <Tabs.Screen name="stats" options={{ title: 'Stats', tabBarIcon: ({ color }) => <TabIcon name="chart-simple" color={color} /> }} />
+      <Tabs.Screen name="index" initialParams={{ teamId }} options={{ title: 'Home', tabBarIcon: ({ color }) => <TabIcon name="house" color={color} /> }} />
+      <Tabs.Screen name="roster" initialParams={{ teamId }} options={{ title: 'Team', tabBarIcon: ({ color }) => <TabIcon name="users" color={color} /> }} />
+      <Tabs.Screen name="lineup" initialParams={{ teamId }} options={{ title: 'Lineup', tabBarIcon: ({ color }) => <TabIcon name="rectangle-list" color={color} /> }} />
+      <Tabs.Screen name="stats" initialParams={{ teamId }} options={{ title: 'Stats', tabBarIcon: ({ color }) => <TabIcon name="chart-simple" color={color} /> }} />
     </Tabs>
   );
 }

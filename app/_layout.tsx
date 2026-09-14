@@ -12,7 +12,6 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -54,8 +53,7 @@ export default function RootLayout() {
   }, [fontsLoaded, fontError]);
 
   return (
-    <GestureHandlerRootView style={styles.root}>
-      <SafeAreaProvider>
+    <SafeAreaProvider>
         <StoreProvider>
           <ThemeProvider value={navTheme}>
             <PhoneFrame>
@@ -65,7 +63,6 @@ export default function RootLayout() {
           </ThemeProvider>
         </StoreProvider>
       </SafeAreaProvider>
-    </GestureHandlerRootView>
   );
 }
 
@@ -94,7 +91,6 @@ function Splash() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
   splash: {
     flex: 1,
     backgroundColor: colors.primary,
