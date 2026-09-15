@@ -10,6 +10,14 @@ export const colors = {
   orange: '#FF9052',
   win: '#77D353',
   loss: '#F95F62',
+  /** Darker win/loss for text on light tints (mini chips, captions). */
+  winInk: '#2E7A14',
+  lossInk: '#B3262A',
+  /** Amber review line on the inning strip. */
+  amberBg: '#FFF3D6',
+  amberInk: '#8A5A00',
+  /** Left rail on the AT-BAT row and the re-judge border. */
+  currentRail: '#FF9052',
   pitching: '#976DD0',
   navy: '#040B71',
   text: '#495460',
