@@ -40,3 +40,6 @@ allfiles.txt
 
 # relocatable web build (scripts/build-web-artifact.mjs)
 dist-artifact/
+
+# AWS web export (scripts/deploy-web.mjs)
+dist-web/

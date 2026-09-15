@@ -9,7 +9,9 @@
     "web": "expo start --web",
     "test": "jest lib --ci",
     "typecheck": "tsc --noEmit -p .",
-    "build:web-artifact": "node scripts/build-web-artifact.mjs dist-artifact"
+    "build:web-artifact": "node scripts/build-web-artifact.mjs dist-artifact",
+    "deploy:web": "node scripts/deploy-web.mjs site",
+    "deploy:web:infra": "node scripts/deploy-web.mjs infra"
   },
   "jest": {
     "preset": "jest-expo"

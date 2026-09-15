@@ -17,6 +17,9 @@ FontAwesome6 from `@expo/vector-icons` only. No react-native-paper, no lucide.
 - `yarn test` — `jest lib --ci`, unit tests for `lib/`
 - `node scripts/build-web-artifact.mjs <outDir>` — relocatable static web build
   for hosting as a Claude Artifact (see script header)
+- `yarn deploy:web` / `yarn deploy:web:infra` — S3 + CloudFront + Route 53
+  hosting for chartthegame.com (`infra/web-hosting.yaml`, `docs/HOSTING.md`).
+  Deploying is Joe's call: run these only when he asks.
 
 ## Layout
 - `app/` — expo-router routes. Three nesting levels, each a Tabs group:

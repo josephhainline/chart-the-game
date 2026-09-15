@@ -31,10 +31,18 @@ npx jest lib --ci          # unit tests for the data layer
 ## Ship a web prototype
 
 ```sh
+yarn deploy:web            # export + upload to S3/CloudFront (chartthegame.com)
+```
+
+`docs/HOSTING.md` covers the one-time AWS setup (`yarn deploy:web:infra`)
+and the Squarespace nameserver change. The site is a single-page export, so
+every route falls back to `index.html` on the host.
+
+```sh
 node scripts/build-web-artifact.mjs dist-artifact
 ```
 
-Produces a relocatable static build (`index.html` fragment + `_expo/` +
+Produces a relocatable static build (`index.html` fragment + `bundle/` +
 `assets/`) that works under any hosting path. It is what the shared Claude
 Artifact prototype is built from.
 
