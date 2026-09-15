@@ -5,10 +5,6 @@
 
 export type Id = string;
 
-export type Position = 'P' | 'C' | '1B' | '2B' | '3B' | 'SS' | 'LF' | 'CF' | 'RF' | 'EH' | 'DH';
-
-export const POSITIONS: Position[] = ['P', 'C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'EH', 'DH'];
-
 export type Player = {
   id: Id;
   teamId: Id;
@@ -18,9 +14,9 @@ export type Player = {
   number?: string;
 };
 
+/** One place in a batting order. Older documents also carried a fielding position; the store drops it on load. */
 export type LineupSlot = {
   playerId: Id;
-  position?: Position;
 };
 
 export type Team = {
@@ -44,6 +40,25 @@ export type Half = 'top' | 'bottom';
 
 export type Side = 'us' | 'them';
 
+/**
+ * A substitution in our order: `inId` took over `outId`'s slot from the given
+ * half-inning on. Recorded so the scorebook and the finished-game list can show
+ * who batted in the slot before the change. Re-entry is allowed: a player may
+ * appear as `outId` in one record and `inId` in a later one.
+ */
+export type Substitution = {
+  id: Id;
+  /** Index into `lineup` of the slot that changed hands. */
+  slot: number;
+  outId: Id;
+  inId: Id;
+  /** The game's clock when the change was made. */
+  inning: number;
+  half: Half;
+  /** ISO datetime the change was recorded. */
+  at: string;
+};
+
 export type Game = {
   id: Id;
   teamId: Id;
@@ -65,6 +80,8 @@ export type Game = {
   /** Index into `opponentLineup` of the next batter due up for them. */
   theirNextBatter: number;
   score: { us: number; them: number };
+  /** Every substitution made in our order, oldest first. Absent on documents written before the feature. */
+  substitutions?: Substitution[];
   notes?: string;
   createdAt: string;
   finishedAt?: string;

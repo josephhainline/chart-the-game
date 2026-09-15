@@ -230,7 +230,6 @@ export function WLText({ wl, style }: { wl: WL; style?: StyleProp<TextStyle> }) 
   );
 }
 
-/** Dark-blue position pill (CF, 3B, …). */
 /** Pill chip for pickers (pitcher, batter): gray, filled navy when selected. */
 export function Chip({ label, selected, onPress, accessibilityLabel }: { label: string; selected?: boolean; onPress: () => void; accessibilityLabel?: string }) {
   return (
@@ -242,22 +241,6 @@ export function Chip({ label, selected, onPress, accessibilityLabel }: { label: 
       style={({ pressed }) => [styles.chip, selected && styles.chipSelected, pressed && styles.chipPressed, webCursor]}
     >
       <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{label}</Text>
-    </Pressable>
-  );
-}
-
-export function PositionBadge({ position, onPress, muted }: { position?: string; onPress?: () => void; muted?: boolean }) {
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={!onPress}
-      accessibilityRole={onPress ? 'button' : undefined}
-      accessibilityLabel={position ? `Position ${position}` : 'Set position'}
-      style={({ pressed }) => [styles.badgeHit, muted && { opacity: 0.5 }, pressed && styles.pressed, onPress && webCursor]}
-    >
-      <View style={[styles.badge, { backgroundColor: position ? colors.primaryDark : colors.chip }]}>
-        <Text style={[styles.badgeText, { color: position ? colors.white : colors.textMuted }]}>{position ?? '—'}</Text>
-      </View>
     </Pressable>
   );
 }
@@ -337,8 +320,4 @@ const styles = StyleSheet.create({
   segmentHit: { flex: 1, height: 44, justifyContent: 'center' },
   segment: { height: 28, borderRadius: radii.sm, alignItems: 'center', justifyContent: 'center' },
   segmentText: { fontFamily: fonts.bold, fontSize: 14 },
-  // The pill itself is 44x32 like the prototype; the pressable keeps a 44px-tall target.
-  badgeHit: { minHeight: 44, justifyContent: 'center' },
-  badge: { minWidth: 44, height: 32, borderRadius: radii.sm, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
-  badgeText: { fontFamily: fonts.bold, fontSize: 20 },
 });

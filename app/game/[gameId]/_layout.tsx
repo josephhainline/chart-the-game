@@ -12,6 +12,7 @@ export default function GameStackLayout() {
       <Stack.Screen name="edit" options={{ presentation: 'modal' }} />
       <Stack.Screen name="atbat/[atBatId]" options={{ presentation: 'modal' }} />
       <Stack.Screen name="batter/[side]/[batterId]" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="sub/[batterId]" options={{ presentation: 'modal' }} />
       <Stack.Screen name="pitcher" options={{ presentation: 'modal' }} />
     </Stack>
   );

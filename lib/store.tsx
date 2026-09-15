@@ -19,6 +19,7 @@ import type {
   OutcomeId,
   Player,
   Side,
+  Substitution,
   Team,
 } from './types';
 import { EMPTY_DATA } from './types';
@@ -62,6 +63,47 @@ export function carryNextBatter<T>(oldOrder: T[], oldIndex: number, newOrder: T[
     if (idx >= 0) return idx;
   }
   return 0;
+}
+
+/** A slot as this build writes it: `{ playerId }` and nothing else. The same object when it already is. */
+function cleanSlot(slot: LineupSlot): LineupSlot {
+  const keys = Object.keys(slot);
+  return keys.length === 1 && keys[0] === 'playerId' ? slot : { playerId: slot.playerId };
+}
+
+/** The same array when every slot is already clean, so an unchanged document stays referentially equal. */
+function cleanSlots(slots: LineupSlot[]): LineupSlot[] {
+  let changed = false;
+  const next = slots.map((slot) => {
+    const clean = cleanSlot(slot);
+    if (clean !== slot) changed = true;
+    return clean;
+  });
+  return changed ? next : slots;
+}
+
+/**
+ * Brings a saved version-1 document up to this build's shape: lineup slots
+ * used to carry a fielding `position`, which is gone. Every stray key on a
+ * team's default lineup or a game's order is dropped. Returns the very same
+ * object when nothing needed changing, so the loader knows whether to write
+ * the cleaned document back.
+ */
+export function normalizeLoaded(data: AppData): AppData {
+  let changed = false;
+  const teams = data.teams.map((t) => {
+    const defaultLineup = cleanSlots(t.defaultLineup);
+    if (defaultLineup === t.defaultLineup) return t;
+    changed = true;
+    return { ...t, defaultLineup };
+  });
+  const games = data.games.map((g) => {
+    const lineup = cleanSlots(g.lineup);
+    if (lineup === g.lineup) return g;
+    changed = true;
+    return { ...g, lineup };
+  });
+  return changed ? { ...data, teams, games } : data;
 }
 
 function defaultOpponentLineup(): OpponentBatter[] {
@@ -143,6 +185,21 @@ export type Store = {
   undoLastAtBat: (gameId: Id) => AtBat | undefined;
   finishGame: (gameId: Id, input: { score: Game['score']; notes?: string }) => void;
   reopenGame: (gameId: Id) => void;
+  /**
+   * Puts `inId` (a player of the game's team who is not in the order) into
+   * `outId`'s slot and records the change at the game's clock. Nothing else
+   * in the order moves; both pointers, the clock and the pitcher are left
+   * alone (the screen chains to the pitcher picker when the outgoing player
+   * was pitching). Re-entry is allowed. Returns undefined when `outId` is not
+   * in the order or `inId` does not qualify.
+   */
+  substitute: (gameId: Id, outId: Id, inId: Id) => Substitution | undefined;
+  /**
+   * Reverses a substitution: `outId` goes back into the slot and the record
+   * is removed. Only while the slot still holds `inId` (and `outId` has not
+   * been put back elsewhere in the order); pointers and clock untouched.
+   */
+  undoSubstitution: (gameId: Id, substitutionId: Id) => boolean;
 
   resetDemoData: () => void;
   clearAllData: () => void;
@@ -237,7 +294,9 @@ export function StoreProvider({ children, initialData }: { children: React.React
       if (cancelled) return;
       let next: AppData;
       if (saved.kind === 'ok') {
-        next = saved.data;
+        next = normalizeLoaded(saved.data);
+        // A document written by an older build (lineup slots with positions) is rewritten clean.
+        if (next !== saved.data) dirty.current = true;
       } else {
         if (saved.kind === 'unreadable') {
           // Never overwrite something we could not read: park it first.
@@ -412,7 +471,6 @@ export function StoreProvider({ children, initialData }: { children: React.React
       addGame: (teamId, input) => {
         const team = dataRef.current.teams.find((t) => t.id === teamId);
         const lineup = team ? [...team.defaultLineup] : [];
-        const pitcher = lineup.find((s) => s.position === 'P')?.playerId;
         const game: Game = {
           id: newId('g'),
           teamId,
@@ -422,7 +480,6 @@ export function StoreProvider({ children, initialData }: { children: React.React
           status: 'scheduled',
           lineup,
           opponentLineup: defaultOpponentLineup(),
-          pitcherId: pitcher,
           inning: 1,
           half: 'top',
           ourNextBatter: 0,
@@ -672,6 +729,54 @@ export function StoreProvider({ children, initialData }: { children: React.React
       },
 
       reopenGame: (gameId) => updateGameIn(gameId, (g) => ({ ...g, status: 'in_progress', finishedAt: undefined })),
+
+      substitute: (gameId, outId, inId) => {
+        const d = dataRef.current;
+        const game = d.games.find((g) => g.id === gameId);
+        if (!game) return undefined;
+        const slot = game.lineup.findIndex((s) => s.playerId === outId);
+        if (slot < 0) return undefined;
+        const incoming = d.players.find((p) => p.id === inId);
+        if (!incoming || incoming.teamId !== game.teamId) return undefined;
+        if (game.lineup.some((s) => s.playerId === inId)) return undefined;
+        const record: Substitution = {
+          id: newId('sub'),
+          slot,
+          outId,
+          inId,
+          inning: game.inning,
+          half: game.half,
+          at: now(),
+        };
+        updateGameIn(gameId, (g) => ({
+          ...g,
+          // The slot index is unchanged, so `ourNextBatter` still points at the right place.
+          lineup: g.lineup.map((s, i) => (i === slot ? { playerId: inId } : s)),
+          substitutions: [...(g.substitutions ?? []), record],
+          status: g.status === 'scheduled' ? 'in_progress' : g.status,
+        }));
+        flushNow();
+        return record;
+      },
+
+      undoSubstitution: (gameId, substitutionId) => {
+        const game = dataRef.current.games.find((g) => g.id === gameId);
+        if (!game) return false;
+        const record = game.substitutions?.find((s) => s.id === substitutionId);
+        if (!record) return false;
+        // Only a change that is still in effect can be reversed: the slot must
+        // hold the sub, and the outgoing player must not have been added back
+        // elsewhere in the order since (he would end up in two slots).
+        if (game.lineup[record.slot]?.playerId !== record.inId) return false;
+        if (game.lineup.some((s) => s.playerId === record.outId)) return false;
+        updateGameIn(gameId, (g) => ({
+          ...g,
+          lineup: g.lineup.map((s, i) => (i === record.slot ? { playerId: record.outId } : s)),
+          substitutions: (g.substitutions ?? []).filter((s) => s.id !== substitutionId),
+        }));
+        flushNow();
+        return true;
+      },
 
       resetDemoData: () => {
         update((d) => ({ ...buildDemoData(), onboarded: d.onboarded }));

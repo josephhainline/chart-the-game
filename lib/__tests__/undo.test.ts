@@ -55,6 +55,7 @@ function mockActions(): UndoActions {
     prevHalfInning: jest.fn(),
     updateAtBat: jest.fn(),
     restoreAtBat: jest.fn(),
+    undoSubstitution: jest.fn(),
   } as unknown as UndoActions;
 }
 
@@ -99,6 +100,7 @@ describe('undoLabel', () => {
       }),
     ).toBe('Undo re-judge');
     expect(undoLabel({ kind: 'remove', atBat: ab() })).toBe('Undo remove');
+    expect(undoLabel({ kind: 'sub', substitutionId: 'sub_1', slot: 3, outId: 'p_cooper', inId: 'p_mason' })).toBe('Undo sub');
   });
 });
 
@@ -238,6 +240,24 @@ describe('applyUndo', () => {
     const actions = mockActions();
     applyUndo({ kind: 'remove', atBat: ab({ id: 'ab_gone' }), dueBatterId: 'p_ryder' }, { ...tigers, ourNextBatter: 1 }, actions);
     expect(calls(actions)).toEqual(['restoreAtBat']);
+  });
+
+  it('sub: hands the record id to undoSubstitution and nothing else (the store checks the slot still holds the sub)', () => {
+    const actions = mockActions();
+    const entry: UndoEntry = { kind: 'sub', substitutionId: 'sub_1', slot: 3, outId: 'p_cooper', inId: 'p_mason' };
+    const subbed: Game = {
+      ...tigers,
+      lineup: tigers.lineup.map((s) => (s.playerId === 'p_cooper' ? { playerId: 'p_mason' } : s)),
+      substitutions: [{ id: 'sub_1', slot: 3, outId: 'p_cooper', inId: 'p_mason', inning: 1, half: 'top', at: '2026-09-19T14:40:00.000Z' }],
+    };
+    applyUndo(entry, subbed, actions);
+    expect(actions.undoSubstitution).toHaveBeenCalledTimes(1);
+    expect(actions.undoSubstitution).toHaveBeenCalledWith(tigers.id, 'sub_1');
+    expect(calls(actions)).toEqual(['undoSubstitution']);
+    // Even when the sub has since left the order: the store's own check decides, the entry never touches the pointer.
+    const gone = mockActions();
+    applyUndo(entry, tigers, gone);
+    expect(calls(gone)).toEqual(['undoSubstitution']);
   });
 });
 

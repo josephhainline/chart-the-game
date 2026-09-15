@@ -3,16 +3,17 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useMemo } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import FormLine, { formFor } from '@/components/FormLine';
 import ModalScreen from '@/components/ModalScreen';
 import ResultTile from '@/components/ResultTile';
 import { Button, EmptyState, WLText } from '@/components/ui';
-import { colors, fonts, type } from '@/constants/theme';
+import { colors, fonts, radii, type } from '@/constants/theme';
 import { displayResult, invertResult, sortAtBats } from '@/lib/atbats';
 import { halfLabel, opponentBatterLabel, playerLabel } from '@/lib/format';
 import { useDismiss } from '@/lib/navigation';
 import { outcomeLabel, outcomeShort, plainFor } from '@/lib/outcomes';
 import { addResult, ZERO } from '@/lib/stats';
-import { battingSide, useGame, useGameAtBats, useStore, useTeamPlayers } from '@/lib/store';
+import { battingSide, useGame, useGameAtBats, useStore, useTeamGames, useTeamPlayers } from '@/lib/store';
 import type { Result, Side } from '@/lib/types';
 import { pushUndo } from '@/lib/undo';
 
@@ -20,18 +21,21 @@ const webCursor = Platform.OS === 'web' ? ({ cursor: 'pointer' } as const) : nul
 
 /**
  * The batter sheet: one batter's at-bats this game, newest first (each opens
- * the editor), "Bring up to bat now" while that side is batting, and plain
- * W / L backfill buttons that chart an at-bat in the current half-inning
- * without moving the batting order. Opened from a row body on the CTG tab
- * and from a multi-at-bat cell on the Stats scorebook.
+ * the editor), his form across the season (our batters), "Bring up to bat
+ * now" while that side is batting, "Substitute…" while he is in the order of
+ * a live game, and plain W / L backfill buttons that chart an at-bat in the
+ * current half-inning without moving the batting order. Opened from a row
+ * body or the dock's AT-BAT name on the CTG tab and from a multi-at-bat cell
+ * on the Stats scorebook.
  */
 export default function BatterSheetScreen() {
   const { gameId, side: rawSide, batterId } = useLocalSearchParams<{ gameId: string; side: string; batterId: string }>();
   const router = useRouter();
-  const { setNextBatter, recordAtBat } = useStore();
+  const { data, setNextBatter, recordAtBat } = useStore();
   const game = useGame(gameId);
   const atBats = useGameAtBats(gameId);
   const players = useTeamPlayers(game?.teamId);
+  const games = useTeamGames(game?.teamId);
   const close = useDismiss(game ? `/game/${game.id}` : '/');
   const side: Side = rawSide === 'them' ? 'them' : 'us';
 
@@ -39,6 +43,7 @@ export default function BatterSheetScreen() {
     () => sortAtBats(atBats.filter((ab) => ab.side === side && ab.batterId === batterId)).reverse(),
     [atBats, side, batterId],
   );
+  const form = useMemo(() => (side === 'us' && batterId ? formFor(data.atBats, games, batterId) : undefined), [side, batterId, data.atBats, games]);
 
   if (!game) {
     return (
@@ -59,6 +64,7 @@ export default function BatterSheetScreen() {
   const current = n ? (side === 'us' ? game.ourNextBatter : game.theirNextBatter) % n : -1;
   const isFinal = game.status === 'final';
   const batting = !isFinal && index >= 0 && current >= 0 && battingSide(game) === side;
+  const canSubstitute = !isFinal && index >= 0 && side === 'us';
   const wl = mine.reduce((acc, ab) => addResult(acc, displayResult(ab) === 'W'), ZERO);
 
   const bringUp = () => {
@@ -67,6 +73,9 @@ export default function BatterSheetScreen() {
     pushUndo(game.id, { kind: 'skip', side, fromBatterId: order[current], toBatterId: batterId });
     close();
   };
+
+  /** The sub sheet takes this sheet's place, so closing it (or making the sub) lands back where this one was opened. */
+  const openSubstitute = () => router.replace(`/game/${game.id}/sub/${batterId}`);
 
   /** A plain at-bat in the current half-inning; the letter is in the perspective shown (our pitcher's for them). */
   const add = (shownResult: Result) => {
@@ -103,13 +112,25 @@ export default function BatterSheetScreen() {
         );
       })}
 
-      {batting ? (
+      {form ? (
         <View style={styles.actions}>
-          {index === current ? (
-            <Text style={styles.upNow}>Up to bat now.</Text>
-          ) : (
-            <Button title="Bring up to bat now" variant="orange" icon="forward-step" onPress={bringUp} />
-          )}
+          <Text style={styles.sectionLabel}>Form</Text>
+          <View style={styles.formCard}>
+            <FormLine results={form.results} rating={form.rating} season={form.season} lastGame={form.lastGame} />
+          </View>
+        </View>
+      ) : null}
+
+      {batting || canSubstitute ? (
+        <View style={styles.actions}>
+          {batting ? (
+            index === current ? (
+              <Text style={styles.upNow}>Up to bat now.</Text>
+            ) : (
+              <Button title="Bring up to bat now" variant="orange" icon="forward-step" onPress={bringUp} />
+            )
+          ) : null}
+          {canSubstitute ? <Button title="Substitute…" variant="orange" icon="right-left" onPress={openSubstitute} /> : null}
         </View>
       ) : null}
 
@@ -157,6 +178,7 @@ const styles = StyleSheet.create({
   rowPressed: { backgroundColor: colors.pressed },
   rowText: { flex: 1, fontFamily: fonts.bold, fontSize: 16, lineHeight: 21, color: colors.text },
   actions: { marginTop: 24, gap: 10 },
+  formCard: { backgroundColor: colors.page, borderRadius: radii.md, padding: 12 },
   upNow: { fontFamily: fonts.bold, fontSize: 16, color: colors.orange, textAlign: 'center' },
   addRow: { flexDirection: 'row', gap: 10 },
   addButton: { flex: 1, paddingHorizontal: 8 },

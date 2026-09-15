@@ -22,6 +22,9 @@ export const colors = {
   primaryTint: 'rgba(0, 166, 255, 0.08)',
   winTint: 'rgba(119, 211, 83, 0.15)',
   lossTint: 'rgba(249, 95, 98, 0.15)',
+  /** Tints behind the HOT / COLD form pills. */
+  hotTint: 'rgba(255, 144, 82, 0.16)',
+  coldTint: 'rgba(0, 166, 255, 0.14)',
   pitching: '#976DD0',
   navy: '#040B71',
   text: '#495460',

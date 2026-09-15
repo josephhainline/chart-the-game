@@ -27,7 +27,7 @@ Big tap targets, one tap per at-bat, nothing modal in the way.
 | Token            | Hex       | Use |
 |------------------|-----------|-----|
 | `primary`        | `#00A6FF` | App title band, primary buttons, active tab tint |
-| `primaryDark`    | `#0A47AC` | Team-level sub-header, position badges, Hitting toggle, stats band |
+| `primaryDark`    | `#0A47AC` | Team-level sub-header, Hitting toggle, stats band, COLD tag ink |
 | `orange`         | `#FF9052` | Game-level sub-header, "Chart The Game" CTA, CTG accent, Sign Up |
 | `win`            | `#77D353` | W buttons, W letters, positive scores |
 | `loss`           | `#F95F62` | L buttons, L letters, negative scores |
@@ -113,10 +113,12 @@ shows the team name; back chevron returns to My Teams.
   number, season hitting/pitching line, Remove player). Removing a player
   keeps their charted at-bats; season tables show them on a muted "Removed
   players" row so totals still equal the sum of the game lines.
-- Lineup: "Default Lineup:" numbered rows, position badge (dark blue pill,
-  tap to change), move up/down controls (drag handle visual). "Rank by CTG"
-  button sorts by season hitting score. Players not in the lineup listed below
-  as "Bench" with an add control.
+- Lineup: "Default Lineup:" numbered rows — number, name, move up/down
+  controls and a red remove control (circle-minus) that sends the player to
+  the bench. "Rank by CTG" button sorts by season hitting score. Players not
+  in the lineup listed below as "Bench" with an add control (adds to the end
+  of the order). There are no fielding positions in the app; the only role a
+  game tracks is the pitcher.
 - Stats: Hitting / Pitching segmented toggle (blue vs purple), "Statistics:
   2026 Season" band, table Name · Wins · Losses · Score with a Totals row.
   Score is green with "+" when positive, red when negative, gray "0", and "-"
@@ -127,10 +129,16 @@ shows the team name; back chevron returns to My Teams.
 Orange sub-header "@ Tigers, Oct 5 2:30pm". The Home tab leaves the game and
 returns to the team's Home.
 - Team: this game's batting order (copied from the default lineup when the game
-  is created), same row style as Lineup with position badges and reorder, and
-  "Use default lineup" under the list. Giving a batter the P position makes
-  them the game's pitcher. Reordering or removing batters mid-game keeps the
-  same batter due up.
+  is created), same row style as Lineup — number, name, an orange swap control
+  ("Substitute for …", opens the substitution sheet; hidden on a final game),
+  reorder and the remove control — and "Use default lineup" under the list.
+  The pitcher is set on the Opponent tab or from the CTG screen, never from
+  the order. Reordering or removing batters mid-game keeps the same batter
+  due up. Removing a batter who has at-bats this game asks first ("Remove
+  Cooper Woollen? He has 2 at-bats this game. They stay in the stats; his row
+  moves to the bottom of the scorebook." — or, for one: "He has 1 at-bat this
+  game. It stays in the stats; …"); a remove is not a substitution and
+  records nothing.
 - Opponent: opponent batting order (default "Batter 1…9", editable names and
   numbers, add/remove) and **Our pitcher** selector (any roster player).
 - CTG (the core screen), the "Capture Dock" layout (`docs/UX_REVIEW_ATBAT.md`
@@ -161,7 +169,14 @@ returns to the team's Home.
     already has a result this half asks "… already batted this half. Give him
     another at-bat now?" followed by "N batters will be skipped." only when
     N > 0. Tapping a tile or chip selects that at-bat for re-judging; tapping
-    the row body opens the batter sheet.
+    the row body opens the batter sheet. While a live (not final) game's list
+    shows OUR order and the bench is not empty, a "BENCH · LAST 6 AT-BATS"
+    band follows the order with one compact row per bench player (roster
+    players not in this game's order, hottest first — see §4 form): name, a
+    HOT / COLD tag, the form line, and "Started · out ▲ 4th" when he left
+    this game through a substitution and the player who replaced him still
+    holds a slot. Bench rows are display only; a finished game's box score
+    has no bench band.
   - Capture Dock, fixed above the tab bar with a 3pt top border (blue while
     charting, orange while re-judging). Top to bottom: a context row with
     ‹ › steppers that walk the game's at-bats in inning/half/time order
@@ -170,11 +185,12 @@ returns to the team's Home.
     at-bat reads "· W · add type ›"; suffix "· ▲ 1st" when it belongs to
     another half; tapping it selects that at-bat) and **Undo**, whose label
     names the top of the stack ("Undo W", "Undo skip", "Undo Next half",
-    "Undo Prev half", "Undo re-judge", "Undo remove") — while an at-bat is
+    "Undo Prev half", "Undo re-judge", "Undo remove", "Undo sub") — while an at-bat is
     selected the LAST readout and Undo give way to the RE-JUDGE readout with
     "▶ Now" and "More…", and Undo is not shown until ▶ Now or a commit
     returns the dock to live; the AT-BAT header ("4. Cooper Woollen (#50)"
-    with his chips; "AT-BAT · ▲ 1st" in amber while reviewing); the big row —
+    with his chips — the name opens his batter sheet; "AT-BAT · ▲ 1st" in
+    amber while reviewing); the big row —
     solid red **L** · the CTG gauge (seven chunky
     bars) · solid green **W** (pitching: W left, L right, gauge in the
     pitcher's perspective); the "OUTCOME TYPES" toggle and, when open, the
@@ -218,8 +234,9 @@ returns to the team's Home.
     half → the other (Jump ahead pushes one Next half entry per half stepped,
     so Undo walks back one half at a time); a re-judge or editor change → the
     previous fields; remove → restore (the batter who was due before the
-    remove is due again). Undo right after Next half reads "Undo Next half"
-    and deletes nothing. The stack is emptied by Reset demo data, Clear all
+    remove is due again); sub → the outgoing player gets his slot back and
+    the record is dropped (only while the sub still holds the slot). Undo
+    right after Next half reads "Undo Next half" and deletes nothing. The stack is emptied by Reset demo data, Clear all
     data and deleting the game.
   - Pitching half: the list shows the opponent order and every readout shows
     our pitcher's result (green = our pitcher won the battle); storage stays
@@ -235,10 +252,14 @@ returns to the team's Home.
   - **End Game** opens the finish sheet (final score, notes) and marks the
     game final. A finished game's CTG tab shows our lineup with every at-bat
     as a tile (tap to open the editor) and each player's game W/L under the
-    "Final: Won 19 - 5" band with **Reopen game**; batters with at-bats who
-    have since left the order follow the lineup as muted "LEFT GAME" rows (a
-    dash for the slot number), so the tiles add up to the game's hitting
-    line; recording again needs Reopen game.
+    "Final: Won 19 - 5" band with **Reopen game**. A player who left his slot
+    through a substitution keeps a muted row at that slot number right above
+    the player who took it, captioned "OUT ▲ 4th"; the replacement's row reads
+    "IN ▲ 4th" (a re-entered player appears once, with his latest entry).
+    Batters with at-bats who have since left the order any other way follow
+    the lineup as muted "LEFT GAME" rows (a dash for the slot number), so the
+    tiles add up to the game's hitting line; recording again needs Reopen
+    game.
 - Game sheets (modal routes beside End Game and Edit Game, orange header):
   - At-bat editor `/game/[gameId]/atbat/[atBatId]`: title "Cooper Woollen
     (#50) · ▲ 2nd" (pitching: "Batter 3 · ▼ 2nd · Weedon H. (#10) pitching"),
@@ -257,21 +278,48 @@ returns to the team's Home.
     never moves.
   - Batter sheet `/game/[gameId]/batter/[side]/[batterId]`: the batter's game
     W/L and at-bats newest first ("▲ 2nd · Fly Out, Hard Hit Ball" with a
-    tile; each opens the editor), **Bring up to bat now** when that side is
-    batting (no dialog), and **Add a W** / **Add an L** ("Add a W (pitcher
-    won)" for opponents) that chart a plain at-bat in the current half-inning
-    without moving the batting order.
+    tile; each opens the editor); for our batters a **Form** card (§4: the
+    last six at-bats as mini chips with a HOT / COLD tag, then "Season +5 ·
+    last game 3W / 0L", or "No at-bats yet this season"); **Bring up to bat
+    now** when that side is batting (no dialog); **Add a W** / **Add an L**
+    ("Add a W (pitcher won)" for opponents) that chart a plain at-bat in the
+    current half-inning without moving the batting order; and, for our
+    batters in the order while the game is not final, an orange
+    **Substitute…** (swap icon) that opens the substitution sheet.
+  - Substitution sheet `/game/[gameId]/sub/[batterId]` ("Substitute"): an OUT
+    card for the batter leaving ("4. Cooper Woollen (#50)", this game's chips,
+    his form line), then "BENCH · TAP TO SUB IN · HOTTEST FIRST": one row per
+    bench player (roster players not in this game's order, ordered by form
+    score, then season score, players without at-bats last, then last name)
+    with name, HOT / COLD tag, form line and "Started · out ▲ 4th" when he
+    left this game earlier. Tapping a row puts him in the outgoing batter's
+    slot — nothing else in the order moves, the batter due up stays due up,
+    and the clock, score and pitcher are untouched — records the substitution
+    at the game's current half-inning, pushes "Undo sub", and closes; when the
+    outgoing batter was our pitcher the pitcher picker opens instead of
+    closing. A caption under the list explains: "The sub takes slot N. Cooper
+    goes to the bench and can come back in later. Nothing else in the order
+    moves." Re-entry is allowed with no warning (a player can go out and come
+    back in any number of times). With no one on the bench: "No one on the
+    bench" / "Players not in this game's order appear here. Add players on
+    the team's Team tab."; on a final game or for a batter no longer in the
+    order: "Nothing to substitute". A game that was scheduled becomes in
+    progress on a substitution.
   - Pitcher picker `/game/[gameId]/pitcher` ("Our pitcher"): roster chips in
     batting order then by last name, the current one selected; when at-bats
     this half already name a pitcher, an off-by-default switch "Also credit
     the N at-bats already charted this half". One tap picks and closes. The
     Opponent tab's selector is unchanged.
-- Stats: scorebook grid — rows are our batters ("Owen H. (#7)"), columns are
-  innings, each cell shows a green W or red L with the outcome code under it
-  (letter alone for a plain at-bat; a blank diamond when empty). Tapping a
-  cell opens the at-bat editor; a cell holding several at-bats opens the
-  batter sheet. Batters who left the order mid-game keep their at-bats in
-  muted "LEFT GAME" rows so the grid reconciles with the totals. Under the
+- Stats: scorebook grid — "#" slot column, "Line Up" name column ("Owen H.
+  (#7)"), one column per inning, each cell a green W or red L with the outcome
+  code under it (letter alone for a plain at-bat; a blank diamond when empty).
+  Tapping a cell opens the at-bat editor; a cell holding several at-bats opens
+  the batter sheet. A substitution shows as two rows with the same slot
+  number: the player who left, muted with "OUT ▲ 4TH" under his name, right
+  above the player who took the slot, whose note reads "IN ▲ 4TH". Batters
+  removed from the order any other way keep their at-bats in muted "LEFT
+  GAME" rows ("–" for the slot) after the order, so the grid reconciles with
+  the totals. Under the
   HITTING / PITCHING line a caption reads "N at-bats without a play type"
   when N > 0. A second section shows the opponent grid (our pitching). The
   W-L totals column stays pinned on the right; five or more innings scroll
@@ -284,9 +332,7 @@ type Id = string;
 
 type Player = { id: Id; teamId: Id; firstName: string; lastName: string; number?: string };
 
-type Position = 'P'|'C'|'1B'|'2B'|'3B'|'SS'|'LF'|'CF'|'RF'|'EH'|'DH';
-
-type LineupSlot = { playerId: Id; position?: Position };
+type LineupSlot = { playerId: Id };                 // no fielding positions; only the pitcher is tracked (Game.pitcherId)
 
 type Team = {
   id: Id; name: string; season: string;            // "2026"
@@ -307,8 +353,17 @@ type Game = {
   inning: number; half: 'top' | 'bottom';
   ourNextBatter: number; theirNextBatter: number;  // indices into the orders
   score: { us: number; them: number };
+  substitutions?: Substitution[];                  // oldest first; absent on older documents and on games with none
   notes?: string;
   createdAt: string; finishedAt?: string;
+};
+
+type Substitution = {
+  id: Id;
+  slot: number;                                    // index into `lineup` that changed hands
+  outId: Id; inId: Id;                             // Player.ids; re-entry allowed (a player may be outId once and inId later)
+  inning: number; half: 'top' | 'bottom';          // the game's clock when the change was made
+  at: string;                                      // ISO
 };
 
 type AtBat = {
@@ -337,9 +392,25 @@ Every view orders at-bats by inning, half, then `recordedAt` (a backfilled
 at-bat sits in its own inning). An at-bat can be re-judged in place
 (`outcomeId`, `batterId`, `pitcherId`, `inning`, `half`; `result` re-derives)
 or removed; neither touches the game document except the remove rule in §3.
-The document stays `version: 1`: older documents load unchanged, but a
-document that contains the plain ids will not open in a build older than the
-Capture Dock.
+The document stays `version: 1`: older documents open in this build (lineup
+slots are normalized on load, see below), but a document that contains the
+plain ids will not open in a build older than the Capture Dock.
+
+Documents written before substitutions existed carried a `position` key on
+lineup slots; the store drops every key but `playerId` on load and rewrites
+the document only when something changed.
+
+**Form** (derived in `lib/stats.ts`): a batter's *recent form* is his last
+`FORM_WINDOW = 6` our-side at-bats across the team's games (final and in
+progress), ordered by game start then inning, half and time; the *form score*
+is W − L over that window. The rating is **HOT** at `FORM_HOT = +3` or better
+and **COLD** at −3 or worse, and no rating at all with fewer than
+`FORM_MIN_AT_BATS = 4` at-bats in the window. The *last game line* is the
+player's W/L in his most recent final game with an at-bat. The bench of a
+game is the roster minus the game's order (roster order); the substitution
+sheet and the CTG bench band order it players with at-bats first, then by form
+score, season hitting score and last name. The season Stats table lists the
+bench after the lineup, by last name.
 
 UI-only state, never in the document: the selected at-bat, the per-game undo
 stack, the record lockout, and the outcome-types preference (AsyncStorage
@@ -384,12 +455,24 @@ today and land on Saturdays (youth ball is a weekend game) so the prototype
 always shows a recent past and an upcoming game.
 
 Team: **STL Bears 12U Floyd 2026**, season 2026. Roster and default lineup
-(order, position):
+(order):
 
-1. Owen Haynes #7 CF · 2. Ryder Braddy #42 3B · 3. Lucas Kloster #13 SS ·
-4. Cooper Woollen #50 1B · 5. Carsyn Griffith #26 C · 6. Matthew Hume #76 EH ·
-7. Knox Kennedy #8 2B · 8. Weedon Hainline #10 P · 9. Landyn Durbin RF ·
-10. Ben Boncek #99 LF
+1. Owen Haynes #7 · 2. Ryder Braddy #42 · 3. Lucas Kloster #13 ·
+4. Cooper Woollen #50 · 5. Carsyn Griffith #26 · 6. Matthew Hume #76 ·
+7. Knox Kennedy #8 · 8. Weedon Hainline #10 · 9. Landyn Durbin ·
+10. Ben Boncek #99
+
+Three fictional bench players are on the roster but not in the default
+lineup: Mason Reed #4, Eli Park #21 and Theo Alvarez #15. Four seeded
+substitutions give the feature data: Mason for Cooper (slot 4) from the top
+of the 4th against the Rockhounds, Mason for Ben (slot 9) from the top of the
+3rd against Fenton Fury, Mason for Lucas (slot 3) from the top of the 2nd
+against the Midland Bandits, and Eli for Landyn (slot 9) from the top of the
+2nd against Redbirds Red. From that half-inning on the sub bats in the slot;
+each game's order ends with the sub in it and the record in
+`substitutions`. Mason ends the season 5W-1L with a HOT form line, Eli even
+over two at-bats (no rating), and Theo has never been in, so the next game's
+bench reads Mason, Eli, Theo.
 
 Games (most recent past Saturday = "last Saturday"):
 - `@ Redbirds Red`, last Saturday 9:00am, final, Lost 6-7, notes "4 inning

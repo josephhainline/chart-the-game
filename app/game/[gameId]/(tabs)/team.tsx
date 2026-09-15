@@ -1,4 +1,4 @@
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
 import { StyleSheet } from 'react-native';
 
@@ -8,27 +8,37 @@ import Screen from '@/components/Screen';
 import { Button } from '@/components/ui';
 import { colors } from '@/constants/theme';
 import { confirmAction } from '@/lib/confirm';
-import { gameTitle } from '@/lib/format';
-import { useGame, useStore, useTeam, useTeamPlayers } from '@/lib/store';
-import type { LineupSlot } from '@/lib/types';
+import { gameTitle, playerName } from '@/lib/format';
+import { useGame, useGameAtBats, useStore, useTeam, useTeamPlayers } from '@/lib/store';
+import type { Id, LineupSlot } from '@/lib/types';
 
 /** Game level › Team: this game's batting order (starts as a copy of the default lineup). */
 export default function GameTeamScreen() {
   const { gameId } = useLocalSearchParams<{ gameId: string }>();
-  const { setGameLineup, setPitcher } = useStore();
+  const router = useRouter();
+  const { setGameLineup } = useStore();
   const game = useGame(gameId);
   const team = useTeam(game?.teamId);
   const players = useTeamPlayers(game?.teamId);
+  const atBats = useGameAtBats(gameId);
 
   if (!game) return null;
 
-  // The P badge and the pitcher are one thing during a game: giving a batter
-  // the P position makes them the pitcher that pitching W/L are credited to.
-  const applyLineup = (slots: LineupSlot[]) => {
-    setGameLineup(game.id, slots);
-    const wasP = new Set(game.lineup.filter((s) => s.position === 'P').map((s) => s.playerId));
-    const newP = slots.find((s) => s.position === 'P' && !wasP.has(s.playerId));
-    if (newP && newP.playerId !== game.pitcherId) setPitcher(game.id, newP.playerId);
+  const applyLineup = (slots: LineupSlot[]) => setGameLineup(game.id, slots);
+
+  // Taking a batter out with the remove control keeps his at-bats; when he has
+  // some, say so before his row drops to the bottom of the scorebook.
+  const confirmRemove = (playerId: Id): Promise<boolean> => {
+    const player = players.find((p) => p.id === playerId);
+    const count = atBats.filter((ab) => ab.side === 'us' && ab.batterId === playerId).length;
+    if (!player || count === 0) return Promise.resolve(true);
+    const noun = count === 1 ? '1 at-bat' : `${count} at-bats`;
+    const stays = count === 1 ? 'It stays' : 'They stay';
+    return confirmAction(
+      `Remove ${playerName(player)}?`,
+      `He has ${noun} this game. ${stays} in the stats; his row moves to the bottom of the scorebook.`,
+      'Remove',
+    );
   };
 
   const useDefaultLineup = async () => {
@@ -38,7 +48,7 @@ export default function GameTeamScreen() {
       "This replaces this game's batting order with the team's default lineup.",
       'Replace',
     );
-    if (ok) applyLineup(team.defaultLineup.map((s) => ({ ...s })));
+    if (ok) applyLineup(team.defaultLineup.map((s) => ({ playerId: s.playerId })));
   };
 
   return (
@@ -53,6 +63,8 @@ export default function GameTeamScreen() {
         slots={game.lineup}
         players={players}
         onChange={applyLineup}
+        confirmRemove={confirmRemove}
+        onSubstitute={game.status === 'final' ? undefined : (playerId) => router.push(`/game/${game.id}/sub/${playerId}`)}
         footer={
           <Button
             title="Use default lineup"

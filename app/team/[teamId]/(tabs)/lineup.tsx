@@ -32,13 +32,7 @@ export default function LineupScreen() {
       data.atBats,
       gameIds,
     );
-    const slotFor = new Map(team.defaultLineup.map((s) => [s.playerId, s]));
-    const next: LineupSlot[] = [];
-    for (const id of ordered) {
-      const slot = slotFor.get(id);
-      if (slot) next.push(slot);
-    }
-    setDefaultLineup(team.id, next);
+    setDefaultLineup(team.id, ordered.map((playerId) => ({ playerId })));
     setRanked(true);
   };
 

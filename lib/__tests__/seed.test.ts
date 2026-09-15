@@ -1,9 +1,11 @@
 import { describe, expect, it } from '@jest/globals';
 import { differenceInCalendarDays } from 'date-fns';
 
+import { compareClock } from '../atbats';
 import { getOutcome, isPlain } from '../outcomes';
 import { DEMO_TEAM_ID, PLAIN_EVERY, buildDemoData } from '../seed';
-import type { Game, Half, Side } from '../types';
+import { FORM_WINDOW, formRating, formScore, hittingFor, recentForm } from '../stats';
+import type { Game, Half, Id, Side } from '../types';
 
 const NOW = new Date('2026-09-14T12:00:00');
 const data = buildDemoData(NOW);
@@ -14,6 +16,25 @@ const scheduledGames = data.games.filter((g) => g.status === 'scheduled');
 const playerIds = new Set(data.players.map((p) => p.id));
 
 const whoBats = (g: Pick<Game, 'isAway'>, half: Half): Side => ((g.isAway ? half === 'top' : half === 'bottom') ? 'us' : 'them');
+
+const BENCH = ['p_mason', 'p_eli', 'p_theo'];
+const STARTERS = ['p_owen', 'p_ryder', 'p_lucas', 'p_cooper', 'p_carsyn', 'p_matthew', 'p_knox', 'p_weedon', 'p_landyn', 'p_ben'];
+
+/** The order the game started with: the current one with every recorded substitution reversed. */
+function startingOrder(g: Game): Id[] {
+  const ids = g.lineup.map((s) => s.playerId);
+  for (const sub of [...(g.substitutions ?? [])].reverse()) ids[sub.slot] = sub.outId;
+  return ids;
+}
+
+/** Who held the slot in that half-inning: the starter until a substitution at or before it. */
+function occupantAt(g: Game, slot: number, inning: number, half: Half): Id {
+  let id = startingOrder(g)[slot];
+  for (const sub of g.substitutions ?? []) {
+    if (sub.slot === slot && compareClock(sub, { inning, half }) <= 0) id = sub.inId;
+  }
+  return id;
+}
 
 describe('buildDemoData: determinism', () => {
   it('produces an identical document on every call for the same date', () => {
@@ -55,26 +76,20 @@ describe('buildDemoData: teams', () => {
     }
   });
 
-  it('default lineup matches the spec order and positions', () => {
-    expect(demoTeam.defaultLineup).toEqual([
-      { playerId: 'p_owen', position: 'CF' },
-      { playerId: 'p_ryder', position: '3B' },
-      { playerId: 'p_lucas', position: 'SS' },
-      { playerId: 'p_cooper', position: '1B' },
-      { playerId: 'p_carsyn', position: 'C' },
-      { playerId: 'p_matthew', position: 'EH' },
-      { playerId: 'p_knox', position: '2B' },
-      { playerId: 'p_weedon', position: 'P' },
-      { playerId: 'p_landyn', position: 'RF' },
-      { playerId: 'p_ben', position: 'LF' },
-    ]);
+  it('default lineup matches the spec order, one bare playerId per slot (no positions)', () => {
+    expect(demoTeam.defaultLineup).toEqual(STARTERS.map((playerId) => ({ playerId })));
+    for (const slot of demoTeam.defaultLineup) expect(Object.keys(slot)).toEqual(['playerId']);
   });
 });
 
 describe('buildDemoData: players', () => {
-  it('has the ten roster players with the spec jersey numbers', () => {
-    expect(data.players).toHaveLength(10);
+  it('has the ten starters plus the three bench players, all on the demo team', () => {
+    expect(data.players).toHaveLength(13);
     expect(data.players.every((p) => p.teamId === DEMO_TEAM_ID)).toBe(true);
+    expect(data.players.map((p) => p.id)).toEqual([...STARTERS, ...BENCH]);
+  });
+
+  it('has the ten roster players with the spec jersey numbers', () => {
     const byId = Object.fromEntries(data.players.map((p) => [p.id, p]));
     expect(byId.p_owen).toMatchObject({ firstName: 'Owen', lastName: 'Haynes', number: '7' });
     expect(byId.p_ryder).toMatchObject({ firstName: 'Ryder', lastName: 'Braddy', number: '42' });
@@ -87,6 +102,29 @@ describe('buildDemoData: players', () => {
     expect(byId.p_landyn).toMatchObject({ firstName: 'Landyn', lastName: 'Durbin' });
     expect(byId.p_landyn.number).toBeUndefined();
     expect(byId.p_ben).toMatchObject({ firstName: 'Ben', lastName: 'Boncek', number: '99' });
+  });
+
+  describe('the bench', () => {
+    const byId = Object.fromEntries(data.players.map((p) => [p.id, p]));
+
+    it('is three fictional players with jersey numbers', () => {
+      expect(byId.p_mason).toMatchObject({ firstName: 'Mason', lastName: 'Reed', number: '4' });
+      expect(byId.p_eli).toMatchObject({ firstName: 'Eli', lastName: 'Park', number: '21' });
+      expect(byId.p_theo).toMatchObject({ firstName: 'Theo', lastName: 'Alvarez', number: '15' });
+    });
+
+    it('is not in the default lineup nor in the upcoming game’s order', () => {
+      for (const id of BENCH) {
+        expect(demoTeam.defaultLineup.some((s) => s.playerId === id)).toBe(false);
+        expect(scheduledGames[0].lineup.some((s) => s.playerId === id)).toBe(false);
+      }
+    });
+
+    it('never started a game: a bench player only enters through a recorded substitution', () => {
+      for (const g of data.games) {
+        for (const id of BENCH) expect(startingOrder(g)).not.toContain(id);
+      }
+    });
   });
 });
 
@@ -231,23 +269,102 @@ describe('buildDemoData: games', () => {
     expect(withKnox).toEqual(['g_redbirds', 'g_bandits', 'g_tigers_2']);
     for (const g of finalGames.slice(0, 4)) {
       expect(g.lineup).toHaveLength(9);
-      expect(g.lineup.map((s) => s.playerId)).toEqual(
-        demoTeam.defaultLineup.map((s) => s.playerId).filter((id) => id !== 'p_knox'),
-      );
+      expect(startingOrder(g)).toEqual(demoTeam.defaultLineup.map((s) => s.playerId).filter((id) => id !== 'p_knox'));
     }
     const knoxGames = new Set(data.atBats.filter((x) => x.batterId === 'p_knox').map((x) => x.gameId));
     expect([...knoxGames].sort()).toEqual(['g_bandits', 'g_redbirds']);
   });
 
-  it('every other game lineup is the default lineup in order', () => {
+  it('every game started with the default lineup in order (minus Knox before he joined), slots without positions', () => {
     for (const g of data.games) {
-      const ids = g.lineup.map((s) => s.playerId);
+      const ids = startingOrder(g);
       const expected = demoTeam.defaultLineup.map((s) => s.playerId).filter((id) => ids.includes(id));
       expect(ids).toEqual(expected);
-      for (const slot of g.lineup) {
-        expect(slot.position).toBe(demoTeam.defaultLineup.find((s) => s.playerId === slot.playerId)!.position);
-      }
+      for (const slot of g.lineup) expect(Object.keys(slot)).toEqual(['playerId']);
     }
+  });
+
+  describe('seeded substitutions', () => {
+    const withSubs = data.games.filter((g) => (g.substitutions ?? []).length > 0);
+
+    it('Mason comes in for Cooper in the top of the 4th against the Rockhounds', () => {
+      const g = gameById.get('g_rockhounds')!;
+      expect(g.substitutions).toEqual([
+        { id: 'g_rockhounds_sub1', slot: 3, outId: 'p_cooper', inId: 'p_mason', inning: 4, half: 'top', at: expect.any(String) },
+      ]);
+      expect(g.lineup[3]).toEqual({ playerId: 'p_mason' });
+      expect(g.lineup.some((s) => s.playerId === 'p_cooper')).toBe(false);
+    });
+
+    it('Eli comes in for Landyn in the top of the 2nd against the Redbirds', () => {
+      const g = gameById.get('g_redbirds')!;
+      expect(g.substitutions).toEqual([
+        { id: 'g_redbirds_sub1', slot: 8, outId: 'p_landyn', inId: 'p_eli', inning: 2, half: 'top', at: expect.any(String) },
+      ]);
+      expect(g.lineup[8]).toEqual({ playerId: 'p_eli' });
+      expect(g.lineup.some((s) => s.playerId === 'p_landyn')).toBe(false);
+    });
+
+    it('Mason also comes in against the Fury and the Bandits; Eli only against the Redbirds; nobody else is ever subbed in', () => {
+      expect(withSubs.map((g) => g.id)).toEqual(['g_rockhounds', 'g_fury', 'g_redbirds', 'g_bandits']);
+      const inIds = withSubs.flatMap((g) => g.substitutions!.map((sub) => `${g.id}:${sub.inId}`));
+      expect(inIds).toEqual(['g_rockhounds:p_mason', 'g_fury:p_mason', 'g_redbirds:p_eli', 'g_bandits:p_mason']);
+      expect(scheduledGames[0].substitutions).toBeUndefined();
+    });
+
+    it('every record names the slot the sub now holds, a clock inside the game and a timestamp during it', () => {
+      const ids = withSubs.flatMap((g) => g.substitutions!.map((sub) => sub.id));
+      expect(new Set(ids).size).toBe(ids.length);
+      for (const g of withSubs) {
+        for (const sub of g.substitutions!) {
+          expect(g.lineup[sub.slot].playerId).toBe(sub.inId);
+          expect(g.lineup.some((s) => s.playerId === sub.outId)).toBe(false);
+          expect(sub.inning).toBeGreaterThanOrEqual(1);
+          expect(sub.inning).toBeLessThanOrEqual(g.inning);
+          expect(new Date(sub.at).getTime()).toBeGreaterThan(new Date(g.startsAt).getTime());
+          expect(new Date(sub.at).getTime()).toBeLessThan(new Date(g.finishedAt!).getTime());
+          // The change is made between half-innings: no at-bat of that half comes before it.
+          const halfAtBats = data.atBats.filter((x) => x.gameId === g.id && x.inning === sub.inning && x.half === sub.half);
+          for (const x of halfAtBats) expect(x.recordedAt > sub.at).toBe(true);
+        }
+      }
+    });
+
+    it('the sub bats in the slot from the change on, never before it; the outgoing player never after it', () => {
+      for (const g of withSubs) {
+        for (const sub of g.substitutions!) {
+          const ours = data.atBats.filter((x) => x.gameId === g.id && x.side === 'us');
+          const before = ours.filter((x) => compareClock(x, sub) < 0);
+          const after = ours.filter((x) => compareClock(x, sub) >= 0);
+          expect(before.some((x) => x.batterId === sub.inId)).toBe(false);
+          expect(after.some((x) => x.batterId === sub.inId)).toBe(true);
+          expect(after.some((x) => x.batterId === sub.outId)).toBe(false);
+        }
+      }
+      // Cooper had batted before Mason took his slot, so the Rockhounds scorebook shows an OUT row with at-bats.
+      const rockhounds = gameById.get('g_rockhounds')!;
+      const sub = rockhounds.substitutions![0];
+      const cooper = data.atBats.filter((x) => x.gameId === rockhounds.id && x.batterId === 'p_cooper');
+      expect(cooper.length).toBeGreaterThan(0);
+      for (const x of cooper) expect(compareClock(x, sub)).toBeLessThan(0);
+    });
+
+    it('Mason has a full form window of at-bats and reads HOT; Eli is about even; Theo has never batted', () => {
+      const mason = recentForm(data.atBats, data.games, 'p_mason');
+      expect(mason).toHaveLength(FORM_WINDOW);
+      expect(formScore(mason)).toBeGreaterThanOrEqual(3);
+      expect(formRating(mason)).toBe('hot');
+      const masonAll = hittingFor(data.atBats, 'p_mason');
+      expect(masonAll.w + masonAll.l).toBeGreaterThanOrEqual(FORM_WINDOW);
+
+      const eli = recentForm(data.atBats, data.games, 'p_eli');
+      expect(eli.length).toBeGreaterThanOrEqual(1);
+      expect(Math.abs(formScore(eli))).toBeLessThanOrEqual(1);
+      expect(formRating(eli)).toBeUndefined();
+
+      expect(data.atBats.some((x) => x.batterId === 'p_theo')).toBe(false);
+      expect(recentForm(data.atBats, data.games, 'p_theo')).toEqual([]);
+    });
   });
 });
 
@@ -273,7 +390,9 @@ describe('buildDemoData: at-bats', () => {
       expect(['top', 'bottom']).toContain(x.half);
       expect(whoBats(g!, x.half)).toBe(x.side);
       if (x.side === 'us') {
-        expect(g!.lineup.some((s) => s.playerId === x.batterId)).toBe(true);
+        // In the order now, or in it before a recorded substitution took him out.
+        const held = g!.lineup.some((s) => s.playerId === x.batterId) || (g!.substitutions ?? []).some((sub) => sub.outId === x.batterId);
+        expect(held).toBe(true);
         expect(playerIds.has(x.batterId)).toBe(true);
         expect(x.pitcherId).toBeUndefined();
       } else {
@@ -317,10 +436,10 @@ describe('buildDemoData: at-bats', () => {
     }
   });
 
-  it('walk the batting order in sequence within a game', () => {
+  it('walk the batting order in sequence within a game, each slot batted by whoever held it at the time', () => {
     for (const g of finalGames) {
       const ours = data.atBats.filter((x) => x.gameId === g.id && x.side === 'us');
-      ours.forEach((x, i) => expect(x.batterId).toBe(g.lineup[i % g.lineup.length].playerId));
+      ours.forEach((x, i) => expect(x.batterId).toBe(occupantAt(g, i % g.lineup.length, x.inning, x.half)));
       expect(g.ourNextBatter).toBe(ours.length % g.lineup.length);
       const theirs = data.atBats.filter((x) => x.gameId === g.id && x.side === 'them');
       theirs.forEach((x, i) => expect(x.batterId).toBe(g.opponentLineup[i % g.opponentLineup.length].id));

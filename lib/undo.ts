@@ -41,7 +41,14 @@ export type UndoEntry =
    * again if still in the order. The editor captures it from that side's
    * pointer before calling `deleteAtBat`.
    */
-  | { kind: 'remove'; atBat: AtBat; dueBatterId?: Id };
+  | { kind: 'remove'; atBat: AtBat; dueBatterId?: Id }
+  /**
+   * A substitution. Inverse: `undoSubstitution`, which puts `outId` back only
+   * while the slot still holds `inId` (a later lineup edit makes it a no-op).
+   * `slot`, `outId` and `inId` are carried for labels and for callers that
+   * describe the entry; the store resolves everything from the record.
+   */
+  | { kind: 'sub'; substitutionId: Id; slot: number; outId: Id; inId: Id };
 
 export const UNDO_LIMIT = 20;
 
@@ -59,12 +66,20 @@ export function undoLabel(entry: UndoEntry | undefined): string {
       return 'Undo re-judge';
     case 'remove':
       return 'Undo remove';
+    case 'sub':
+      return 'Undo sub';
   }
 }
 
 export type UndoActions = Pick<
   Store,
-  'deleteAtBat' | 'setNextBatter' | 'nextHalfInning' | 'prevHalfInning' | 'updateAtBat' | 'restoreAtBat'
+  | 'deleteAtBat'
+  | 'setNextBatter'
+  | 'nextHalfInning'
+  | 'prevHalfInning'
+  | 'updateAtBat'
+  | 'restoreAtBat'
+  | 'undoSubstitution'
 >;
 
 /** The batter's slot in that side's current order, or -1 once they have left it. */
@@ -117,6 +132,9 @@ export function applyUndo(entry: UndoEntry, game: Game, actions: UndoActions): v
       actions.setNextBatter(game.id, side, index);
       return;
     }
+    case 'sub':
+      actions.undoSubstitution(game.id, entry.substitutionId);
+      return;
   }
 }
 

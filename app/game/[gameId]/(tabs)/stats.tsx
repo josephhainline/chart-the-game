@@ -7,24 +7,33 @@ import Scorebook, { type ScorebookRowView } from '@/components/Scorebook';
 import Screen from '@/components/Screen';
 import { WLText } from '@/components/ui';
 import { colors, fonts } from '@/constants/theme';
-import { gameTitle, opponentBatterLabel, playerShort } from '@/lib/format';
+import { gameTitle, halfLabel, opponentBatterLabel, playerShort } from '@/lib/format';
 import { isPlain, outcomeShort } from '@/lib/outcomes';
-import { gameHitting, gamePitching, leftGameBatterIds, pitcherResult, scorebook } from '@/lib/stats';
+import { gameHitting, gamePitching, orderWithLeavers, pitcherResult, scorebook, type OrderRow } from '@/lib/stats';
 import { useGame, useGameAtBats, useStore } from '@/lib/store';
-import type { Player, Position, Side } from '@/lib/types';
+import type { Player, Side } from '@/lib/types';
 
 const EMPTY_BOOK = { innings: [] as number[], rows: [] as ScorebookRowView[] };
 
-/** A row of our grid: a lineup slot, or a batter who left the order mid-game (`left`). */
-type OurBatter = { id: string; position?: Position; index: number; left: boolean };
-/** A row of their grid: a batter in the order, or one who left it mid-game. */
-type TheirBatter = { id: string; label: string; left: boolean };
+/** "1", "2", … for a row in the order (a slot repeats across an OUT/IN pair); "–" for one who left it. */
+function slotLabel(row: OrderRow): string {
+  return row.status === 'left' ? '–' : String(row.slot + 1);
+}
+
+/** The small note under a name: "OUT ▲ 4TH" / "IN ▲ 4TH" around a substitution, "LEFT GAME" for a batter removed from the order. */
+function rowNote(row: OrderRow): string | undefined {
+  if (row.status === 'left') return 'LEFT GAME';
+  if (!row.at) return undefined;
+  return `${row.status === 'out' ? 'OUT' : 'IN'} ${halfLabel(row.at.inning, row.at.half).toUpperCase()}`;
+}
 
 /**
  * Game-level Stats tab: the scorebook grids for our hitting and our pitching.
  * Every cell with an at-bat opens the editor (a multi-at-bat cell opens the
- * batter sheet); batters who left the order mid-game keep their at-bats in
- * muted "LEFT GAME" rows so the grid reconciles with the totals.
+ * batter sheet). A batter who left his slot through a substitution keeps a
+ * muted "OUT" row right above the "IN" row of the player who took it (same
+ * slot number); batters removed from the order with the lineup editor keep
+ * their at-bats in muted "LEFT GAME" rows so the grid reconciles with the totals.
  */
 export default function GameStatsScreen() {
   const { gameId } = useLocalSearchParams<{ gameId: string }>();
@@ -38,24 +47,17 @@ export default function GameStatsScreen() {
   const hitting = useMemo(() => {
     if (!game) return EMPTY_BOOK;
     const byId = new Map<string, Player>(data.players.map((p) => [p.id, p]));
-    const inOrder: OurBatter[] = game.lineup.map((slot, index) => ({ id: slot.playerId, position: slot.position, index, left: false }));
-    const left: OurBatter[] = leftGameBatterIds(atBats, game.id, 'us', game.lineup.map((s) => s.playerId)).map((id) => ({
-      id,
-      index: -1,
-      left: true,
-    }));
-    const book = scorebook(atBats, game.id, 'us', [...inOrder, ...left], minInnings);
+    const book = scorebook(atBats, game.id, 'us', orderWithLeavers(game, atBats, 'us'), minInnings);
     const rows: ScorebookRowView[] = book.rows.map((r) => {
       const player = byId.get(r.batter.id);
       return {
         id: r.batter.id,
-        slot: r.batter.left ? '–' : String(r.batter.index + 1),
+        slot: slotLabel(r.batter),
         name: player ? playerShort(player) : 'Removed player',
-        position: r.batter.position,
         innings: r.innings.map((abs) => abs.map((ab) => ({ atBatId: ab.id, result: ab.result, short: outcomeShort(ab.outcomeId) }))),
         wl: r.wl,
-        muted: r.batter.left,
-        note: r.batter.left ? 'LEFT GAME' : undefined,
+        muted: r.batter.status !== 'in',
+        note: rowNote(r.batter),
       };
     });
     return { innings: book.innings, rows };
@@ -63,23 +65,21 @@ export default function GameStatsScreen() {
 
   const pitching = useMemo(() => {
     if (!game) return EMPTY_BOOK;
-    const inOrder: TheirBatter[] = game.opponentLineup.map((b) => ({ id: b.id, label: opponentBatterLabel(b), left: false }));
-    const left: TheirBatter[] = leftGameBatterIds(atBats, game.id, 'them', game.opponentLineup.map((b) => b.id)).map((id) => ({
-      id,
-      label: 'Batter (left)',
-      left: true,
-    }));
-    const book = scorebook(atBats, game.id, 'them', [...inOrder, ...left], minInnings);
-    const rows: ScorebookRowView[] = book.rows.map((r, index) => ({
-      id: r.batter.id,
-      slot: r.batter.left ? '–' : String(index + 1),
-      name: r.batter.label,
-      // Shown from our pitcher's side: green when our pitcher won the battle.
-      innings: r.innings.map((abs) => abs.map((ab) => ({ atBatId: ab.id, result: pitcherResult(ab), short: outcomeShort(ab.outcomeId) }))),
-      wl: r.wl,
-      muted: r.batter.left,
-      note: r.batter.left ? 'LEFT GAME' : undefined,
-    }));
+    const byId = new Map(game.opponentLineup.map((b) => [b.id, b]));
+    const book = scorebook(atBats, game.id, 'them', orderWithLeavers(game, atBats, 'them'), minInnings);
+    const rows: ScorebookRowView[] = book.rows.map((r) => {
+      const batter = byId.get(r.batter.id);
+      return {
+        id: r.batter.id,
+        slot: slotLabel(r.batter),
+        name: batter ? opponentBatterLabel(batter) : 'Batter (left)',
+        // Shown from our pitcher's side: green when our pitcher won the battle.
+        innings: r.innings.map((abs) => abs.map((ab) => ({ atBatId: ab.id, result: pitcherResult(ab), short: outcomeShort(ab.outcomeId) }))),
+        wl: r.wl,
+        muted: r.batter.status !== 'in',
+        note: rowNote(r.batter),
+      };
+    });
     return { innings: book.innings, rows };
   }, [game, atBats, minInnings]);
 

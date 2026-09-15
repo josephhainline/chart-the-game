@@ -1,6 +1,18 @@
 import { addDays, setHours, setMinutes, setSeconds, addMinutes } from 'date-fns';
 
-import type { AppData, AtBat, Game, Id, LineupSlot, OpponentBatter, OutcomeId, Player, Team } from './types';
+import type {
+  AppData,
+  AtBat,
+  Game,
+  Half,
+  Id,
+  LineupSlot,
+  OpponentBatter,
+  OutcomeId,
+  Player,
+  Substitution,
+  Team,
+} from './types';
 import { LOSS_OUTCOMES, WIN_OUTCOMES, plainFor } from './outcomes';
 
 /**
@@ -34,27 +46,35 @@ type SeedPlayer = {
   first: string;
   last: string;
   number?: string;
-  position: LineupSlot['position'];
   /** Probability this batter wins an at-bat. */
   hit: number;
   /** Probability this pitcher wins an at-bat. */
   pitch: number;
   /** Only appears in the last N games (a late roster addition). */
   lastGamesOnly?: number;
+  /** Not in the default lineup: only bats when a seeded substitution puts him in. */
+  bench?: boolean;
 };
 
 const ROSTER: SeedPlayer[] = [
-  { id: 'p_owen', first: 'Owen', last: 'Haynes', number: '7', position: 'CF', hit: 0.62, pitch: 0.7 },
-  { id: 'p_ryder', first: 'Ryder', last: 'Braddy', number: '42', position: '3B', hit: 0.66, pitch: 0.5 },
-  { id: 'p_lucas', first: 'Lucas', last: 'Kloster', number: '13', position: 'SS', hit: 0.62, pitch: 0.4 },
-  { id: 'p_cooper', first: 'Cooper', last: 'Woollen', number: '50', position: '1B', hit: 0.64, pitch: 0.63 },
-  { id: 'p_carsyn', first: 'Carsyn', last: 'Griffith', number: '26', position: 'C', hit: 0.53, pitch: 0.55 },
-  { id: 'p_matthew', first: 'Matthew', last: 'Hume', number: '76', position: 'EH', hit: 0.72, pitch: 0.2 },
-  { id: 'p_knox', first: 'Knox', last: 'Kennedy', number: '8', position: '2B', hit: 0.42, pitch: 0.5, lastGamesOnly: 2 },
-  { id: 'p_weedon', first: 'Weedon', last: 'Hainline', number: '10', position: 'P', hit: 0.58, pitch: 0.7 },
-  { id: 'p_landyn', first: 'Landyn', last: 'Durbin', position: 'RF', hit: 0.54, pitch: 0.52 },
-  { id: 'p_ben', first: 'Ben', last: 'Boncek', number: '99', position: 'LF', hit: 0.45, pitch: 0.48 },
+  { id: 'p_owen', first: 'Owen', last: 'Haynes', number: '7', hit: 0.62, pitch: 0.7 },
+  { id: 'p_ryder', first: 'Ryder', last: 'Braddy', number: '42', hit: 0.66, pitch: 0.5 },
+  { id: 'p_lucas', first: 'Lucas', last: 'Kloster', number: '13', hit: 0.62, pitch: 0.4 },
+  { id: 'p_cooper', first: 'Cooper', last: 'Woollen', number: '50', hit: 0.64, pitch: 0.63 },
+  { id: 'p_carsyn', first: 'Carsyn', last: 'Griffith', number: '26', hit: 0.53, pitch: 0.55 },
+  { id: 'p_matthew', first: 'Matthew', last: 'Hume', number: '76', hit: 0.72, pitch: 0.2 },
+  { id: 'p_knox', first: 'Knox', last: 'Kennedy', number: '8', hit: 0.42, pitch: 0.5, lastGamesOnly: 2 },
+  { id: 'p_weedon', first: 'Weedon', last: 'Hainline', number: '10', hit: 0.58, pitch: 0.7 },
+  { id: 'p_landyn', first: 'Landyn', last: 'Durbin', hit: 0.54, pitch: 0.52 },
+  { id: 'p_ben', first: 'Ben', last: 'Boncek', number: '99', hit: 0.45, pitch: 0.48 },
+  // The bench (fictional): a hot bat, an even one, and one who has never been in.
+  { id: 'p_mason', first: 'Mason', last: 'Reed', number: '4', hit: 0.75, pitch: 0.5, bench: true },
+  { id: 'p_eli', first: 'Eli', last: 'Park', number: '21', hit: 0.5, pitch: 0.5, bench: true },
+  { id: 'p_theo', first: 'Theo', last: 'Alvarez', number: '15', hit: 0.5, pitch: 0.5, bench: true },
 ];
+
+/** A substitution made in a seeded game: `inId` takes `outId`'s slot from this half-inning on. */
+type SeedSub = { outId: Id; inId: Id; inning: number; half: Half };
 
 type SeedGame = {
   id: Id;
@@ -77,6 +97,12 @@ type SeedGame = {
   switchAfter?: number;
   /** Plate appearances per half inning for us / them, roughly. */
   tempo?: { us: number; them: number };
+  /**
+   * Substitutions, in the order they happen. Mason is subbed into three
+   * games so his form (last six at-bats) reads HOT on the bench; Eli into one
+   * so his reads about even; Theo never plays.
+   */
+  subs?: SeedSub[];
 };
 
 const GAMES: SeedGame[] = [
@@ -124,6 +150,7 @@ const GAMES: SeedGame[] = [
     pitchers: ['p_cooper', 'p_carsyn'],
     switchAfter: 2,
     tempo: { us: 3.8, them: 5.2 },
+    subs: [{ outId: 'p_cooper', inId: 'p_mason', inning: 4, half: 'top' }],
   },
   {
     id: 'g_fury',
@@ -139,6 +166,7 @@ const GAMES: SeedGame[] = [
     pitchers: ['p_owen', 'p_weedon'],
     switchAfter: 3,
     tempo: { us: 4.5, them: 3.5 },
+    subs: [{ outId: 'p_ben', inId: 'p_mason', inning: 3, half: 'top' }],
   },
   {
     id: 'g_redbirds',
@@ -154,6 +182,7 @@ const GAMES: SeedGame[] = [
     pitchers: ['p_weedon', 'p_ben'],
     switchAfter: 2,
     tempo: { us: 5.5, them: 4 },
+    subs: [{ outId: 'p_landyn', inId: 'p_eli', inning: 2, half: 'top' }],
   },
   {
     id: 'g_bandits',
@@ -169,6 +198,7 @@ const GAMES: SeedGame[] = [
     pitchers: ['p_owen', 'p_cooper'],
     switchAfter: 2,
     tempo: { us: 11, them: 4 },
+    subs: [{ outId: 'p_lucas', inId: 'p_mason', inning: 2, half: 'top' }],
   },
   {
     id: 'g_tigers_2',
@@ -244,7 +274,7 @@ export function buildDemoData(now: Date = new Date()): AppData {
     number: r.number,
   }));
 
-  const defaultLineup: LineupSlot[] = ROSTER.map((r) => ({ playerId: r.id, position: r.position }));
+  const defaultLineup: LineupSlot[] = ROSTER.filter((r) => !r.bench).map((r) => ({ playerId: r.id }));
 
   const teams: Team[] = [
     {
@@ -284,6 +314,7 @@ export function buildDemoData(now: Date = new Date()): AppData {
     });
     const theirOrder = opponentLineup(sg.id);
     const pitchers = sg.pitchers ?? ['p_weedon'];
+    const substitutions: Substitution[] = [];
 
     const game: Game = {
       id: sg.id,
@@ -311,6 +342,26 @@ export function buildDemoData(now: Date = new Date()): AppData {
       let clock = startsAt;
       for (let inning = 1; inning <= innings; inning++) {
         for (const half of ['top', 'bottom'] as const) {
+          // A substitution is made between half-innings: the slot changes
+          // hands and the sub bats there from now on. The pointer is a slot
+          // index, so nothing else in the order moves.
+          for (const sub of sg.subs ?? []) {
+            if (sub.inning !== inning || sub.half !== half) continue;
+            const slot = lineup.findIndex((x) => x.playerId === sub.outId);
+            if (slot < 0) throw new Error(`seed: ${sub.outId} is not in ${sg.id}'s order`);
+            if (lineup.some((x) => x.playerId === sub.inId)) throw new Error(`seed: ${sub.inId} is already in ${sg.id}'s order`);
+            lineup[slot] = { playerId: sub.inId };
+            clock = addMinutes(clock, 1);
+            substitutions.push({
+              id: `${sg.id}_sub${substitutions.length + 1}`,
+              slot,
+              outId: sub.outId,
+              inId: sub.inId,
+              inning,
+              half,
+              at: clock.toISOString(),
+            });
+          }
           const weBat = sg.isAway ? half === 'top' : half === 'bottom';
           const tempo = weBat ? sg.tempo!.us : sg.tempo!.them;
           const pas = Math.max(3, Math.round(tempo + (rand() - 0.5) * 2));
@@ -318,6 +369,7 @@ export function buildDemoData(now: Date = new Date()): AppData {
           for (let k = 0; k < pas; k++) {
             clock = addMinutes(clock, 2 + Math.floor(rand() * 3));
             if (weBat) {
+              // Whoever holds the slot now: a sub bats in the outgoing player's place.
               const slot = lineup[ourIdx % lineup.length];
               ourIdx++;
               const sp = ROSTER.find((r) => r.id === slot.playerId)!;
@@ -364,6 +416,7 @@ export function buildDemoData(now: Date = new Date()): AppData {
       game.theirNextBatter = theirIdx % theirOrder.length;
       game.pitcherId = pitchers[1] ?? pitchers[0];
       game.finishedAt = addMinutes(clock, 5).toISOString();
+      if (substitutions.length > 0) game.substitutions = substitutions;
     }
 
     games.push(game);

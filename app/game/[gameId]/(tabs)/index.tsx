@@ -6,6 +6,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimen
 import AppHeader from '@/components/AppHeader';
 import CaptureDock, { type DockLast, type DockRejudge } from '@/components/CaptureDock';
 import type { NeedleSide } from '@/components/CTGGauge';
+import FormLine, { benchNote, describeForm, formFor, HiddenText, RatingPill } from '@/components/FormLine';
 import InningStrip from '@/components/InningStrip';
 import MiniChips, { type MiniChip } from '@/components/MiniChips';
 import ResultTile from '@/components/ResultTile';
@@ -16,20 +17,36 @@ import { compareClock, displayResult, invertResult, sortAtBats } from '@/lib/atb
 import { confirmAction } from '@/lib/confirm';
 import { gameTitle, halfLabel, opponentBatterLabel, playerLabel, playerShort } from '@/lib/format';
 import { isPlain, outcomeLabel, outcomeShort, plainFor } from '@/lib/outcomes';
-import { hittingFor, leftGameBatterIds } from '@/lib/stats';
-import { battingSide, useGame, useGameAtBats, useStore, useTeamPlayers, type AtBatPatch } from '@/lib/store';
+import { benchFor, benchOrder, hittingFor, orderWithLeavers } from '@/lib/stats';
+import { battingSide, useGame, useGameAtBats, useStore, useTeamGames, useTeamPlayers, type AtBatPatch } from '@/lib/store';
 import type { AtBat, Game, Half, OutcomeId, Result, Side } from '@/lib/types';
 import { useTypesExpanded } from '@/lib/uiPrefs';
 import { applyUndo, popUndo, pushUndo, undoLabel, useUndoStack } from '@/lib/undo';
 
 const webCursor = Platform.OS === 'web' ? ({ cursor: 'pointer' } as const) : null;
+/**
+ * Native only: a display-only row read as one VoiceOver / TalkBack stop. On
+ * web a label on a plain view is not announced, so the row carries a
+ * HiddenText instead and its visual parts are aria-hidden.
+ */
+const rowLabel = (label: string) => (Platform.OS === 'web' ? null : ({ accessible: true, accessibilityLabel: label } as const));
 
 type Batter = {
   id: string;
   label: string;
   short: string;
-  /** A finished game: this batter has at-bats but is no longer in the order (a muted "LEFT GAME" row). */
-  left?: boolean;
+  /** His place in the order (0-based); -1 for a 'left' row. */
+  slot: number;
+  /**
+   * 'in': in the order now. A finished game also lists, from
+   * `orderWithLeavers`, everyone who left a slot through a recorded
+   * substitution ('out', a muted row at that slot just before his sub) and
+   * everyone else with at-bats who is no longer in the order ('left', a
+   * muted "LEFT GAME" row after the lineup).
+   */
+  status: 'in' | 'out' | 'left';
+  /** The half-inning of the substitution that put him in or took him out. */
+  at?: { inning: number; half: Half };
 };
 
 /** Which row to bring into view after the next render. */
@@ -89,10 +106,11 @@ export default function ChartTheGameScreen() {
   const { gameId } = useLocalSearchParams<{ gameId: string }>();
   const router = useRouter();
   const store = useStore();
-  const { setNextBatter, recordAtBat, updateAtBat, nextHalfInning, prevHalfInning, reopenGame } = store;
+  const { data, setNextBatter, recordAtBat, updateAtBat, nextHalfInning, prevHalfInning, reopenGame } = store;
   const game = useGame(gameId);
   const atBats = useGameAtBats(gameId);
   const players = useTeamPlayers(game?.teamId);
+  const games = useTeamGames(game?.teamId);
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const undoStack = useUndoStack(game?.id);
 
@@ -131,16 +149,25 @@ export default function ChartTheGameScreen() {
     (s: Side): Batter[] => {
       if (!game) return [];
       if (s === 'us') {
-        return game.lineup.map((slot) => {
+        return game.lineup.map((slot, i) => {
           const p = playersById.get(slot.playerId);
-          return { id: slot.playerId, label: p ? playerLabel(p) : 'Removed player', short: p ? playerShort(p) : 'Removed player' };
+          return { id: slot.playerId, label: p ? playerLabel(p) : 'Removed player', short: p ? playerShort(p) : 'Removed player', slot: i, status: 'in' };
         });
       }
-      return game.opponentLineup.map((b) => ({ id: b.id, label: opponentBatterLabel(b), short: opponentBatterLabel(b) }));
+      return game.opponentLineup.map((b, i) => ({ id: b.id, label: opponentBatterLabel(b), short: opponentBatterLabel(b), slot: i, status: 'in' }));
     },
     [game, playersById],
   );
   const order = useMemo(() => orderFor(side), [orderFor, side]);
+
+  // The bench (roster players not in the order), hottest first, with each
+  // player's form over the team's games; listed under our order while the
+  // game is live so the coach sees who is hot before opening the sub sheet.
+  const lineup = game?.lineup;
+  const bench = useMemo(() => {
+    if (!lineup) return [];
+    return benchOrder(benchFor(players, lineup), data.atBats, games).map((p) => ({ player: p, form: formFor(data.atBats, games, p.id) }));
+  }, [players, lineup, data.atBats, games]);
 
   useEffect(
     () => () => {
@@ -469,6 +496,14 @@ export default function ChartTheGameScreen() {
     color: reviewing ? colors.amberInk : liveSide === 'us' ? colors.primaryDark : colors.pitching,
     title: currentBatter ? `${liveCurrent + 1}. ${currentBatter.label}` : 'No batters',
     chips: headerChips,
+    // The name opens the batter sheet (Substitute… lives there), whichever side the list is peeking at.
+    onTitlePress: currentBatter
+      ? () => {
+          if (locked()) return;
+          router.push(`/game/${game.id}/batter/${liveSide}/${currentBatter.id}`);
+        }
+      : undefined,
+    titleLabel: currentBatter ? `${currentBatter.label}, open batter sheet` : undefined,
   };
   // While pitching the big W records our pitcher's win (the batter's L), so the
   // labels speak in the pitcher's perspective like everything else on that side.
@@ -485,16 +520,17 @@ export default function ChartTheGameScreen() {
 
   // ---- Rows ----
 
-  // A finished game lists every at-bat: batters who left the order after
-  // batting follow the lineup as muted "LEFT GAME" rows, so the tiles add up
-  // to the game's hitting line (the Stats grid appends the same rows).
-  const leftRows: Batter[] = isFinal
-    ? leftGameBatterIds(atBats, game.id, 'us', game.lineup.map((s) => s.playerId)).map((id) => {
-        const p = playersById.get(id);
-        return { id, label: p ? playerLabel(p) : 'Removed player', short: p ? playerShort(p) : 'Removed player', left: true };
+  // A finished game lists every at-bat: a player who left his slot through
+  // a substitution sits muted at that slot just before his sub ("OUT ▲ 4th"),
+  // and batters who left the order any other way follow the lineup as muted
+  // "LEFT GAME" rows, so the tiles add up to the game's hitting line (the
+  // Stats grid shows the same rows).
+  const listed: Batter[] = isFinal
+    ? orderWithLeavers(game, atBats, 'us').map((row) => {
+        const p = playersById.get(row.id);
+        return { id: row.id, label: p ? playerLabel(p) : 'Removed player', short: p ? playerShort(p) : 'Removed player', slot: row.slot, status: row.status, at: row.at };
       })
-    : [];
-  const listed = isFinal ? [...order, ...leftRows] : order;
+    : order;
 
   const rows = listed.map((batter, i) => {
     const abs = atBatsByBatter.get(batter.id) ?? [];
@@ -509,7 +545,11 @@ export default function ChartTheGameScreen() {
     // A finished game reads as a box score: every at-bat as a tile and the game's W/L.
     const gameLine = isFinal ? hittingFor(atBats, batter.id, game.id) : undefined;
     const flashing = flash && abs.some((ab) => ab.id === flash.id) ? flash.result : undefined;
-    const slot = batter.left ? '–' : `${i + 1}.`;
+    const slot = batter.slot < 0 ? '–' : `${batter.slot + 1}.`;
+    const muted = batter.status !== 'in';
+    // A finished game's caption under the name: how he left ("OUT ▲ 4th", "LEFT GAME") or came in ("IN ▲ 4th").
+    const caption =
+      batter.status === 'left' ? 'LEFT GAME' : batter.at ? `${batter.status === 'out' ? 'OUT' : 'IN'} ${halfLabel(batter.at.inning, batter.at.half)}` : undefined;
 
     return (
       <View
@@ -529,7 +569,7 @@ export default function ChartTheGameScreen() {
         <Pressable
           onPress={() => openBatter(batter.id)}
           accessibilityRole="button"
-          accessibilityLabel={`${slot} ${batter.label}${tag ? `, ${tag.toLowerCase()}` : ''}${batter.left ? ', left game' : ''}`}
+          accessibilityLabel={`${slot} ${batter.label}${tag ? `, ${tag.toLowerCase()}` : ''}${caption ? `, ${caption.toLowerCase()}` : ''}`}
           accessibilityHint="Open this batter's at-bats"
           style={({ pressed }) => [StyleSheet.absoluteFill, pressed && styles.rowPressed, webCursor]}
         />
@@ -537,10 +577,10 @@ export default function ChartTheGameScreen() {
           <Text style={styles.num}>{slot}</Text>
         </Inert>
         <View style={styles.rowBody}>
-          <BatterName label={batter.label} muted={batter.left} />
-          {batter.left ? (
+          <BatterName label={batter.label} muted={muted} />
+          {caption ? (
             <Inert>
-              <Text style={styles.leftCaption}>LEFT GAME</Text>
+              <Text style={[styles.caption, !muted && styles.captionIn]}>{caption}</Text>
             </Inert>
           ) : null}
           {label || chips.length ? (
@@ -651,6 +691,41 @@ export default function ChartTheGameScreen() {
           ) : (
             rows
           )}
+          {/*
+            Only under a live game's actual order: a final game's box score
+            already lists everyone who batted (a sub's outgoing player would
+            appear twice), and an empty order has no bench to speak of. The
+            peek keeps the band (subs are allowed while the other side bats),
+            tinted like the peeked rows above it.
+          */}
+          {side === 'us' && n > 0 && !isFinal && bench.length > 0 ? (
+            <>
+              <View style={styles.benchBand}>
+                <Text style={styles.benchBandText}>BENCH</Text>
+                <Text style={styles.benchBandText}>LAST 6 AT-BATS</Text>
+              </View>
+              {bench.map(({ player, form }) => {
+                const note = benchNote(game, player.id);
+                // One sentence for assistive tech; the visual parts are hidden from it.
+                const description = `${playerLabel(player)}. ${describeForm(form, note)}`;
+                return (
+                  <View key={player.id} style={[styles.benchRow, peeking && styles.rowPeek]} accessibilityRole="text" {...rowLabel(description)}>
+                    <HiddenText>{description}</HiddenText>
+                    <Inert style={styles.benchBody}>
+                      <View style={styles.benchHead}>
+                        <Text style={styles.benchName} numberOfLines={1}>
+                          {playerLabel(player)}
+                        </Text>
+                        <RatingPill rating={form.rating} />
+                      </View>
+                      {note ? <Text style={styles.benchNote}>{note}</Text> : null}
+                      <FormLine compact results={form.results} season={form.season} lastGame={form.lastGame} />
+                    </Inert>
+                  </View>
+                );
+              })}
+            </>
+          ) : null}
         </View>
       </ScrollView>
 
@@ -687,8 +762,9 @@ export default function ChartTheGameScreen() {
 
 /**
  * Static row content: taps pass through to the row's stretched button
- * beneath, and assistive tech skips it because that button already carries
- * the row's label.
+ * beneath, and assistive tech skips it because the row's words are already
+ * carried elsewhere (that button's label; a bench row's HiddenText on web or
+ * its accessibilityLabel on native).
  */
 function Inert({ style, children }: { style?: StyleProp<ViewStyle>; children: React.ReactNode }) {
   return (
@@ -761,7 +837,8 @@ const styles = StyleSheet.create({
   nameMuted: { color: colors.textMuted },
   // Invisible, out of flow, and wider than any column, so its onLayout width is the label's natural width.
   nameMeasure: { position: 'absolute', left: 0, top: 0, opacity: 0, maxWidth: 10000 },
-  leftCaption: { fontFamily: fonts.bold, fontSize: 10, lineHeight: 12, color: colors.textMuted, letterSpacing: 0.6 },
+  caption: { fontFamily: fonts.bold, fontSize: 10, lineHeight: 12, color: colors.textMuted, letterSpacing: 0.6 },
+  captionIn: { color: colors.primaryDark },
   line2: { flexDirection: 'row', alignItems: 'center', gap: 6, pointerEvents: 'box-none' },
   outcomeWrap: { flexShrink: 1, minWidth: 0 },
   outcome: { fontFamily: fonts.bold, fontSize: 13, lineHeight: 16, color: colors.text },
@@ -773,4 +850,20 @@ const styles = StyleSheet.create({
   skip: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   skipPressed: { backgroundColor: colors.chip },
   skipIcon: { opacity: 0.7 },
+  // The bench under our order: a gray band like the game lists' month bands, then one compact row per player.
+  benchBand: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: colors.page,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    marginTop: 8,
+  },
+  benchBandText: { fontFamily: fonts.bold, fontSize: 12, color: colors.textMuted, letterSpacing: 0.6 },
+  benchRow: { paddingLeft: 55, paddingRight: 16, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: colors.divider },
+  benchBody: { gap: 3 },
+  benchHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  benchName: { fontFamily: fonts.bold, fontSize: 17, lineHeight: 22, color: colors.text, flexShrink: 1 },
+  benchNote: { fontFamily: fonts.regular, fontSize: 12, lineHeight: 15, color: colors.textMuted },
 });

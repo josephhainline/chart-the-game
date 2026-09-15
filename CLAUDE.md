@@ -25,9 +25,14 @@ FontAwesome6 from `@expo/vector-icons` only. No react-native-paper, no lucide.
 - `app/` — expo-router routes. Three nesting levels, each a Tabs group:
   `(app)` (My Teams · Games · About · Account), `team/[teamId]/(tabs)`
   (Home · Team · Lineup · Stats), `game/[gameId]/(tabs)` (Home · Team ·
-  Opponent · CTG · Stats). Modal forms sit beside each `(tabs)` group.
+  Opponent · CTG · Stats). Modal forms sit beside each `(tabs)` group; the
+  game level's sheets are `atbat/[atBatId]`, `batter/[side]/[batterId]`,
+  `sub/[batterId]` (substitution: the bench hottest first) and `pitcher`.
 - `lib/` — `types.ts` (data model), `store.tsx` (single-document state +
-  AsyncStorage persistence + every action), `stats.ts` (derived W/L),
+  AsyncStorage persistence + every action, incl. `substitute`/
+  `undoSubstitution` and `normalizeLoaded` for old documents), `stats.ts`
+  (derived W/L, form: `recentForm`/`formRating`/`benchOrder`, and
+  `orderWithLeavers` for scorebook/finished-game rows),
   `seed.ts` (deterministic demo data, games on Saturdays relative to today),
   `outcomes.ts` (the twelve typed outcomes plus `plain_w`/`plain_l`),
   `atbats.ts` (the one at-bat sort key + `displayResult`/`newestAtBat`),
@@ -38,8 +43,9 @@ FontAwesome6 from `@expo/vector-icons` only. No react-native-paper, no lucide.
 - `components/` — `AppHeader` (two-band header), `TabBar` (chip tabs),
   `ModalScreen`, `PhoneFrame` (430px column on wide web), `ui.tsx` primitives,
   plus feature components (`CaptureDock`, `InningStrip`, `CTGGauge`,
-  `OutcomeButtons`, `ResultTile`, `MiniChips`, `LineupEditor`, `StatsTable`,
-  `Scorebook`, `GameRow`, …).
+  `OutcomeButtons`, `ResultTile`, `MiniChips`, `FormLine` (last-six chips +
+  HOT/COLD tag), `LineupEditor` (order rows with swap/remove controls),
+  `StatsTable`, `Scorebook`, `GameRow`, …).
 - `constants/theme.ts` — every color/font/size token (sampled from the PNGs).
 
 ## Conventions
@@ -51,13 +57,18 @@ FontAwesome6 from `@expo/vector-icons` only. No react-native-paper, no lucide.
 - Any ordered display or newest-at-bat lookup uses lib/atbats
   (`sortAtBats`/`newestAtBat`/`compareAtBats`), never document array order;
   unordered aggregates (counts, filters, `some`) need no sort.
-- The CTG tab, at-bat editor and batter sheet push a lib/undo entry for the
-  five undoable actions — record (`record`), skip via a row's forward-step
-  target or the sheet's "Bring up to bat now" (`skip`), Next/Prev half and
-  Jump ahead (`half`, one entry per half stepped), re-judge/editor field
-  changes (`rejudge`), Remove at-bat (`remove`). `setPitcher` (incl.
-  `recreditHalf`) and End Game are not undoable; `undoLastAtBat` stays in
-  the store but the screen no longer calls it.
+- The CTG tab, at-bat editor, batter sheet and substitution sheet push a
+  lib/undo entry for the six undoable actions — record (`record`), skip via
+  a row's forward-step target or the sheet's "Bring up to bat now" (`skip`),
+  Next/Prev half and Jump ahead (`half`, one entry per half stepped),
+  re-judge/editor field changes (`rejudge`), Remove at-bat (`remove`), a
+  substitution (`sub`). `setPitcher` (incl. `recreditHalf`), End Game and
+  lineup-editor changes are not undoable; `undoLastAtBat` stays in the store
+  but the screen no longer calls it.
+- There are no fielding positions: `LineupSlot` is `{ playerId }` only and
+  the pitcher lives in `Game.pitcherId`. A substitution swaps one slot's
+  player in place and appends a `Substitution` record; taking a player out
+  with the lineup editor records nothing (his row becomes LEFT GAME).
 - React Native Web's `Alert` is a no-op: use `confirmAction()` from `lib/confirm.ts`.
 - Reorder controls are up/down arrows (web drag-and-drop is unreliable).
 - Tab layouts must pass `initialParams={{ teamId }}` / `{{ gameId }}` to every

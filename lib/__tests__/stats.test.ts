@@ -3,22 +3,32 @@ import { describe, expect, it } from '@jest/globals';
 import { isPlain, outcomeShort } from '../outcomes';
 import { buildDemoData } from '../seed';
 import {
+  FORM_HOT,
+  FORM_MIN_AT_BATS,
+  FORM_WINDOW,
   REMOVED_ROW_ID,
   ZERO,
   addResult,
+  benchFor,
+  benchOrder,
+  formRating,
+  formScore,
   gameHitting,
   gamePitching,
   hittingFor,
+  lastGameLine,
   leftGameBatterIds,
+  orderWithLeavers,
   pitcherResult,
   pitchingFor,
   rankByHitting,
+  recentForm,
   scorebook,
   score,
   seasonTable,
   totals,
 } from '../stats';
-import type { AtBat, Game, Half, Id, Player, Result, Side, Team } from '../types';
+import type { AtBat, Game, Half, Id, Player, Result, Side, Substitution, Team } from '../types';
 
 let seq = 0;
 
@@ -168,7 +178,7 @@ describe('seasonTable', () => {
     name: 'Bears',
     season: '2026',
     // Only two of the five roster players are in the default lineup; 'ghost' is not on the roster.
-    defaultLineup: [{ playerId: 'p_zed', position: 'P' }, { playerId: 'ghost' }, { playerId: 'p_mia' }, { playerId: 'p_zed' }],
+    defaultLineup: [{ playerId: 'p_zed' }, { playerId: 'ghost' }, { playerId: 'p_mia' }, { playerId: 'p_zed' }],
     createdAt: '2026-06-01T00:00:00.000Z',
   };
   const players: Player[] = [
@@ -528,9 +538,11 @@ describe('with the demo data', () => {
     expect(sum.w + sum.l).toBe(data.atBats.filter((x) => x.side === 'them').length);
   });
 
-  it('table rows follow the default lineup order', () => {
+  it('table rows follow the default lineup order, then the bench by last name', () => {
     const rows = seasonTable(team, data.players, data.games, data.atBats, 'hitting');
-    expect(rows.map((r) => r.player.id)).toEqual(team.defaultLineup.map((s) => s.playerId));
+    expect(rows.map((r) => r.player.id)).toEqual([...team.defaultLineup.map((s) => s.playerId), 'p_theo', 'p_eli', 'p_mason']);
+    expect(rows.find((r) => r.player.id === 'p_theo')!.score).toBeNull();
+    expect(rows.find((r) => r.player.id === 'p_mason')!.score).toBeGreaterThan(0);
   });
 
   describe('after a player with at-bats is removed from the roster', () => {
@@ -573,7 +585,8 @@ describe('with the demo data', () => {
 
   it('the scorebook for a final game covers every inning and every at-bat', () => {
     for (const g of data.games.filter((x) => x.status === 'final')) {
-      const ours = scorebook(data.atBats, g.id, 'us', g.lineup.map((s) => ({ id: s.playerId })));
+      // The rows come from orderWithLeavers so a player subbed out keeps his at-bats on the grid.
+      const ours = scorebook(data.atBats, g.id, 'us', orderWithLeavers(g, data.atBats, 'us'));
       const theirs = scorebook(data.atBats, g.id, 'them', g.opponentLineup);
       const cells = (rows: { innings: AtBat[][] }[]) => rows.flatMap((r) => r.innings.flat());
       expect(cells(ours.rows)).toHaveLength(data.atBats.filter((x) => x.gameId === g.id && x.side === 'us').length);
@@ -605,11 +618,363 @@ describe('with the demo data', () => {
     }
   });
 
-  it('nobody has left the order in the demo games, so no LEFT GAME rows are needed', () => {
+  it('nobody has left the order in the demo games except through a recorded substitution, so no LEFT GAME rows are needed', () => {
     for (const g of data.games) {
-      expect(leftGameBatterIds(data.atBats, g.id, 'us', g.lineup.map((s) => s.playerId))).toEqual([]);
+      const subbedOut = (g.substitutions ?? []).map((sub) => sub.outId);
+      const batted = subbedOut.filter((id) => data.atBats.some((x) => x.gameId === g.id && x.batterId === id));
+      expect(leftGameBatterIds(data.atBats, g.id, 'us', g.lineup.map((s) => s.playerId))).toEqual(batted);
       expect(leftGameBatterIds(data.atBats, g.id, 'them', g.opponentLineup.map((b) => b.id))).toEqual([]);
+      const rows = orderWithLeavers(g, data.atBats, 'us');
+      expect(rows.filter((r) => r.status === 'left')).toEqual([]);
+      expect(rows.filter((r) => r.status === 'out').map((r) => r.id)).toEqual(subbedOut);
+      expect(orderWithLeavers(g, data.atBats, 'them').every((r) => r.status === 'in')).toBe(true);
     }
+  });
+
+  it('the Rockhounds scorebook lists Cooper OUT in the 4th right before Mason, both in slot 4', () => {
+    const g = data.games.find((x) => x.id === 'g_rockhounds')!;
+    const rows = orderWithLeavers(g, data.atBats, 'us');
+    expect(rows).toHaveLength(g.lineup.length + 1);
+    const cooper = rows.findIndex((r) => r.id === 'p_cooper');
+    expect(rows[cooper]).toEqual({ id: 'p_cooper', slot: 3, status: 'out', at: { inning: 4, half: 'top' } });
+    expect(rows[cooper + 1]).toEqual({ id: 'p_mason', slot: 3, status: 'in', at: { inning: 4, half: 'top' } });
+    expect(rows.filter((r) => r.at)).toHaveLength(2);
+    // Every at-bat of the game lands in a row, so the grid reconciles with the totals.
+    const book = scorebook(data.atBats, g.id, 'us', rows.map((r) => ({ id: r.id })));
+    expect(book.rows.flatMap((r) => r.innings.flat())).toHaveLength(data.atBats.filter((x) => x.gameId === g.id && x.side === 'us').length);
+  });
+
+  it('the bench of the upcoming game is Mason (hot), then Eli, then Theo who has never batted', () => {
+    const g = data.games.find((x) => x.id === 'g_tigers_2')!;
+    const bench = benchFor(data.players, g.lineup);
+    expect(bench.map((p) => p.id)).toEqual(['p_mason', 'p_eli', 'p_theo']);
+    expect(benchOrder(bench, data.atBats, data.games).map((p) => p.id)).toEqual(['p_mason', 'p_eli', 'p_theo']);
+    expect(formRating(recentForm(data.atBats, data.games, 'p_mason'))).toBe('hot');
+    expect(lastGameLine(data.atBats, data.games, 'p_mason')).toEqual({ gameId: 'g_bandits', wl: hittingFor(data.atBats, 'p_mason', 'g_bandits') });
+    expect(lastGameLine(data.atBats, data.games, 'p_eli')).toEqual({ gameId: 'g_redbirds', wl: hittingFor(data.atBats, 'p_eli', 'g_redbirds') });
+    expect(lastGameLine(data.atBats, data.games, 'p_theo')).toBeUndefined();
+  });
+});
+
+describe('form', () => {
+  const games: Game[] = [
+    { ...game('g_late', 't1'), startsAt: '2026-09-12T14:00:00.000Z' },
+    { ...game('g_early', 't1'), startsAt: '2026-09-05T14:00:00.000Z' },
+    { ...game('g_live', 't1'), startsAt: '2026-09-14T14:00:00.000Z', status: 'in_progress' },
+  ];
+  const results = (s: string): Result[] => s.split('') as Result[];
+
+  describe('recentForm', () => {
+    it('orders across games by first pitch, then within a game by the clock, and keeps the newest n', () => {
+      const atBats: AtBat[] = [
+        // The document lists the late game first: order must come from startsAt, not the array.
+        ab({ batterId: 'p1', result: 'W', gameId: 'g_late', inning: 1 }),
+        ab({ batterId: 'p1', result: 'L', gameId: 'g_late', inning: 3 }),
+        ab({ batterId: 'p1', result: 'W', gameId: 'g_late', inning: 2, recordedAt: '2026-09-12T15:00:00.000Z' }),
+        ab({ batterId: 'p1', result: 'W', gameId: 'g_late', inning: 2, recordedAt: '2026-09-12T14:30:00.000Z' }),
+        ab({ batterId: 'p1', result: 'L', gameId: 'g_early', inning: 5 }),
+        ab({ batterId: 'p1', result: 'L', gameId: 'g_early', inning: 1 }),
+        ab({ batterId: 'p1', result: 'W', gameId: 'g_live', inning: 1 }),
+      ];
+      expect(recentForm(atBats, games, 'p1', 10)).toEqual(results('LLWWWLW'));
+      expect(recentForm(atBats, games, 'p1', 3)).toEqual(results('WLW'));
+      expect(recentForm(atBats, games, 'p1', 1)).toEqual(results('W'));
+    });
+
+    it('defaults to FORM_WINDOW, the oldest dropping off first', () => {
+      const atBats = Array.from({ length: FORM_WINDOW + 2 }, (_, i) =>
+        ab({ batterId: 'p1', result: i < 2 ? 'L' : 'W', gameId: 'g_early', inning: i + 1 }),
+      );
+      expect(recentForm(atBats, games, 'p1')).toEqual(Array(FORM_WINDOW).fill('W'));
+    });
+
+    it('counts only our at-bats by that batter in a listed game', () => {
+      const atBats: AtBat[] = [
+        ab({ batterId: 'p1', result: 'W', gameId: 'g_early' }),
+        ab({ batterId: 'p2', result: 'L', gameId: 'g_early' }),
+        ab({ batterId: 'p1', result: 'L', gameId: 'g_early', side: 'them', pitcherId: 'p1' }),
+        ab({ batterId: 'p1', result: 'L', gameId: 'g_unknown' }),
+      ];
+      expect(recentForm(atBats, games, 'p1')).toEqual(results('W'));
+      expect(recentForm(atBats, games, 'nobody')).toEqual([]);
+      expect(recentForm([], games, 'p1')).toEqual([]);
+    });
+  });
+
+  it('formScore is W minus L', () => {
+    expect(formScore([])).toBe(0);
+    expect(formScore(results('WWLWLW'))).toBe(2);
+    expect(formScore(results('LLL'))).toBe(-3);
+  });
+
+  describe('formRating', () => {
+    it('is hot at or above FORM_HOT, cold at or below its negative, otherwise nothing', () => {
+      expect(FORM_HOT).toBe(3);
+      expect(formRating(results('WWWLWW'))).toBe('hot'); // +4
+      expect(formRating(results('WWWLWL'))).toBe(undefined); // +2
+      expect(formRating(results('WWWWLL'))).toBe(undefined); // +2
+      expect(formRating(results('WWWL'))).toBe(undefined); // +2
+      expect(formRating(results('WWWLW'))).toBe('hot'); // +3
+      expect(formRating(results('LLLW'))).toBe(undefined); // -2
+      expect(formRating(results('LLLLW'))).toBe('cold'); // -3
+      expect(formRating(results('LLLLLL'))).toBe('cold');
+      expect(formRating(results('WLWLWL'))).toBe(undefined);
+    });
+
+    it('needs FORM_MIN_AT_BATS results before it says anything', () => {
+      expect(FORM_MIN_AT_BATS).toBe(4);
+      expect(formRating([])).toBe(undefined);
+      expect(formRating(results('WWW'))).toBe(undefined);
+      expect(formRating(results('LLL'))).toBe(undefined);
+      expect(formRating(results('WWWW'))).toBe('hot');
+      expect(formRating(results('LLLL'))).toBe('cold');
+    });
+  });
+
+  describe('lastGameLine', () => {
+    const atBats: AtBat[] = [
+      ab({ batterId: 'p1', result: 'W', gameId: 'g_early' }),
+      ab({ batterId: 'p1', result: 'L', gameId: 'g_early' }),
+      ab({ batterId: 'p1', result: 'W', gameId: 'g_late' }),
+      ab({ batterId: 'p1', result: 'W', gameId: 'g_late' }),
+      ab({ batterId: 'p1', result: 'L', gameId: 'g_live' }),
+      ab({ batterId: 'p2', result: 'W', gameId: 'g_late' }),
+    ];
+
+    it('is the batter’s W/L in the most recent final game he batted in (an in-progress game does not count)', () => {
+      expect(lastGameLine(atBats, games, 'p1')).toEqual({ gameId: 'g_late', wl: { w: 2, l: 0 } });
+    });
+
+    it('skips a final game the batter did not hit in', () => {
+      const onlyEarly = atBats.filter((x) => x.gameId !== 'g_late' || x.batterId !== 'p1');
+      expect(lastGameLine(onlyEarly, games, 'p1')).toEqual({ gameId: 'g_early', wl: { w: 1, l: 1 } });
+    });
+
+    it('is undefined with no final game at-bats', () => {
+      expect(lastGameLine(atBats, games, 'p3')).toBeUndefined();
+      expect(lastGameLine(atBats, games.filter((g) => g.status !== 'final'), 'p1')).toBeUndefined();
+      expect(lastGameLine(atBats, [], 'p1')).toBeUndefined();
+    });
+  });
+});
+
+describe('benchFor / benchOrder', () => {
+  const players: Player[] = [
+    player('p_a', 't1', 'Al', 'Young'),
+    player('p_b', 't1', 'Bo', 'Adams'),
+    player('p_c', 't1', 'Cy', 'Kent'),
+    player('p_d', 't1', 'Di', 'Baker'),
+    player('p_e', 't1', 'Ed', 'Adams'),
+    player('p_f', 't1', 'Fay', 'Zed'),
+  ];
+  const games: Game[] = [game('g1', 't1'), { ...game('g2', 't1'), startsAt: '2026-09-12T14:00:00.000Z' }];
+
+  it('benchFor is the roster minus the order, in roster order', () => {
+    expect(benchFor(players, [{ playerId: 'p_c' }, { playerId: 'p_a' }]).map((p) => p.id)).toEqual(['p_b', 'p_d', 'p_e', 'p_f']);
+    expect(benchFor(players, []).map((p) => p.id)).toEqual(['p_a', 'p_b', 'p_c', 'p_d', 'p_e', 'p_f']);
+    expect(benchFor(players, players.map((p) => ({ playerId: p.id })))).toEqual([]);
+    expect(benchFor([], [{ playerId: 'p_a' }])).toEqual([]);
+  });
+
+  it('benchOrder: form score first, then season score, players without at-bats last, ties by last name', () => {
+    const w = (id: Id, gameId = 'g1') => ab({ batterId: id, result: 'W', gameId });
+    const l = (id: Id, gameId = 'g1') => ab({ batterId: id, result: 'L', gameId });
+    const atBats: AtBat[] = [
+      // p_a: form +1 (W), season +1.
+      w('p_a'),
+      // p_b: eight at-bats, the newest six are all W (form +6) but the season is only +4.
+      l('p_b'), l('p_b'), w('p_b', 'g2'), w('p_b', 'g2'), w('p_b', 'g2'), w('p_b', 'g2'), w('p_b', 'g2'), w('p_b', 'g2'),
+      // p_c: form +1 (W L W), season +1: tied with p_a on both, so by last name (Kent after Young? no: Kent < Young).
+      w('p_c'), l('p_c'), w('p_c'),
+      // p_d: form -2, season -2.
+      l('p_d'), l('p_d'),
+      // p_e: form +1 but a better season than p_a and p_c (+3 over eight at-bats: WWWWWLLW -> last six = WWWLLW = +2)... keep it simple: 3 W then 4 more W and 1 L = season +6, form +4.
+      w('p_e'), w('p_e'), w('p_e'), w('p_e'), w('p_e'), w('p_e'), w('p_e'), l('p_e'),
+      // p_f: never batted.
+    ];
+    const order = benchOrder(players, atBats, games).map((p) => p.id);
+    // p_b form +6; p_e form +4; p_c and p_a form +1 season +1 -> Kent before Young; p_d negative; p_f no at-bats last.
+    expect(order).toEqual(['p_b', 'p_e', 'p_c', 'p_a', 'p_d', 'p_f']);
+  });
+
+  it('benchOrder: a player with at-bats and a negative score still ranks above one who has never batted', () => {
+    const atBats: AtBat[] = [ab({ batterId: 'p_f', result: 'L' }), ab({ batterId: 'p_f', result: 'L' })];
+    expect(benchOrder(players, atBats, games).map((p) => p.id)).toEqual(['p_f', 'p_b', 'p_e', 'p_d', 'p_c', 'p_a']);
+  });
+
+  it('benchOrder: only counts at-bats of the given games, and does not mutate the input', () => {
+    const atBats: AtBat[] = [ab({ batterId: 'p_a', result: 'W', gameId: 'g_other' }), ab({ batterId: 'p_c', result: 'W' })];
+    const bench = [...players];
+    const order = benchOrder(bench, atBats, games).map((p) => p.id);
+    expect(order[0]).toBe('p_c');
+    expect(order.slice(1)).toEqual(['p_b', 'p_e', 'p_d', 'p_a', 'p_f']);
+    expect(bench).toEqual(players);
+    expect(benchOrder([], atBats, games)).toEqual([]);
+  });
+});
+
+describe('orderWithLeavers', () => {
+  const sub = (over: Partial<Substitution> & Pick<Substitution, 'slot' | 'outId' | 'inId'>): Substitution => ({
+    id: `sub_${over.outId}_${over.inId}`,
+    inning: 4,
+    half: 'top',
+    at: '2026-09-07T15:00:00.000Z',
+    ...over,
+  });
+  const base: Game = {
+    ...game('g1', 't1'),
+    lineup: [{ playerId: 'p_a' }, { playerId: 'p_b' }, { playerId: 'p_c' }],
+    opponentLineup: [{ id: 'ob1', name: 'Batter 1' }, { id: 'ob2', name: 'Batter 2' }],
+  };
+
+  it('with no substitutions and nobody gone, it is the order as "in" rows without a time', () => {
+    expect(orderWithLeavers(base, [], 'us')).toEqual([
+      { id: 'p_a', slot: 0, status: 'in' },
+      { id: 'p_b', slot: 1, status: 'in' },
+      { id: 'p_c', slot: 2, status: 'in' },
+    ]);
+    expect(orderWithLeavers(base, [], 'them')).toEqual([
+      { id: 'ob1', slot: 0, status: 'in' },
+      { id: 'ob2', slot: 1, status: 'in' },
+    ]);
+  });
+
+  it('inserts the player a substitution took out right before his replacement, both in the same slot with the time', () => {
+    const g: Game = {
+      ...base,
+      lineup: [{ playerId: 'p_a' }, { playerId: 'p_x' }, { playerId: 'p_c' }],
+      substitutions: [sub({ slot: 1, outId: 'p_b', inId: 'p_x' })],
+    };
+    const atBats = [ab({ batterId: 'p_b', result: 'W' }), ab({ batterId: 'p_x', result: 'L', inning: 4 })];
+    expect(orderWithLeavers(g, atBats, 'us')).toEqual([
+      { id: 'p_a', slot: 0, status: 'in' },
+      { id: 'p_b', slot: 1, status: 'out', at: { inning: 4, half: 'top' } },
+      { id: 'p_x', slot: 1, status: 'in', at: { inning: 4, half: 'top' } },
+      { id: 'p_c', slot: 2, status: 'in' },
+    ]);
+    // The same without any at-bats: the record alone is enough (he may have left before batting).
+    expect(orderWithLeavers(g, [], 'us').map((r) => r.id)).toEqual(['p_a', 'p_b', 'p_x', 'p_c']);
+  });
+
+  it('a chain of substitutions in one slot lists everyone in order, each "out" stamped with when he left', () => {
+    const g: Game = {
+      ...base,
+      lineup: [{ playerId: 'p_a' }, { playerId: 'p_y' }, { playerId: 'p_c' }],
+      substitutions: [
+        sub({ slot: 1, outId: 'p_b', inId: 'p_x', inning: 2, half: 'bottom' }),
+        sub({ slot: 1, outId: 'p_x', inId: 'p_y', inning: 5, half: 'top' }),
+      ],
+    };
+    expect(orderWithLeavers(g, [], 'us')).toEqual([
+      { id: 'p_a', slot: 0, status: 'in' },
+      { id: 'p_b', slot: 1, status: 'out', at: { inning: 2, half: 'bottom' } },
+      { id: 'p_x', slot: 1, status: 'out', at: { inning: 5, half: 'top' } },
+      { id: 'p_y', slot: 1, status: 'in', at: { inning: 5, half: 'top' } },
+      { id: 'p_c', slot: 2, status: 'in' },
+    ]);
+  });
+
+  it('walks the records in the order they were made, not by their clock (a sub made while reviewing an earlier half)', () => {
+    // Live in the 3rd, p_b came in for p_a; the coach then stepped back to the
+    // 2nd and put p_c in for p_b, so the later record carries the earlier clock.
+    const g: Game = {
+      ...base,
+      lineup: [{ playerId: 'p_c' }, { playerId: 'p_b2' }, { playerId: 'p_c2' }],
+      substitutions: [
+        sub({ slot: 0, outId: 'p_a', inId: 'p_b', inning: 3, half: 'top', at: '2026-09-07T15:10:00.000Z' }),
+        sub({ slot: 0, outId: 'p_b', inId: 'p_c', inning: 2, half: 'top', at: '2026-09-07T15:11:00.000Z' }),
+      ],
+    };
+    const expected = [
+      { id: 'p_a', slot: 0, status: 'out', at: { inning: 3, half: 'top' } },
+      { id: 'p_b', slot: 0, status: 'out', at: { inning: 2, half: 'top' } },
+      { id: 'p_c', slot: 0, status: 'in', at: { inning: 2, half: 'top' } },
+      { id: 'p_b2', slot: 1, status: 'in' },
+      { id: 'p_c2', slot: 2, status: 'in' },
+    ];
+    expect(orderWithLeavers(g, [], 'us')).toEqual(expected);
+    // With an at-bat, the starter is still an "out" row at his slot, never a trailing "left" row.
+    expect(orderWithLeavers(g, [ab({ batterId: 'p_a', result: 'W' })], 'us')).toEqual(expected);
+    // `at` timestamps do not decide the walk either (two records made within the same millisecond).
+    const sameAt: Game = {
+      ...g,
+      substitutions: g.substitutions!.map((s) => ({ ...s, at: '2026-09-07T15:10:00.000Z' })),
+    };
+    expect(orderWithLeavers(sameAt, [], 'us')).toEqual(expected);
+  });
+
+  it('a re-entered player appears once, as an "in" row stamped with his latest entry', () => {
+    const g: Game = {
+      ...base,
+      substitutions: [
+        sub({ slot: 1, outId: 'p_b', inId: 'p_x', inning: 2, half: 'bottom' }),
+        sub({ slot: 1, outId: 'p_x', inId: 'p_b', inning: 5, half: 'top' }),
+      ],
+    };
+    expect(orderWithLeavers(g, [], 'us')).toEqual([
+      { id: 'p_a', slot: 0, status: 'in' },
+      { id: 'p_x', slot: 1, status: 'out', at: { inning: 5, half: 'top' } },
+      { id: 'p_b', slot: 1, status: 'in', at: { inning: 5, half: 'top' } },
+      { id: 'p_c', slot: 2, status: 'in' },
+    ]);
+  });
+
+  it('follows the player, not the recorded slot index, after the order was reordered', () => {
+    const g: Game = {
+      ...base,
+      lineup: [{ playerId: 'p_x' }, { playerId: 'p_a' }, { playerId: 'p_c' }],
+      substitutions: [sub({ slot: 1, outId: 'p_b', inId: 'p_x' })],
+    };
+    expect(orderWithLeavers(g, [], 'us')).toEqual([
+      { id: 'p_b', slot: 0, status: 'out', at: { inning: 4, half: 'top' } },
+      { id: 'p_x', slot: 0, status: 'in', at: { inning: 4, half: 'top' } },
+      { id: 'p_a', slot: 1, status: 'in' },
+      { id: 'p_c', slot: 2, status: 'in' },
+    ]);
+  });
+
+  it('ignores a record whose sub is no longer in the order; a leaver with at-bats is appended as "left"', () => {
+    const g: Game = { ...base, substitutions: [sub({ slot: 1, outId: 'p_b', inId: 'p_x' })] };
+    const atBats = [ab({ batterId: 'p_x', result: 'W', inning: 4 }), ab({ batterId: 'p_b', result: 'L' })];
+    expect(orderWithLeavers(g, atBats, 'us')).toEqual([
+      { id: 'p_a', slot: 0, status: 'in' },
+      { id: 'p_b', slot: 1, status: 'in' },
+      { id: 'p_c', slot: 2, status: 'in' },
+      { id: 'p_x', slot: -1, status: 'left' },
+    ]);
+  });
+
+  it('appends players removed with the lineup editor (at-bats, no record) after the order, in first-at-bat order', () => {
+    const atBats = [
+      ab({ batterId: 'p_gone2', result: 'W', inning: 3 }),
+      ab({ batterId: 'p_gone1', result: 'L', inning: 1 }),
+      ab({ batterId: 'p_a', result: 'W' }),
+      ab({ batterId: 'p_gone1', result: 'L', gameId: 'g_other' }),
+    ];
+    expect(orderWithLeavers(base, atBats, 'us')).toEqual([
+      { id: 'p_a', slot: 0, status: 'in' },
+      { id: 'p_b', slot: 1, status: 'in' },
+      { id: 'p_c', slot: 2, status: 'in' },
+      { id: 'p_gone1', slot: -1, status: 'left' },
+      { id: 'p_gone2', slot: -1, status: 'left' },
+    ]);
+  });
+
+  it('the opponent side never has substitutions: "in" rows plus "left" rows', () => {
+    const g: Game = { ...base, substitutions: [sub({ slot: 0, outId: 'ob1', inId: 'ob2' })] };
+    const atBats = [ab({ batterId: 'ob9', result: 'L', side: 'them' }), ab({ batterId: 'ob1', result: 'W', side: 'them' })];
+    expect(orderWithLeavers(g, atBats, 'them')).toEqual([
+      { id: 'ob1', slot: 0, status: 'in' },
+      { id: 'ob2', slot: 1, status: 'in' },
+      { id: 'ob9', slot: -1, status: 'left' },
+    ]);
+  });
+
+  it('does not mutate the game', () => {
+    const g: Game = { ...base, substitutions: [sub({ slot: 1, outId: 'p_b', inId: 'p_c' })] };
+    const before = JSON.stringify(g);
+    orderWithLeavers(g, [], 'us');
+    expect(JSON.stringify(g)).toBe(before);
   });
 });
 

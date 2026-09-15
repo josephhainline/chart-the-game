@@ -18,18 +18,16 @@ export type ScorebookCell = {
 
 export type ScorebookRowView = {
   id: string;
-  /** Batting-order slot shown in the "#" column ("1", "2", …). */
+  /** Batting-order slot shown in the "#" column ("1", "2", …; "–" for a batter no longer in the order). A slot repeats when a substitution changed hands. */
   slot: string;
   /** "Owen H. (#7)" or "Batter 3". */
   name: string;
-  /** Fielding position for the "Pos" column; blank for opponents. */
-  position?: string;
   /** One entry per inning, each holding that batter's at-bats in the inning. */
   innings: ScorebookCell[][];
   wl: WL;
   /** Name in the muted color: a batter who left the order mid-game. */
   muted?: boolean;
-  /** Small note under the name ("LEFT GAME"). */
+  /** Small note under the name ("OUT ▲ 4TH", "IN ▲ 4TH", "LEFT GAME"). */
   note?: string;
 };
 
@@ -45,14 +43,13 @@ type Props = {
 };
 
 /*
- * Column sizing: the #, Pos and W-L columns are fixed; the name and inning
+ * Column sizing: the # and W-L columns are fixed; the name and inning
  * columns are sized from the measured width so that up to four innings fit a
  * 430px column and three fit a 375px phone without scrolling. With more
  * innings the inning columns scroll horizontally (with an indicator and a
  * right-edge fade) while the W-L column stays pinned on the right.
  */
 const SLOT_W = 22;
-const POS_W = 32;
 const TOTAL_W = 54;
 const NAME_MIN = 130;
 const CELL_MIN = 44;
@@ -69,13 +66,12 @@ export default function Scorebook({ title, color = colors.primaryDark, innings, 
   const dims = useWindowDimensions();
   const [measured, setMeasured] = useState(0);
   const gridW = measured || Math.min(dims.width, PHONE_MAX_WIDTH);
-  const showPos = rows.some((r) => r.position);
 
   const count = Math.max(innings.length, 1);
-  const avail = gridW - 2 - SLOT_W - (showPos ? POS_W : 0) - TOTAL_W;
+  const avail = gridW - 2 - SLOT_W - TOTAL_W;
   const cellW = Math.max(CELL_MIN, Math.min(CELL_MAX, Math.floor((avail - NAME_MIN) / count)));
   const nameW = Math.max(NAME_MIN, avail - cellW * count);
-  const overflows = SLOT_W + (showPos ? POS_W : 0) + nameW + cellW * count + 2 > gridW - TOTAL_W;
+  const overflows = SLOT_W + nameW + cellW * count + 2 > gridW - TOTAL_W;
   const nameFont = nameW >= 136 ? 16 : 15;
 
   return (
@@ -100,11 +96,6 @@ export default function Scorebook({ title, color = colors.primaryDark, innings, 
                 <View style={[styles.cell, styles.headerCell, { width: nameW }]}>
                   <Text style={styles.headerText}>Line Up</Text>
                 </View>
-                {showPos ? (
-                  <View style={[styles.cell, styles.headerCell, { width: POS_W }]}>
-                    <Text style={styles.headerText}>Pos</Text>
-                  </View>
-                ) : null}
                 {innings.map((n) => (
                   <View key={n} style={[styles.cell, styles.headerCell, { width: cellW }]}>
                     <Text style={styles.headerText}>{n}</Text>
@@ -134,11 +125,6 @@ export default function Scorebook({ title, color = colors.primaryDark, innings, 
                     </Text>
                     {row.note ? <Text style={styles.noteText}>{row.note}</Text> : null}
                   </View>
-                  {showPos ? (
-                    <View style={[styles.cell, { width: POS_W }]}>
-                      <Text style={styles.posText}>{row.position ?? ''}</Text>
-                    </View>
-                  ) : null}
                   {innings.map((n, i) => {
                     const atBats = row.innings[i] ?? [];
                     const pressable = Boolean(onPressCell) && atBats.length > 0;
@@ -292,7 +278,6 @@ const styles = StyleSheet.create({
   nameText: { fontFamily: fonts.bold, fontSize: 16, lineHeight: 20, color: colors.text },
   nameMuted: { color: colors.textMuted },
   noteText: { fontFamily: fonts.bold, fontSize: 10, lineHeight: 12, color: colors.textMuted, letterSpacing: 0.5 },
-  posText: { fontFamily: fonts.bold, fontSize: 14, color: colors.primaryDark },
   inningCell: { overflow: 'hidden' },
   countBox: {
     position: 'absolute',

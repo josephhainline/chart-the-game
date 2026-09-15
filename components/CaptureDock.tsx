@@ -54,8 +54,13 @@ type Props = {
   undoLabel: string;
   canUndo: boolean;
   onUndo: () => void;
-  /** The AT-BAT header: label ("AT-BAT" / "AT-BAT · ▲ 1st"), its color, "4. Cooper Woollen (#50)" and his game so far. */
-  header: { label: string; color: string; title: string; chips: MiniChip[] };
+  /**
+   * The AT-BAT header: label ("AT-BAT" / "AT-BAT · ▲ 1st"), its color,
+   * "4. Cooper Woollen (#50)" and his game so far. With `onTitlePress` the
+   * name is a button (the screen opens the batter sheet) labelled
+   * `titleLabel` ("Cooper Woollen (#50), open batter sheet").
+   */
+  header: { label: string; color: string; title: string; chips: MiniChip[]; onTitlePress?: () => void; titleLabel?: string };
   onChipPress?: (atBatId: string) => void;
   /** Pitching with no pitcher: the record controls are dimmed and disabled behind "Set pitcher". */
   needsPitcher?: boolean;
@@ -182,9 +187,23 @@ export default function CaptureDock({
 
         <View style={styles.header}>
           <Text style={[styles.headerLabel, { color: header.color }]}>{header.label}</Text>
-          <Text style={styles.headerTitle} numberOfLines={1}>
-            {header.title}
-          </Text>
+          {header.onTitlePress ? (
+            <Pressable
+              onPress={header.onTitlePress}
+              hitSlop={{ top: 6, bottom: 6 }}
+              accessibilityRole="button"
+              accessibilityLabel={header.titleLabel ?? `${header.title}, open batter sheet`}
+              style={({ pressed }) => [styles.headerTitleHit, pressed && styles.pressed, webCursor]}
+            >
+              <Text style={styles.headerTitle} numberOfLines={1}>
+                {header.title}
+              </Text>
+            </Pressable>
+          ) : (
+            <Text style={styles.headerTitle} numberOfLines={1}>
+              {header.title}
+            </Text>
+          )}
           <MiniChips chips={header.chips} onPress={onChipPress} style={styles.headerChips} />
           {needsPitcher ? (
             <Button variant="orange" size="sm" icon="baseball" title="Set pitcher" onPress={onSetPitcher} style={styles.setPitcher} textStyle={styles.setPitcherText} />
@@ -322,8 +341,11 @@ const styles = StyleSheet.create({
   undo: { paddingHorizontal: 8, marginLeft: 2 },
   undoText: { fontSize: 13 },
   header: { flexDirection: 'row', alignItems: 'center', minHeight: 36, paddingHorizontal: 16, gap: 8 },
-  headerLabel: { fontFamily: fonts.bold, fontSize: 12, letterSpacing: 0.6 },
+  // flexShrink 0: the name gives way to the chips, never the label (web Text shrinks by default).
+  headerLabel: { fontFamily: fonts.bold, fontSize: 12, letterSpacing: 0.6, flexShrink: 0 },
   headerTitle: { fontFamily: fonts.bold, fontSize: 18, lineHeight: 22, color: colors.text, flexShrink: 1 },
+  // The name's button shrinks with the name so the chips stay beside it; its hit area is the header's full 36pt.
+  headerTitleHit: { flexShrink: 1, minWidth: 0, minHeight: 36, justifyContent: 'center' },
   headerChips: { flexShrink: 0 },
   setPitcher: { marginLeft: 'auto', height: 32, paddingHorizontal: 12 },
   setPitcherText: { fontSize: 13 },

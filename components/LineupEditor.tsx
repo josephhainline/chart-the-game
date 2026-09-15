@@ -1,12 +1,11 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import PositionPicker from '@/components/PositionPicker';
-import { EmptyState, PositionBadge } from '@/components/ui';
+import { EmptyState } from '@/components/ui';
 import { colors, fonts, radii, type } from '@/constants/theme';
 import { byLastName, playerLabel } from '@/lib/format';
-import type { LineupSlot, Player, Position } from '@/lib/types';
+import type { Id, LineupSlot, Player } from '@/lib/types';
 
 const webCursor = Platform.OS === 'web' ? ({ cursor: 'pointer' } as any) : null;
 
@@ -24,18 +23,32 @@ type Props = {
   caption?: string;
   /** Rendered after the bench, inside the scroll view (a secondary action). */
   footer?: React.ReactNode;
+  /** When given, tapping a row's remove control awaits this before the player leaves the order. */
+  confirmRemove?: (playerId: Id) => Promise<boolean>;
+  /** When given, every row shows a swap control that calls this (the game's substitution sheet). */
+  onSubstitute?: (playerId: Id) => void;
 };
 
 type Row = { slot: LineupSlot; index: number; player: Player };
 
 /**
- * Numbered batting order with a position badge (tap to change) and up/down
- * controls on each row, followed by the bench of players not in the lineup.
- * Shared by the team's Default Lineup screen and the in-game Team tab.
+ * Numbered batting order with up/down and remove controls on each row (plus
+ * a swap control when `onSubstitute` is given), followed by the bench of
+ * players not in the lineup. Shared by the team's Default Lineup screen and
+ * the in-game Team tab.
  */
-export default function LineupEditor({ slots, players, onChange, title, headerRight, benchTitle = 'Bench', caption, footer }: Props) {
-  const [editing, setEditing] = useState<number | null>(null);
-
+export default function LineupEditor({
+  slots,
+  players,
+  onChange,
+  title,
+  headerRight,
+  benchTitle = 'Bench',
+  caption,
+  footer,
+  confirmRemove,
+  onSubstitute,
+}: Props) {
   const rows = useMemo<Row[]>(() => {
     const byId = new Map(players.map((p) => [p.id, p]));
     const out: Row[] = [];
@@ -59,26 +72,12 @@ export default function LineupEditor({ slots, players, onChange, title, headerRi
     onChange(next);
   };
 
-  const setPosition = (index: number, position: Position | undefined) => {
-    onChange(
-      slots.map((s, i) => {
-        if (i === index) return position ? { playerId: s.playerId, position } : { playerId: s.playerId };
-        // Only one pitcher at a time: giving this slot P takes it off any other slot.
-        if (position === 'P' && s.position === 'P') return { playerId: s.playerId };
-        return s;
-      }),
-    );
-    setEditing(null);
+  const remove = async (playerId: Id) => {
+    if (confirmRemove && !(await confirmRemove(playerId))) return;
+    onChange(slots.filter((s) => s.playerId !== playerId));
   };
 
-  const remove = (index: number) => {
-    onChange(slots.filter((_, i) => i !== index));
-    setEditing(null);
-  };
-
-  const add = (playerId: string) => onChange([...slots, { playerId }]);
-
-  const editingRow = editing === null ? undefined : rows.find((r) => r.index === editing);
+  const add = (playerId: Id) => onChange([...slots, { playerId }]);
 
   return (
     <View style={styles.root}>
@@ -111,7 +110,15 @@ export default function LineupEditor({ slots, players, onChange, title, headerRi
                 <Text style={styles.name} numberOfLines={1}>
                   {label}
                 </Text>
-                <PositionBadge position={slot.position} onPress={() => setEditing(index)} />
+                {onSubstitute ? (
+                  <IconButton
+                    icon="right-left"
+                    color={colors.orange}
+                    width={40}
+                    label={`Substitute for ${label}`}
+                    onPress={() => onSubstitute(player.id)}
+                  />
+                ) : null}
                 <View style={styles.arrows}>
                   <ArrowButton
                     direction="up"
@@ -126,6 +133,14 @@ export default function LineupEditor({ slots, players, onChange, title, headerRi
                     label={`Move ${label} down`}
                   />
                 </View>
+                <IconButton
+                  icon="circle-minus"
+                  color={colors.loss}
+                  width={36}
+                  height={36}
+                  label={`Remove ${label} from the lineup`}
+                  onPress={() => void remove(player.id)}
+                />
               </View>
             );
           })
@@ -161,16 +176,35 @@ export default function LineupEditor({ slots, players, onChange, title, headerRi
 
         {footer ? <View style={styles.footer}>{footer}</View> : null}
       </ScrollView>
-
-      <PositionPicker
-        visible={Boolean(editingRow)}
-        playerName={editingRow ? playerLabel(editingRow.player) : ''}
-        position={editingRow?.slot.position}
-        onSelect={(position) => editingRow && setPosition(editingRow.index, position)}
-        onRemove={() => editingRow && remove(editingRow.index)}
-        onClose={() => setEditing(null)}
-      />
     </View>
+  );
+}
+
+/** An icon-only control (the swap and remove buttons on a lineup row); a 44pt-tall target unless told otherwise. */
+function IconButton({
+  icon,
+  color,
+  width,
+  height = 44,
+  label,
+  onPress,
+}: {
+  icon: React.ComponentProps<typeof FontAwesome6>['name'];
+  color: string;
+  width: number;
+  height?: number;
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={({ pressed }) => [styles.iconButton, { width, height }, pressed && styles.pressed, webCursor]}
+    >
+      <FontAwesome6 name={icon} size={20} color={color} />
+    </Pressable>
   );
 }
 
@@ -217,11 +251,12 @@ const styles = StyleSheet.create({
   title: { ...type.screenTitle, flexShrink: 1 },
   caption: { ...type.caption, paddingHorizontal: 16, paddingBottom: 8 },
   rule: { height: 1, backgroundColor: colors.divider },
-  // Prototype (6a45802c…): 56pt rows, 20pt number and name, name at x=59, 44pt badge.
+  // Prototype (6a45802c…): 56pt rows, 20pt number and name. The controls
+  // on the right are sized so "Weedon Hainline (#10)" still fits a 375pt
+  // phone next to the swap, arrows and remove controls.
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
     paddingLeft: 16,
     paddingRight: 4,
     minHeight: 56,
@@ -229,13 +264,14 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.divider,
     backgroundColor: colors.surface,
   },
-  num: { fontFamily: fonts.regular, fontSize: 20, lineHeight: 24, color: colors.text, width: 38 },
-  name: { ...type.rowTitle, flex: 1 },
-  benchName: { marginLeft: 44, color: colors.textMuted },
-  // Up/down stacked in the 56px row: two 44x28 halves (the row height caps them).
-  arrows: { width: 44 },
-  arrow: { width: 44, height: 28, alignItems: 'center', justifyContent: 'center' },
+  num: { fontFamily: fonts.regular, fontSize: 20, lineHeight: 24, color: colors.text, width: 34 },
+  name: { ...type.rowTitle, flex: 1, marginRight: 2 },
+  benchName: { marginLeft: 34, color: colors.textMuted },
+  // Up/down stacked in the 56px row: two 36x28 halves (the row height caps them; hitSlop widens them).
+  arrows: { width: 36 },
+  arrow: { width: 36, height: 28, alignItems: 'center', justifyContent: 'center' },
   arrowDisabled: { opacity: 0.25 },
+  iconButton: { alignItems: 'center', justifyContent: 'center' },
   pressed: { opacity: 0.6 },
   bench: { marginTop: 12 },
   addButton: {
@@ -245,7 +281,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 4,
   },
   footer: { paddingHorizontal: 16, paddingTop: 16, alignItems: 'flex-start' },
 });

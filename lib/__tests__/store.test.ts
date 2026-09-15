@@ -5,9 +5,9 @@ import { AppState } from 'react-native';
 import { newestAtBat, sortAtBats } from '../atbats';
 import { buildDemoData } from '../seed';
 import { gameHitting, gamePitching, hittingFor, pitchingFor, scorebook } from '../stats';
-import { BACKUP_KEY, STORAGE_KEY, StoreProvider, battingSide, carryNextBatter, useStore } from '../store';
+import { BACKUP_KEY, STORAGE_KEY, StoreProvider, battingSide, carryNextBatter, normalizeLoaded, useStore } from '../store';
 import type { Store } from '../store';
-import type { AppData, AtBat, Game } from '../types';
+import type { AppData, AtBat, Game, Substitution } from '../types';
 import { applyUndo, clearAllUndo, peekUndo, popUndo, pushUndo } from '../undo';
 
 jest.mock('@react-native-async-storage/async-storage', () =>
@@ -883,6 +883,34 @@ describe('StoreProvider actions', () => {
       expect(game(SCHEDULED)).toMatchObject({ ourNextBatter: 0, theirNextBatter: 1, inning: 1, half: 'bottom' });
     });
 
+    it('undoing a substitution puts the outgoing player back in his slot; a second undo of the same entry is a no-op', () => {
+      run((s) => {
+        s.recordAtBat(SCHEDULED, 'hit');
+        s.recordAtBat(SCHEDULED, 'k_looking');
+        s.recordAtBat(SCHEDULED, 'hit');
+      });
+      let record: Substitution | undefined;
+      run((s) => {
+        record = s.substitute(SCHEDULED, 'p_cooper', 'p_mason');
+      });
+      pushUndo(SCHEDULED, { kind: 'sub', substitutionId: record!.id, slot: record!.slot, outId: 'p_cooper', inId: 'p_mason' });
+      expect(game(SCHEDULED).lineup[3].playerId).toBe('p_mason');
+      expect(game(SCHEDULED).ourNextBatter).toBe(3);
+
+      const entry = popUndo(SCHEDULED)!;
+      run((s) => applyUndo(entry, game(SCHEDULED), s));
+      expect(game(SCHEDULED).lineup[3].playerId).toBe('p_cooper');
+      expect(game(SCHEDULED).lineup.some((x) => x.playerId === 'p_mason')).toBe(false);
+      expect(game(SCHEDULED).substitutions).toEqual([]);
+      // Cooper is still due up: the pointer was never touched.
+      expect(game(SCHEDULED).ourNextBatter).toBe(3);
+      expect(ids()).toHaveLength(3);
+
+      const before = game(SCHEDULED);
+      run((s) => applyUndo(entry, game(SCHEDULED), s));
+      expect(game(SCHEDULED)).toBe(before);
+    });
+
     it('deleteGame empties that game’s undo stack and no other', () => {
       pushUndo(SCHEDULED, { kind: 'half', direction: 'next' });
       pushUndo('g_bandits', { kind: 'half', direction: 'next' });
@@ -949,7 +977,7 @@ describe('StoreProvider actions', () => {
   });
 
   describe('addGame', () => {
-    it('copies the default lineup and picks the P as the pitcher', () => {
+    it('copies the default lineup; no pitcher until one is chosen', () => {
       const team = store().data.teams.find((t) => t.id === 't_bears12u')!;
       let created: Game | undefined;
       run((s) => {
@@ -964,7 +992,8 @@ describe('StoreProvider actions', () => {
       expect(g).toEqual(created);
       expect(g.lineup).toEqual(team.defaultLineup);
       expect(g.lineup).not.toBe(team.defaultLineup);
-      expect(g.pitcherId).toBe('p_weedon');
+      expect(g.pitcherId).toBeUndefined();
+      expect(g.substitutions).toBeUndefined();
       expect(g).toMatchObject({
         teamId: 't_bears12u',
         opponent: 'Rockhounds',
@@ -989,18 +1018,13 @@ describe('StoreProvider actions', () => {
       run((s) => {
         created = s.addGame('t_bears12u', { opponent: 'X', isAway: true, startsAt: NOW.toISOString() });
       });
-      run((s) => s.setDefaultLineup('t_bears12u', [{ playerId: 'p_ben', position: 'P' }]));
+      run((s) => s.setDefaultLineup('t_bears12u', [{ playerId: 'p_ben' }]));
       expect(game(created!.id).lineup).toHaveLength(10);
-      expect(game(created!.id).pitcherId).toBe('p_weedon');
+      expect(game(created!.id).lineup[0]).toEqual({ playerId: 'p_owen' });
     });
 
-    it('with no P in the lineup leaves the pitcher unset; blank notes become undefined', () => {
-      run((s) =>
-        s.setDefaultLineup('t_bears12u', [
-          { playerId: 'p_owen', position: 'CF' },
-          { playerId: 'p_ryder' },
-        ]),
-      );
+    it('copies a shorter default lineup as is; blank notes become undefined', () => {
+      run((s) => s.setDefaultLineup('t_bears12u', [{ playerId: 'p_owen' }, { playerId: 'p_ryder' }]));
       let created: Game | undefined;
       run((s) => {
         created = s.addGame('t_bears12u', { opponent: 'X', isAway: true, startsAt: NOW.toISOString(), notes: '   ' });
@@ -1008,6 +1032,211 @@ describe('StoreProvider actions', () => {
       expect(created!.pitcherId).toBeUndefined();
       expect(created!.notes).toBeUndefined();
       expect(created!.lineup.map((x) => x.playerId)).toEqual(['p_owen', 'p_ryder']);
+    });
+  });
+
+  describe('substitute', () => {
+    it('puts the bench player in the outgoing player’s slot, records the change at the clock and starts the game', () => {
+      const before = game(SCHEDULED);
+      expect(before.lineup[3]).toEqual({ playerId: 'p_cooper' });
+      let record: Substitution | undefined;
+      run((s) => {
+        record = s.substitute(SCHEDULED, 'p_cooper', 'p_mason');
+      });
+      expect(record).toEqual({
+        id: expect.any(String),
+        slot: 3,
+        outId: 'p_cooper',
+        inId: 'p_mason',
+        inning: 1,
+        half: 'top',
+        at: expect.any(String),
+      });
+      const g = game(SCHEDULED);
+      expect(g.lineup.map((x) => x.playerId)).toEqual(before.lineup.map((x) => x.playerId).map((id) => (id === 'p_cooper' ? 'p_mason' : id)));
+      expect(g.lineup[3]).toEqual({ playerId: 'p_mason' });
+      expect(g.substitutions).toEqual([record]);
+      expect(g.status).toBe('in_progress');
+      expect(new Date(record!.at).getTime()).not.toBeNaN();
+    });
+
+    it('leaves both pointers, the clock and the pitcher alone', () => {
+      run((s) => {
+        s.recordAtBat(SCHEDULED, 'hit');
+        s.recordAtBat(SCHEDULED, 'hit');
+        s.nextHalfInning(SCHEDULED);
+        s.nextHalfInning(SCHEDULED);
+        s.setNextBatter(SCHEDULED, 'them', 4);
+      });
+      const before = game(SCHEDULED);
+      expect(before).toMatchObject({ inning: 2, half: 'top', ourNextBatter: 2, theirNextBatter: 4, pitcherId: 'p_weedon' });
+      let record: Substitution | undefined;
+      run((s) => {
+        record = s.substitute(SCHEDULED, 'p_lucas', 'p_eli');
+      });
+      expect(record).toMatchObject({ slot: 2, inning: 2, half: 'top' });
+      expect(game(SCHEDULED)).toMatchObject({ inning: 2, half: 'top', ourNextBatter: 2, theirNextBatter: 4, pitcherId: 'p_weedon' });
+      // The slot is the same, so Eli is now the batter due up.
+      expect(game(SCHEDULED).lineup[game(SCHEDULED).ourNextBatter].playerId).toBe('p_eli');
+      expect(store().data.atBats.filter((x) => x.gameId === SCHEDULED)).toHaveLength(2);
+    });
+
+    it('subbing out the pitcher keeps him as the pitcher (the screen chains to the pitcher picker)', () => {
+      run((s) => s.substitute(SCHEDULED, 'p_weedon', 'p_theo'));
+      expect(game(SCHEDULED).pitcherId).toBe('p_weedon');
+      expect(game(SCHEDULED).lineup.some((x) => x.playerId === 'p_weedon')).toBe(false);
+    });
+
+    it('records every change in order and allows re-entry', () => {
+      const records: (Substitution | undefined)[] = [];
+      run((s) => {
+        records.push(s.substitute(SCHEDULED, 'p_cooper', 'p_mason'));
+        s.nextHalfInning(SCHEDULED);
+        records.push(s.substitute(SCHEDULED, 'p_mason', 'p_cooper'));
+      });
+      expect(records[0]).toMatchObject({ slot: 3, outId: 'p_cooper', inId: 'p_mason', inning: 1, half: 'top' });
+      expect(records[1]).toMatchObject({ slot: 3, outId: 'p_mason', inId: 'p_cooper', inning: 1, half: 'bottom' });
+      expect(records[0]!.id).not.toBe(records[1]!.id);
+      expect(game(SCHEDULED).substitutions).toEqual(records);
+      expect(game(SCHEDULED).lineup[3]).toEqual({ playerId: 'p_cooper' });
+    });
+
+    it('returns undefined and changes nothing for an outgoing player not in the order', () => {
+      const before = game(SCHEDULED);
+      let record: Substitution | undefined;
+      run((s) => {
+        record = s.substitute(SCHEDULED, 'p_mason', 'p_eli');
+      });
+      expect(record).toBeUndefined();
+      expect(game(SCHEDULED)).toBe(before);
+    });
+
+    it('returns undefined and changes nothing for an incoming player already in the order, on another team or unknown', () => {
+      let other: string | undefined;
+      run((s) => {
+        other = s.addPlayer('t_bears13u', { firstName: 'Other', lastName: 'Team' }).id;
+      });
+      const before = game(SCHEDULED);
+      const results: (Substitution | undefined)[] = [];
+      run((s) => {
+        results.push(s.substitute(SCHEDULED, 'p_cooper', 'p_owen'));
+        results.push(s.substitute(SCHEDULED, 'p_cooper', 'p_cooper'));
+        results.push(s.substitute(SCHEDULED, 'p_cooper', other!));
+        results.push(s.substitute(SCHEDULED, 'p_cooper', 'nobody'));
+        results.push(s.substitute('no_such_game', 'p_cooper', 'p_mason'));
+      });
+      expect(results).toEqual([undefined, undefined, undefined, undefined, undefined]);
+      expect(game(SCHEDULED)).toBe(before);
+    });
+
+    it('does not change the status of a final game', () => {
+      run((s) => s.substitute('g_wolves', 'p_owen', 'p_theo'));
+      expect(game('g_wolves').status).toBe('final');
+      expect(game('g_wolves').lineup[0]).toEqual({ playerId: 'p_theo' });
+    });
+  });
+
+  describe('undoSubstitution', () => {
+    const subIn = () => {
+      let record: Substitution | undefined;
+      run((s) => {
+        record = s.substitute(SCHEDULED, 'p_cooper', 'p_mason');
+      });
+      return record!;
+    };
+
+    it('puts the outgoing player back and removes the record; pointers and clock untouched', () => {
+      run((s) => {
+        s.recordAtBat(SCHEDULED, 'hit');
+        s.nextHalfInning(SCHEDULED);
+      });
+      const record = subIn();
+      const before = game(SCHEDULED);
+      let ok: boolean | undefined;
+      run((s) => {
+        ok = s.undoSubstitution(SCHEDULED, record.id);
+      });
+      expect(ok).toBe(true);
+      const g = game(SCHEDULED);
+      expect(g.lineup[3]).toEqual({ playerId: 'p_cooper' });
+      expect(g.lineup.some((x) => x.playerId === 'p_mason')).toBe(false);
+      expect(g.substitutions).toEqual([]);
+      expect(g).toMatchObject({ inning: 1, half: 'bottom', ourNextBatter: before.ourNextBatter, theirNextBatter: before.theirNextBatter, status: 'in_progress' });
+    });
+
+    it('undoes the latest of a chain and leaves the earlier record in place', () => {
+      const first = subIn();
+      let second: Substitution | undefined;
+      run((s) => {
+        second = s.substitute(SCHEDULED, 'p_mason', 'p_eli');
+      });
+      let ok: boolean | undefined;
+      run((s) => {
+        ok = s.undoSubstitution(SCHEDULED, second!.id);
+      });
+      expect(ok).toBe(true);
+      expect(game(SCHEDULED).lineup[3]).toEqual({ playerId: 'p_mason' });
+      expect(game(SCHEDULED).substitutions).toEqual([first]);
+    });
+
+    it('refuses once the slot no longer holds the sub (a later change made with the lineup editor)', () => {
+      const record = subIn();
+      run((s) => s.setGameLineup(SCHEDULED, game(SCHEDULED).lineup.filter((x) => x.playerId !== 'p_mason')));
+      const before = game(SCHEDULED);
+      let ok: boolean | undefined;
+      run((s) => {
+        ok = s.undoSubstitution(SCHEDULED, record.id);
+      });
+      expect(ok).toBe(false);
+      expect(game(SCHEDULED)).toBe(before);
+      expect(before.substitutions).toEqual([record]);
+    });
+
+    it('refuses once the sub was moved to another slot', () => {
+      const record = subIn();
+      const moved = [...game(SCHEDULED).lineup];
+      [moved[3], moved[4]] = [moved[4], moved[3]];
+      run((s) => s.setGameLineup(SCHEDULED, moved));
+      expect(game(SCHEDULED).lineup[4].playerId).toBe('p_mason');
+      const before = game(SCHEDULED);
+      let ok: boolean | undefined;
+      run((s) => {
+        ok = s.undoSubstitution(SCHEDULED, record.id);
+      });
+      expect(ok).toBe(false);
+      expect(game(SCHEDULED)).toBe(before);
+      expect(before.substitutions).toEqual([record]);
+    });
+
+    it('refuses once the outgoing player was added back elsewhere while the sub still holds the slot', () => {
+      const record = subIn();
+      // Cooper appended with the lineup editor; Mason is still in slot 3, so
+      // only the "added back elsewhere" guard can stop Cooper ending up twice.
+      run((s) => s.setGameLineup(SCHEDULED, [...game(SCHEDULED).lineup, { playerId: 'p_cooper' }]));
+      expect(game(SCHEDULED).lineup[3].playerId).toBe('p_mason');
+      const before = game(SCHEDULED);
+      let ok: boolean | undefined;
+      run((s) => {
+        ok = s.undoSubstitution(SCHEDULED, record.id);
+      });
+      expect(ok).toBe(false);
+      expect(game(SCHEDULED)).toBe(before);
+      expect(before.substitutions).toEqual([record]);
+      expect(before.lineup.filter((x) => x.playerId === 'p_cooper')).toHaveLength(1);
+      expect(before.lineup.filter((x) => x.playerId === 'p_mason')).toHaveLength(1);
+    });
+
+    it('returns false for an unknown record, an already undone one, or an unknown game', () => {
+      const record = subIn();
+      const results: boolean[] = [];
+      run((s) => {
+        results.push(s.undoSubstitution(SCHEDULED, 'sub_nope'));
+        results.push(s.undoSubstitution('no_such_game', record.id));
+        results.push(s.undoSubstitution(SCHEDULED, record.id));
+        results.push(s.undoSubstitution(SCHEDULED, record.id));
+      });
+      expect(results).toEqual([false, false, true, false]);
+      expect(game(SCHEDULED).lineup[3]).toEqual({ playerId: 'p_cooper' });
     });
   });
 
@@ -1115,11 +1344,11 @@ describe('StoreProvider actions', () => {
         s.removePlayer('p_knox');
       });
       expect(store().data.games).toHaveLength(6);
-      expect(store().data.players).toHaveLength(9);
+      expect(store().data.players).toHaveLength(12);
       run((s) => s.resetDemoData());
       expect(store().data.onboarded).toBe(true);
       expect(store().data.games).toHaveLength(7);
-      expect(store().data.players).toHaveLength(10);
+      expect(store().data.players).toHaveLength(13);
       expect(store().data.teams).toHaveLength(3);
       expect(store().data.games.some((g) => g.id === 'g_bandits')).toBe(true);
     });
@@ -1172,7 +1401,7 @@ describe('StoreProvider actions', () => {
       expect(p!.number).toBeUndefined();
       const team = store().data.teams.find((t) => t.id === 't_bears12u')!;
       expect(team.defaultLineup[team.defaultLineup.length - 1]).toEqual({ playerId: p!.id });
-      expect(store().data.players).toHaveLength(11);
+      expect(store().data.players).toHaveLength(14);
     });
 
     it('updatePlayer trims fields and clears a blanked number', () => {
@@ -1387,6 +1616,26 @@ describe('StoreProvider actions', () => {
       expect(storage.setItem).toHaveBeenCalledTimes(4);
     });
 
+    it('writes a substitution and its undo immediately', () => {
+      let record: Substitution | undefined;
+      run((s) => {
+        record = s.substitute(SCHEDULED, 'p_cooper', 'p_mason');
+      });
+      expect(storage.setItem).toHaveBeenCalledTimes(1);
+      expect(lastWritten()!.games.find((g) => g.id === SCHEDULED)!.substitutions).toEqual([record]);
+      expect(lastWritten()!.games.find((g) => g.id === SCHEDULED)!.lineup[3]).toEqual({ playerId: 'p_mason' });
+
+      run((s) => s.undoSubstitution(SCHEDULED, record!.id));
+      expect(storage.setItem).toHaveBeenCalledTimes(2);
+      expect(lastWritten()!.games.find((g) => g.id === SCHEDULED)!.substitutions).toEqual([]);
+      expect(lastWritten()!.games.find((g) => g.id === SCHEDULED)!.lineup[3]).toEqual({ playerId: 'p_cooper' });
+
+      act(() => {
+        jest.advanceTimersByTime(500);
+      });
+      expect(storage.setItem).toHaveBeenCalledTimes(2);
+    });
+
     it('flushes a pending write when the provider unmounts before the debounce fires', () => {
       run((s) => s.updateTeam('t_bears13u', { name: 'Flushed' }));
       expect(storage.setItem).not.toHaveBeenCalled();
@@ -1443,6 +1692,81 @@ describe('StoreProvider loading', () => {
     await settle();
     expect(storage.setItem).not.toHaveBeenCalled();
     expect(storage.__INTERNAL_MOCK_STORAGE__[BACKUP_KEY]).toBeUndefined();
+  });
+
+  describe('a document written with fielding positions (an older build)', () => {
+    type OldSlot = { playerId: string; position?: string };
+    /** The demo document as the previous build saved it: every slot carrying a position. */
+    const withPositions = (): AppData => {
+      const positions = ['CF', '3B', 'SS', '1B', 'C', 'EH', '2B', 'P', 'RF', 'LF'];
+      const stamp = (slots: { playerId: string }[]): OldSlot[] =>
+        slots.map((slot, i) => (i % 3 === 2 ? { playerId: slot.playerId } : { playerId: slot.playerId, position: positions[i % positions.length] }));
+      return {
+        ...demo,
+        onboarded: true,
+        teams: demo.teams.map((t) => ({ ...t, defaultLineup: stamp(t.defaultLineup) })),
+        games: demo.games.map((g) => ({ ...g, lineup: stamp(g.lineup) })),
+      };
+    };
+
+    it('normalizeLoaded drops the position from every slot and leaves everything else as it was', () => {
+      const old = withPositions();
+      const clean = normalizeLoaded(old);
+      expect(clean).not.toBe(old);
+      for (const t of clean.teams) for (const slot of t.defaultLineup) expect(Object.keys(slot)).toEqual(['playerId']);
+      for (const g of clean.games) for (const slot of g.lineup) expect(Object.keys(slot)).toEqual(['playerId']);
+      expect(clean.teams.map((t) => t.defaultLineup.map((s) => s.playerId))).toEqual(old.teams.map((t) => t.defaultLineup.map((s) => s.playerId)));
+      expect(clean.games.map((g) => g.lineup.map((s) => s.playerId))).toEqual(old.games.map((g) => g.lineup.map((s) => s.playerId)));
+      expect(clean.games.map(({ lineup, ...rest }) => rest)).toEqual(old.games.map(({ lineup, ...rest }) => rest));
+      expect(clean.players).toBe(old.players);
+      expect(clean.atBats).toBe(old.atBats);
+      expect(clean.onboarded).toBe(true);
+      // Untouched parts keep their identity.
+      const untouchedTeam = old.teams.find((t) => t.defaultLineup.length === 0)!;
+      expect(clean.teams.find((t) => t.id === untouchedTeam.id)).toBe(untouchedTeam);
+    });
+
+    it('normalizeLoaded returns the very same object when every slot is already clean', () => {
+      expect(normalizeLoaded(demo)).toBe(demo);
+      const saved: AppData = { ...demo, onboarded: true };
+      expect(normalizeLoaded(saved)).toBe(saved);
+    });
+
+    it('loads with the positions dropped and rewrites the cleaned document to storage', async () => {
+      const old = withPositions();
+      storage.__INTERNAL_MOCK_STORAGE__[STORAGE_KEY] = JSON.stringify(old);
+      mount();
+      await settle();
+      expect(store().ready).toBe(true);
+      expect(store().loadIssue).toBeUndefined();
+      expect(store().data).toEqual(normalizeLoaded(old));
+      expect(store().data.games.every((g) => g.lineup.every((slot) => !('position' in slot)))).toBe(true);
+      expect(store().data.teams.every((t) => t.defaultLineup.every((slot) => !('position' in slot)))).toBe(true);
+      expect(store().data.onboarded).toBe(true);
+      await waitForSave();
+      expect(lastWritten()).toEqual(normalizeLoaded(old));
+      expect(JSON.stringify(lastWritten())).not.toContain('"position"');
+      expect(storage.__INTERNAL_MOCK_STORAGE__[BACKUP_KEY]).toBeUndefined();
+      expect(warn).not.toHaveBeenCalled();
+    });
+
+    it('a game charted on the old build still works: the order, the pointer and the pitcher survive', async () => {
+      storage.__INTERNAL_MOCK_STORAGE__[STORAGE_KEY] = JSON.stringify(withPositions());
+      mount();
+      await settle();
+      const before = store().data.games.find((g) => g.id === SCHEDULED)!;
+      expect(before.pitcherId).toBe('p_weedon');
+      run((s) => s.recordAtBat(SCHEDULED, 'hit'));
+      const after = store().data.games.find((g) => g.id === SCHEDULED)!;
+      expect(after.ourNextBatter).toBe(1);
+      expect(store().data.atBats.some((x) => x.gameId === SCHEDULED && x.batterId === 'p_owen')).toBe(true);
+      let record: Substitution | undefined;
+      run((s) => {
+        record = s.substitute(SCHEDULED, 'p_cooper', 'p_mason');
+      });
+      expect(record).toBeDefined();
+      expect(store().data.games.find((g) => g.id === SCHEDULED)!.lineup[3]).toEqual({ playerId: 'p_mason' });
+    });
   });
 
   it('seeds and persists the demo data on a first launch', async () => {

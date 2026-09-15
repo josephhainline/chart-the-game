@@ -17,7 +17,8 @@ yarn ios          # or android — the app is React Native throughout
 ```
 
 First launch shows the intro, then seeds a demo team (STL Bears 12U) with a
-season of charted games so every screen has data. **Account → Reset demo
+season of charted games — including a bench and a few substitutions — so
+every screen has data. **Account → Reset demo
 data** brings it back at any time; all data lives in the browser (or the
 device) only.
 
@@ -53,6 +54,6 @@ Artifact prototype is built from.
 | `docs/PRODUCT_SPEC.md` | Screens, palette, copy, data model — the source of truth |
 | `MarvelPrototype_v1/` | Offline export of the Marvel prototype (open `index.html`) |
 | `app/` | expo-router routes: app level → team level → game level |
-| `lib/` | Data model, store + persistence, stats, demo seed, outcomes, at-bat ordering, undo stack, UI prefs |
-| `components/` | Header, tab bar, capture dock, inning strip, charting gauge, lineup editor, scorebook, … |
+| `lib/` | Data model, store + persistence, stats (incl. batter form and substitutions), demo seed, outcomes, at-bat ordering, undo stack, UI prefs |
+| `components/` | Header, tab bar, capture dock, inning strip, charting gauge, form line, lineup editor, scorebook, … |
 | `constants/theme.ts` | Design tokens sampled from the prototype |
