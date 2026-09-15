@@ -334,6 +334,18 @@ describe('scorebook', () => {
     expect(rows[2].wl).toEqual({ w: 1, l: 0 });
   });
 
+  it('orders a batted-around cell by the clock, not by document order (a restored at-bat is appended)', () => {
+    const k = ab({ batterId: 'p1', result: 'L', inning: 1, recordedAt: '2026-09-07T14:05:00.000Z' });
+    const hit = ab({ batterId: 'p1', result: 'W', inning: 1, recordedAt: '2026-09-07T14:09:00.000Z' });
+    const { rows } = scorebook([hit, k], 'g1', 'us', order);
+    expect(rows[0].innings[0].map((x) => x.id)).toEqual([k.id, hit.id]);
+    // A backfill stamped into the top sits before a live bottom-half at-bat, whatever the array order.
+    const bottom = ab({ batterId: 'p1', result: 'W', inning: 1, half: 'bottom', recordedAt: '2026-09-07T14:20:00.000Z' });
+    const backfill = ab({ batterId: 'p1', result: 'L', inning: 1, half: 'top', recordedAt: '2026-09-07T14:40:00.000Z' });
+    const mixed = scorebook([bottom, backfill], 'g1', 'us', order);
+    expect(mixed.rows[0].innings[0].map((x) => x.id)).toEqual([backfill.id, bottom.id]);
+  });
+
   it('gives every batter a full row of empty cells when nothing was recorded', () => {
     const { rows } = scorebook([], 'g1', 'us', order, 3);
     expect(rows).toHaveLength(3);

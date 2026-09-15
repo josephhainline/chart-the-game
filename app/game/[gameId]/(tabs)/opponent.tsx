@@ -5,13 +5,13 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } fr
 
 import AppHeader from '@/components/AppHeader';
 import Screen from '@/components/Screen';
-import { Button } from '@/components/ui';
+import { Button, Chip } from '@/components/ui';
 import { colors, fonts, radii, type } from '@/constants/theme';
 import { confirmAction } from '@/lib/confirm';
-import { byLastName, gameTitle, playerShort } from '@/lib/format';
+import { gameTitle, lineupFirstRoster, playerShort } from '@/lib/format';
 import { newId } from '@/lib/ids';
 import { useGame, useGameAtBats, useStore, useTeamPlayers } from '@/lib/store';
-import type { Id, OpponentBatter, Player } from '@/lib/types';
+import type { Id, OpponentBatter } from '@/lib/types';
 
 const webCursor = Platform.OS === 'web' ? ({ cursor: 'pointer' } as any) : null;
 
@@ -41,18 +41,7 @@ export default function OpponentScreen() {
 
   // Pitcher choices: this game's batting order first, then the rest of the roster by last name.
   const lineup = game?.lineup;
-  const pitcherOptions = useMemo(() => {
-    const byId = new Map(players.map((p) => [p.id, p]));
-    const ordered: Player[] = [];
-    for (const slot of lineup ?? []) {
-      const p = byId.get(slot.playerId);
-      if (p && !ordered.includes(p)) ordered.push(p);
-    }
-    for (const p of [...players].sort(byLastName)) {
-      if (!ordered.includes(p)) ordered.push(p);
-    }
-    return ordered;
-  }, [players, lineup]);
+  const pitcherOptions = useMemo(() => lineupFirstRoster(players, lineup), [players, lineup]);
 
   if (!game) return <Redirect href="/" />;
 
@@ -123,9 +112,10 @@ export default function OpponentScreen() {
             ) : (
               <View style={styles.chips}>
                 {pitcherOptions.map((p) => (
-                  <PitcherChip
+                  <Chip
                     key={p.id}
-                    player={p}
+                    label={playerShort(p)}
+                    accessibilityLabel={`Pitcher ${playerShort(p)}`}
                     selected={p.id === game.pitcherId}
                     onPress={() => setPitcher(game.id, p.id)}
                   />
@@ -161,20 +151,6 @@ export default function OpponentScreen() {
         </ScrollView>
       </View>
     </Screen>
-  );
-}
-
-function PitcherChip({ player, selected, onPress }: { player: Player; selected: boolean; onPress: () => void }) {
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={`Pitcher ${playerShort(player)}`}
-      accessibilityState={{ selected }}
-      style={({ pressed }) => [styles.chip, selected && styles.chipSelected, pressed && styles.pressed, webCursor]}
-    >
-      <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{playerShort(player)}</Text>
-    </Pressable>
   );
 }
 
@@ -268,17 +244,6 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 16, paddingTop: 24, paddingBottom: 40, gap: 32 },
   section: { gap: 12 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: {
-    height: 44,
-    paddingHorizontal: 14,
-    borderRadius: radii.pill,
-    backgroundColor: colors.chip,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  chipSelected: { backgroundColor: colors.primaryDark },
-  chipText: { fontFamily: fonts.bold, fontSize: 16, color: colors.text },
-  chipTextSelected: { color: colors.white },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

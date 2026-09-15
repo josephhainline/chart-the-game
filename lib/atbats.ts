@@ -41,7 +41,12 @@ export function newestAtBat(atBats: AtBat[]): AtBat | undefined {
  * our pitcher's (the inverse, same as `pitcherResult` in lib/stats) when they
  * do, so green always means good for us.
  */
+/** The other side of a battle: the batter's W is the pitcher's L. */
+export function invertResult(result: Result): Result {
+  return result === 'W' ? 'L' : 'W';
+}
+
 export function displayResult(ab: AtBat): Result {
   if (ab.side === 'us') return ab.result;
-  return ab.result === 'W' ? 'L' : 'W';
+  return invertResult(ab.result);
 }

@@ -8,6 +8,7 @@ import { gameHitting, gamePitching, hittingFor, pitchingFor, scorebook } from '.
 import { BACKUP_KEY, STORAGE_KEY, StoreProvider, battingSide, carryNextBatter, useStore } from '../store';
 import type { Store } from '../store';
 import type { AppData, AtBat, Game } from '../types';
+import { applyUndo, clearAllUndo, peekUndo, popUndo, pushUndo } from '../undo';
 
 jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
@@ -769,7 +770,7 @@ describe('StoreProvider actions', () => {
       expect(game(SCHEDULED)).toMatchObject({ ourNextBatter: 3, inning: 1, half: 'top' });
     });
 
-    it('does not move the pointer back even when the removal had rolled it back', () => {
+    it('leaves the pointer where the removal put it (the undo layer puts the batter who was due back up)', () => {
       run((s) => s.recordAtBat(SCHEDULED, 'hit')); // Owen; Ryder due
       const owen = ours()[0];
       run((s) => s.deleteAtBat(owen.id));
@@ -795,6 +796,117 @@ describe('StoreProvider actions', () => {
       const before = store().data;
       run((s) => s.restoreAtBat(owen));
       expect(store().data).toBe(before);
+    });
+  });
+
+  describe('applyUndo against the live document', () => {
+    const ours = () => store().data.atBats.filter((x) => x.gameId === SCHEDULED);
+    const ids = () => ours().map((x) => x.id);
+
+    afterEach(() => clearAllUndo());
+
+    it('undoing an at-bat charted while reviewing an earlier half puts that batter back up', () => {
+      run((s) => s.recordAtBat(SCHEDULED, 'hit')); // Owen, top 1st; Ryder due
+      run((s) => s.nextHalfInning(SCHEDULED)); // bottom 1st: they bat
+      run((s) => s.recordAtBat(SCHEDULED, 'k_swinging')); // Batter 1; Batter 2 due
+      run((s) => s.prevHalfInning(SCHEDULED)); // back to the top 1st for a missed at-bat
+      let ryder: AtBat | undefined;
+      run((s) => {
+        ryder = s.recordAtBat(SCHEDULED, 'plain_w');
+      });
+      expect(ryder).toMatchObject({ batterId: 'p_ryder', inning: 1, half: 'top' });
+      expect(game(SCHEDULED)).toMatchObject({ ourNextBatter: 2, theirNextBatter: 1 });
+      // Not the newest on the clock, so deleteAtBat's own rule would leave Lucas up.
+      expect(newestAtBat(ours())!.id).not.toBe(ryder!.id);
+      run((s) => applyUndo({ kind: 'record', atBat: ryder! }, game(SCHEDULED), s));
+      expect(ids()).not.toContain(ryder!.id);
+      expect(ours()).toHaveLength(2);
+      expect(game(SCHEDULED)).toMatchObject({ ourNextBatter: 1, theirNextBatter: 1, inning: 1, half: 'top' });
+    });
+
+    it('undoing a live at-bat after a re-judge moved an earlier one to a later inning puts that batter back up', () => {
+      run((s) => s.recordAtBat(SCHEDULED, 'hit')); // Owen top 1st; Ryder due
+      const owen = ours()[0];
+      run((s) => s.updateAtBat(owen.id, { inning: 2 })); // charted in the wrong inning
+      let ryder: AtBat | undefined;
+      run((s) => {
+        ryder = s.recordAtBat(SCHEDULED, 'hit'); // Ryder top 1st; Lucas due
+      });
+      expect(game(SCHEDULED).ourNextBatter).toBe(2);
+      run((s) => applyUndo({ kind: 'record', atBat: ryder! }, game(SCHEDULED), s));
+      expect(ids()).toEqual([owen.id]);
+      expect(game(SCHEDULED)).toMatchObject({ ourNextBatter: 1, inning: 1, half: 'top' });
+    });
+
+    it('undoing a backfill deletes it and leaves the pointer alone', () => {
+      run((s) => s.recordAtBat(SCHEDULED, 'hit')); // Owen; Ryder due
+      let backfill: AtBat | undefined;
+      run((s) => {
+        backfill = s.recordAtBat(SCHEDULED, 'plain_l', { side: 'us', batterId: 'p_owen', inning: 1, half: 'top' });
+      });
+      run((s) => applyUndo({ kind: 'record', atBat: backfill!, backfill: true }, game(SCHEDULED), s));
+      expect(ours()).toHaveLength(1);
+      expect(game(SCHEDULED).ourNextBatter).toBe(1);
+    });
+
+    it('undoing a remove restores the at-bat and the batter who was due before the remove', () => {
+      run((s) => s.recordAtBat(SCHEDULED, 'hit')); // Owen; Ryder due
+      const owen = ours()[0];
+      const g = game(SCHEDULED);
+      const dueBatterId = g.lineup[g.ourNextBatter % g.lineup.length].playerId; // what the editor captures
+      expect(dueBatterId).toBe('p_ryder');
+      let removed: AtBat | undefined;
+      run((s) => {
+        removed = s.deleteAtBat(owen.id);
+      });
+      expect(game(SCHEDULED).ourNextBatter).toBe(0); // record-then-remove rolled it back
+      run((s) => applyUndo({ kind: 'remove', atBat: removed!, dueBatterId }, game(SCHEDULED), s));
+      expect(ours()).toEqual([owen]);
+      expect(game(SCHEDULED)).toMatchObject({ ourNextBatter: 1, inning: 1, half: 'top' });
+    });
+
+    it('undoing a remove in the pitching half restores their pointer', () => {
+      run((s) => {
+        s.nextHalfInning(SCHEDULED);
+        s.recordAtBat(SCHEDULED, 'k_swinging'); // Batter 1; Batter 2 due
+      });
+      const theirs = ours()[0];
+      const g = game(SCHEDULED);
+      const dueBatterId = g.opponentLineup[g.theirNextBatter].id;
+      let removed: AtBat | undefined;
+      run((s) => {
+        removed = s.deleteAtBat(theirs.id);
+      });
+      expect(game(SCHEDULED).theirNextBatter).toBe(0);
+      run((s) => applyUndo({ kind: 'remove', atBat: removed!, dueBatterId }, game(SCHEDULED), s));
+      expect(ours()).toEqual([theirs]);
+      expect(game(SCHEDULED)).toMatchObject({ ourNextBatter: 0, theirNextBatter: 1, inning: 1, half: 'bottom' });
+    });
+
+    it('deleteGame empties that game’s undo stack and no other', () => {
+      pushUndo(SCHEDULED, { kind: 'half', direction: 'next' });
+      pushUndo('g_bandits', { kind: 'half', direction: 'next' });
+      run((s) => s.deleteGame('g_bandits'));
+      expect(peekUndo('g_bandits')).toBeUndefined();
+      expect(peekUndo(SCHEDULED)).toBeDefined();
+    });
+
+    it('resetDemoData and clearAllData empty every undo stack, so a stale remove cannot resurrect an at-bat', () => {
+      run((s) => s.recordAtBat(SCHEDULED, 'hit'));
+      const owen = ours()[0];
+      let removed: AtBat | undefined;
+      run((s) => {
+        removed = s.deleteAtBat(owen.id);
+      });
+      pushUndo(SCHEDULED, { kind: 'remove', atBat: removed! });
+      run((s) => s.resetDemoData());
+      expect(store().data.games.some((x) => x.id === SCHEDULED)).toBe(true);
+      expect(popUndo(SCHEDULED)).toBeUndefined();
+      expect(ours()).toEqual([]);
+
+      pushUndo(SCHEDULED, { kind: 'skip', side: 'us', fromBatterId: 'p_owen', toBatterId: 'p_lucas' });
+      run((s) => s.clearAllData());
+      expect(peekUndo(SCHEDULED)).toBeUndefined();
     });
   });
 

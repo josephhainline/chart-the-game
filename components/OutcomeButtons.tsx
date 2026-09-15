@@ -30,7 +30,7 @@ type Props = {
 };
 
 /* touchAction stops the double-tap zoom delay on mobile browsers so a second tap is a second press. */
-const webPress = Platform.OS === 'web' ? ({ cursor: 'pointer', touchAction: 'manipulation' } as any) : null;
+const webPress = Platform.OS === 'web' ? ({ cursor: 'pointer', touchAction: 'manipulation' } as const) : null;
 
 /** Below this window width the labels drop to the prototype's 12px so the longest one stays on two lines. */
 const ROOMY_WIDTH = 410;

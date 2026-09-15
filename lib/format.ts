@@ -1,6 +1,6 @@
 import { differenceInCalendarDays, format } from 'date-fns';
 
-import type { Game, Half, OpponentBatter, Player } from './types';
+import type { Game, Half, LineupSlot, OpponentBatter, Player } from './types';
 
 /** AP-style month abbreviations, matching the prototype ("Sept 2024"). */
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'June', 'July', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'];
@@ -100,6 +100,24 @@ export function opponentBatterLabel(b: OpponentBatter): string {
 }
 
 /** Roster order: by last name, then first name. */
+/**
+ * A roster ordered the way a picker lists it: the lineup's players first, in
+ * batting order, then everyone else by last name. Used by the pitcher pickers,
+ * the at-bat editor and the season table.
+ */
+export function lineupFirstRoster(players: Player[], lineup: Pick<LineupSlot, 'playerId'>[] | undefined): Player[] {
+  const byId = new Map(players.map((p) => [p.id, p]));
+  const ordered: Player[] = [];
+  for (const slot of lineup ?? []) {
+    const p = byId.get(slot.playerId);
+    if (p && !ordered.includes(p)) ordered.push(p);
+  }
+  for (const p of [...players].sort(byLastName)) {
+    if (!ordered.includes(p)) ordered.push(p);
+  }
+  return ordered;
+}
+
 export function byLastName(a: Player, b: Player): number {
   return a.lastName.localeCompare(b.lastName) || a.firstName.localeCompare(b.firstName);
 }

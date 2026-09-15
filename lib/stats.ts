@@ -1,5 +1,5 @@
-import { compareAtBats } from './atbats';
-import { byLastName } from './format';
+import { compareAtBats, invertResult } from './atbats';
+import { lineupFirstRoster } from './format';
 import type { AtBat, Game, Id, Player, Side, Team } from './types';
 
 export type WL = { w: number; l: number };
@@ -16,7 +16,7 @@ export function addResult(wl: WL, batterWon: boolean): WL {
 
 /** A pitcher wins the battle when the batter loses it. */
 export function pitcherResult(ab: AtBat): 'W' | 'L' {
-  return ab.result === 'W' ? 'L' : 'W';
+  return invertResult(ab.result);
 }
 
 /** Hitting W/L for one of our players, optionally limited to one game. */
@@ -94,16 +94,8 @@ export function seasonTable(
   const gameIds = new Set(games.filter((g) => g.teamId === team.id).map((g) => g.id));
   const teamAtBats = atBats.filter((ab) => gameIds.has(ab.gameId));
   const roster = players.filter((p) => p.teamId === team.id);
-  const byId = new Map(roster.map((p) => [p.id, p]));
-
-  const ordered: Player[] = [];
-  for (const slot of team.defaultLineup) {
-    const p = byId.get(slot.playerId);
-    if (p && !ordered.includes(p)) ordered.push(p);
-  }
-  for (const p of [...roster].sort(byLastName)) {
-    if (!ordered.includes(p)) ordered.push(p);
-  }
+  const ordered = lineupFirstRoster(roster, team.defaultLineup);
+  const rosterIds = new Set(roster.map((p) => p.id));
 
   const rows: StatRow[] = ordered.map((player) => {
     const wl = mode === 'hitting' ? hittingFor(teamAtBats, player.id) : pitchingFor(teamAtBats, player.id);
@@ -116,7 +108,7 @@ export function seasonTable(
   for (const ab of teamAtBats) {
     if (ab.side !== side) continue;
     const owner = mode === 'hitting' ? ab.batterId : ab.pitcherId;
-    if (owner !== undefined && byId.has(owner)) continue;
+    if (owner !== undefined && rosterIds.has(owner)) continue;
     orphan = addResult(orphan, mode === 'hitting' ? ab.result === 'W' : ab.result === 'L');
   }
   if (orphan.w + orphan.l > 0) {
@@ -153,6 +145,8 @@ export function scorebook<T extends { id: Id }>(
   minInnings = 1,
 ): { innings: number[]; rows: ScorebookRow<T>[] } {
   const relevant = atBats.filter((ab) => ab.gameId === gameId && ab.side === side);
+  // Document order is history (a restore appends); a multi-at-bat cell follows the clock.
+  relevant.sort(compareAtBats);
   const maxInning = relevant.reduce((m, ab) => Math.max(m, ab.inning), minInnings);
   const innings = Array.from({ length: maxInning }, (_, i) => i + 1);
 

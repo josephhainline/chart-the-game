@@ -2,6 +2,7 @@ import { describe, expect, it } from '@jest/globals';
 
 import {
   byLastName,
+  lineupFirstRoster,
   countdownLabel,
   gameDateLine,
   gameTitle,
@@ -207,6 +208,20 @@ describe('signed', () => {
     expect(signed(24)).toBe('+24');
     expect(signed(-6)).toBe('-6');
     expect(signed(0)).toBe('0');
+  });
+});
+
+describe('lineupFirstRoster', () => {
+  const p = (id: string, lastName: string) => ({ id, teamId: 't', firstName: id.toUpperCase(), lastName });
+  it('lists the lineup in batting order, then the rest of the roster by last name', () => {
+    const roster = [p('z', 'Young'), p('a', 'Adams'), p('m', 'Miller'), p('b', 'Baker')];
+    const lineup = [{ playerId: 'm' }, { playerId: 'z' }, { playerId: 'ghost' }];
+    expect(lineupFirstRoster(roster, lineup).map((x) => x.id)).toEqual(['m', 'z', 'a', 'b']);
+  });
+  it('never repeats a player and tolerates no lineup', () => {
+    const roster = [p('b', 'Baker'), p('a', 'Adams')];
+    expect(lineupFirstRoster(roster, [{ playerId: 'a' }, { playerId: 'a' }]).map((x) => x.id)).toEqual(['a', 'b']);
+    expect(lineupFirstRoster(roster, undefined).map((x) => x.id)).toEqual(['a', 'b']);
   });
 });
 

@@ -2,6 +2,9 @@
  * The CTG screen's undo stack: pure helpers plus a tiny in-memory per-game
  * stack shared by the CTG screen and the modal routes (editor, batter sheet).
  * Not persisted: it survives tab switches, not a reload, as the spec states.
+ * The store empties a game's stack when the game is deleted and every stack
+ * when the document is reset or cleared, so a stale entry can never act on a
+ * re-seeded game that reuses the same id.
  *
  * Entries store ids, never indices, and every inverse is resolved against the
  * current document at undo time (`applyUndo`), so an entry whose batter has
@@ -15,9 +18,11 @@ import type { AtBat, Game, Id, Side } from './types';
 
 export type UndoEntry =
   /**
-   * A recorded at-bat. Inverse: delete it. A backfill (the batter sheet's
-   * "Add a W / L") never moved the batter pointer, so its inverse must not
-   * roll the pointer back either.
+   * A recorded at-bat. Inverse: delete it and put the batter back up (undo is
+   * LIFO and every pointer move is on the stack, so the batter is due again
+   * even when the at-bat was charted while reviewing an earlier half). A
+   * backfill (the batter sheet's "Add a W / L") never moved the batter
+   * pointer, so its inverse must not roll the pointer back either.
    */
   | { kind: 'record'; atBat: AtBat; backfill?: boolean }
   /** A forward skip. Inverse: put `fromBatterId` back up, if still in the order. */
@@ -30,8 +35,13 @@ export type UndoEntry =
       atBatId: Id;
       previous: Pick<AtBat, 'outcomeId' | 'result' | 'batterId' | 'pitcherId' | 'inning' | 'half'>;
     }
-  /** Remove at-bat. Inverse: put the copy back. */
-  | { kind: 'remove'; atBat: AtBat };
+  /**
+   * Remove at-bat. Inverse: put the copy back, and put `dueBatterId` (whoever
+   * was due before the remove, which may have rolled the pointer back) up
+   * again if still in the order. The editor captures it from that side's
+   * pointer before calling `deleteAtBat`.
+   */
+  | { kind: 'remove'; atBat: AtBat; dueBatterId?: Id };
 
 export const UNDO_LIMIT = 20;
 
@@ -57,18 +67,30 @@ export type UndoActions = Pick<
   'deleteAtBat' | 'setNextBatter' | 'nextHalfInning' | 'prevHalfInning' | 'updateAtBat' | 'restoreAtBat'
 >;
 
+/** The batter's slot in that side's current order, or -1 once they have left it. */
+function slotOf(game: Game, side: Side, batterId: Id): number {
+  return side === 'us'
+    ? game.lineup.findIndex((s) => s.playerId === batterId)
+    : game.opponentLineup.findIndex((b) => b.id === batterId);
+}
+
 /** Reverts one entry against the current document. `game` is the game as it is now. */
 export function applyUndo(entry: UndoEntry, game: Game, actions: UndoActions): void {
   switch (entry.kind) {
-    case 'record':
-      if (entry.backfill) actions.deleteAtBat(entry.atBat.id, { keepPointer: true });
-      else actions.deleteAtBat(entry.atBat.id);
+    case 'record': {
+      // The entry, not deleteAtBat's newest-on-the-clock rule, knows whether
+      // the pointer moved: an at-bat charted while reviewing an earlier half
+      // is never the newest, yet its batter is due again all the same.
+      actions.deleteAtBat(entry.atBat.id, { keepPointer: true });
+      if (entry.backfill) return;
+      const index = slotOf(game, entry.atBat.side, entry.atBat.batterId);
+      // The batter has left the order since: nothing sensible to put back.
+      if (index < 0) return;
+      actions.setNextBatter(game.id, entry.atBat.side, index);
       return;
+    }
     case 'skip': {
-      const index =
-        entry.side === 'us'
-          ? game.lineup.findIndex((s) => s.playerId === entry.fromBatterId)
-          : game.opponentLineup.findIndex((b) => b.id === entry.fromBatterId);
+      const index = slotOf(game, entry.side, entry.fromBatterId);
       // The batter has left the order since: nothing sensible to put back.
       if (index < 0) return;
       actions.setNextBatter(game.id, entry.side, index);
@@ -83,9 +105,18 @@ export function applyUndo(entry: UndoEntry, game: Game, actions: UndoActions): v
       actions.updateAtBat(entry.atBatId, { outcomeId, batterId, pitcherId, inning, half });
       return;
     }
-    case 'remove':
+    case 'remove': {
       actions.restoreAtBat(entry.atBat);
+      if (entry.dueBatterId === undefined) return;
+      // restoreAtBat leaves the pointer alone; only the snapshot taken before
+      // the remove says where it was (the remove may have rolled it back).
+      const side = entry.atBat.side;
+      const index = slotOf(game, side, entry.dueBatterId);
+      const pointer = side === 'us' ? game.ourNextBatter : game.theirNextBatter;
+      if (index < 0 || index === pointer) return;
+      actions.setNextBatter(game.id, side, index);
       return;
+    }
   }
 }
 
@@ -135,10 +166,20 @@ export function peekUndo(gameId: Id): UndoEntry | undefined {
   return current && current.length > 0 ? current[current.length - 1] : undefined;
 }
 
-/** Empties the game's stack (End Game, leaving the game). */
+/** Empties the game's stack. The store calls it when the game is deleted. */
 export function clearUndo(gameId: Id): void {
   if (!stacks.has(gameId)) return;
   stacks.delete(gameId);
+  notify();
+}
+
+/**
+ * Empties every stack. The store calls it on Reset demo data / Clear all
+ * data: the seeded game ids come back, the at-bats the entries refer to do not.
+ */
+export function clearAllUndo(): void {
+  if (stacks.size === 0) return;
+  stacks.clear();
   notify();
 }
 

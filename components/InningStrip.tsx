@@ -16,9 +16,9 @@ type Props = {
   side?: Side;
   /** Final games: keep the inning/score readout but hide the steppers, half-inning controls and End Game. */
   readOnly?: boolean;
-  /** Replace the default (store) half-inning steps, e.g. to push an undo entry first. */
-  onPrevHalf?: () => void;
-  onNextHalf?: () => void;
+  /** The screen owns the half-inning flips (it pushes the undo entry with each one). */
+  onPrevHalf: () => void;
+  onNextHalf: () => void;
   /** End Game at the right end of the first line; hidden when omitted or readOnly. */
   onEndGame?: () => void;
   /**
@@ -45,24 +45,30 @@ const CHIP_NUMBER_MIN_WIDTH = 390;
 export default function InningStrip({ game, pitcher, side, readOnly, onPrevHalf, onNextHalf, onEndGame, reviewing, onJumpAhead }: Props) {
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const { setScore, nextHalfInning, prevHalfInning } = useStore();
+  const { setScore } = useStore();
   const hitting = (side ?? battingSide(game)) === 'us';
 
   const bump = (who: Side, delta: number) => setScore(game.id, { ...game.score, [who]: Math.max(0, game.score[who] + delta) });
-  const prev = onPrevHalf ?? (() => prevHalfInning(game.id));
-  const next = onNextHalf ?? (() => nextHalfInning(game.id));
   const pitcherRoute = `/game/${game.id}/pitcher` as const;
 
   let secondLeft: React.ReactNode = null;
   if (reviewing && !readOnly) {
+    // "Jump ahead" is a sibling button, not a nested Text onPress: on web a
+    // nested Text only wires click, so Enter/Space could never activate it.
     secondLeft = (
-      <View style={styles.review} accessibilityRole="text">
+      <View style={styles.review}>
         <Text style={styles.reviewText}>
-          Reviewing {halfLabel(game.inning, game.half)} · game is in {halfLabel(reviewing.inning, reviewing.half)} ·{' '}
-          <Text onPress={onJumpAhead} accessibilityRole="link" accessibilityLabel="Jump ahead" style={[styles.reviewLink, webCursor]}>
-            Jump ahead
-          </Text>
+          Reviewing {halfLabel(game.inning, game.half)} · game is in {halfLabel(reviewing.inning, reviewing.half)} ·
         </Text>
+        <Pressable
+          onPress={onJumpAhead}
+          accessibilityRole="button"
+          accessibilityLabel="Jump ahead"
+          hitSlop={6}
+          style={({ pressed }) => [pressed && styles.pressed, webCursor]}
+        >
+          <Text style={[styles.reviewText, styles.reviewLink]}>Jump ahead</Text>
+        </Pressable>
       </View>
     );
   } else if (!hitting && !readOnly) {
@@ -96,12 +102,12 @@ export default function InningStrip({ game, pitcher, side, readOnly, onPrevHalf,
   return (
     <View style={styles.strip}>
       <View style={styles.line}>
-        {!readOnly ? <IconButton icon="backward-step" label="Prev half" onPress={prev} /> : null}
+        {!readOnly ? <IconButton icon="backward-step" label="Prev half" onPress={onPrevHalf} /> : null}
         <View style={styles.inning}>
           <FontAwesome6 name={game.half === 'top' ? 'caret-up' : 'caret-down'} size={18} color={colors.text} />
           <Text style={styles.inningText}>{inningOrdinal(game.inning)}</Text>
         </View>
-        {!readOnly ? <IconButton icon="forward-step" label="Next half" onPress={next} /> : null}
+        {!readOnly ? <IconButton icon="forward-step" label="Next half" onPress={onNextHalf} /> : null}
         <View style={[styles.pill, { backgroundColor: hitting ? colors.primaryDark : colors.pitching }]}>
           <Text style={styles.pillText}>{hitting ? 'HITTING' : 'PITCHING'}</Text>
         </View>
@@ -192,8 +198,19 @@ const styles = StyleSheet.create({
   chipText: { fontFamily: fonts.bold, fontSize: 13, lineHeight: 16, color: colors.text, flexShrink: 1 },
   linkWrap: { alignSelf: 'flex-start', paddingVertical: 4 },
   link: { fontFamily: fonts.bold, fontSize: 13, lineHeight: 16, color: colors.orange },
-  review: { backgroundColor: colors.amberBg, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, alignSelf: 'flex-start' },
-  reviewText: { fontFamily: fonts.regular, fontSize: 12, lineHeight: 14, color: colors.amberInk },
+  // A wrapping row: the sentence fills the box and "Jump ahead" follows it, or drops under it, like inline text.
+  review: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    columnGap: 3,
+    backgroundColor: colors.amberBg,
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    alignSelf: 'flex-start',
+  },
+  reviewText: { fontFamily: fonts.regular, fontSize: 12, lineHeight: 14, color: colors.amberInk, flexShrink: 1 },
   reviewLink: { fontFamily: fonts.bold, textDecorationLine: 'underline' },
   score: { flexDirection: 'row', alignItems: 'center', flexShrink: 0, gap: 4, marginLeft: 8 },
   scoreText: { fontFamily: fonts.bold, fontSize: 16, lineHeight: 20, color: colors.text, fontVariant: ['tabular-nums'] },

@@ -6,6 +6,8 @@ import { newestAtBat } from './atbats';
 import { newId } from './ids';
 import { getOutcome } from './outcomes';
 import { buildDemoData } from './seed';
+import { primeTypesExpanded } from './uiPrefs';
+import { clearAllUndo, clearUndo } from './undo';
 import type {
   AppData,
   AtBat,
@@ -225,6 +227,9 @@ export function StoreProvider({ children, initialData }: { children: React.React
   }, []);
 
   useEffect(() => {
+    // Warm the CTG screen's UI preference alongside the document: the screen
+    // cannot mount before `ready`, so it never paints the default and snaps.
+    void primeTypesExpanded();
     if (initialData) return;
     let cancelled = false;
     (async () => {
@@ -432,12 +437,15 @@ export function StoreProvider({ children, initialData }: { children: React.React
 
       updateGame: (gameId, patch) => updateGameIn(gameId, (g) => ({ ...g, ...patch })),
 
-      deleteGame: (gameId) =>
+      deleteGame: (gameId) => {
         update((d) => ({
           ...d,
           games: d.games.filter((g) => g.id !== gameId),
           atBats: d.atBats.filter((ab) => ab.gameId !== gameId),
-        })),
+        }));
+        // Its undo stack must not outlive it: a stale entry would act on a re-seeded game with the same id.
+        clearUndo(gameId);
+      },
 
       setGameLineup: (gameId, lineup) =>
         updateGameIn(gameId, (g) => ({
@@ -667,11 +675,14 @@ export function StoreProvider({ children, initialData }: { children: React.React
 
       resetDemoData: () => {
         update((d) => ({ ...buildDemoData(), onboarded: d.onboarded }));
+        // The seeded ids come back; the at-bats the undo entries refer to do not.
+        clearAllUndo();
         flushNow();
       },
 
       clearAllData: () => {
         update((d) => ({ ...EMPTY_DATA, onboarded: d.onboarded }));
+        clearAllUndo();
         flushNow();
       },
     };

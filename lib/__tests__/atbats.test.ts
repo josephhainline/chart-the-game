@@ -83,7 +83,7 @@ describe('sortAtBats', () => {
     expect(ids(input)).toEqual(before);
   });
 
-  it('is stable for identical keys and copes with an empty list', () => {
+  it('copes with an empty list and orders equal clocks and timestamps by id', () => {
     expect(sortAtBats([])).toEqual([]);
     const same1 = ab({ result: 'W', id: 'ab_same_1' });
     const same2 = ab({ result: 'W', id: 'ab_same_2' });

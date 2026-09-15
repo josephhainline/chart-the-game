@@ -9,9 +9,9 @@ import { Button } from '@/components/ui';
 import { colors, fonts } from '@/constants/theme';
 import type { OutcomeId, Result } from '@/lib/types';
 
-const webCursor = Platform.OS === 'web' ? ({ cursor: 'pointer' } as any) : null;
+const webCursor = Platform.OS === 'web' ? ({ cursor: 'pointer' } as const) : null;
 /* touchAction stops the double-tap zoom delay on mobile browsers so a second tap is a second press. */
-const webPress = Platform.OS === 'web' ? ({ cursor: 'pointer', touchAction: 'manipulation' } as any) : null;
+const webPress = Platform.OS === 'web' ? ({ cursor: 'pointer', touchAction: 'manipulation' } as const) : null;
 
 /** The LAST readout: the game's newest at-bat. */
 export type DockLast = {
@@ -62,7 +62,12 @@ type Props = {
   onSetPitcher?: () => void;
   needle: NeedleSide;
   pulse: number;
-  /** Accessibility labels for the big buttons, by the letter shown. */
+  /**
+   * Accessibility labels for the big buttons, by the letter shown. Hitting:
+   * "Win for <batter>" / "Loss for <batter>"; pitching, in the pitcher's
+   * perspective like everything else on that side: "<pitcher> won against
+   * <batter>" / "<pitcher> lost to <batter>"; re-judge: "Change to W/L".
+   */
   bigLabels: Record<Result, string>;
   /** A big button, by the letter shown (already in the dock's perspective). */
   onBig: (letter: Result) => void;
@@ -150,9 +155,9 @@ export default function CaptureDock({
                       last.label
                     ) : (
                       <>
-                        {/* A no-break space keeps the chevron with the link when the readout wraps at 375pt. */}
-                        <Text style={styles.link}>add type</Text>
-                        {' ›'}
+                        {/* No-break spaces keep "add type ›" together as one unit when the readout wraps (at 375pt from the first record, or behind a wide Undo label). */}
+                        <Text style={styles.link}>add{'\u00A0'}type</Text>
+                        {'\u00A0›'}
                       </>
                     )}
                     {last.half ? ` · ${last.half}` : ''}
@@ -190,6 +195,7 @@ export default function CaptureDock({
           <BigButton
             letter={leftLetter}
             solid={!rejudge || rejudge.recorded === leftLetter}
+            selected={rejudge?.recorded === leftLetter}
             disabled={disabled}
             short={typesSize === 'tiny'}
             label={bigLabels[leftLetter]}
@@ -199,6 +205,7 @@ export default function CaptureDock({
           <BigButton
             letter={rightLetter}
             solid={!rejudge || rejudge.recorded === rightLetter}
+            selected={rejudge?.recorded === rightLetter}
             disabled={disabled}
             short={typesSize === 'tiny'}
             label={bigLabels[rightLetter]}
@@ -252,10 +259,16 @@ function Chip({ title, label, onPress }: { title: string; label: string; onPress
   );
 }
 
-/** A big L or W: solid in its color while charting (or when it is the recorded letter), outlined otherwise. `short` is the SE-class 56pt height. */
+/**
+ * A big L or W: solid in its color while charting (or when it is the recorded
+ * letter), outlined otherwise. `selected` is only the recorded letter in
+ * re-judge mode (the fill alone would tell screen readers both letters are
+ * selected while charting). `short` is the SE-class 56pt height.
+ */
 function BigButton({
   letter,
   solid,
+  selected,
   disabled,
   short,
   label,
@@ -263,6 +276,7 @@ function BigButton({
 }: {
   letter: Result;
   solid: boolean;
+  selected: boolean;
   disabled: boolean;
   short: boolean;
   label: string;
@@ -277,7 +291,7 @@ function BigButton({
       disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={{ disabled, selected: solid }}
+      accessibilityState={{ disabled, selected }}
       style={({ pressed }) => [
         styles.big,
         short && styles.bigShort,

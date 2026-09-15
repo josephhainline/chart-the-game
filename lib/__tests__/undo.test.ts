@@ -6,6 +6,7 @@ import type { AtBat, Game } from '../types';
 import {
   UNDO_LIMIT,
   applyUndo,
+  clearAllUndo,
   clearUndo,
   peekUndo,
   popUndo,
@@ -60,6 +61,13 @@ function mockActions(): UndoActions {
 const calls = (actions: UndoActions) =>
   Object.entries(actions).filter(([, fn]) => (fn as jest.Mock).mock.calls.length > 0).map(([name]) => name);
 
+/** The actions that were called, in the order they were called. */
+const callOrder = (actions: UndoActions) =>
+  Object.entries(actions)
+    .flatMap(([name, fn]) => (fn as jest.Mock).mock.invocationCallOrder.map((n) => ({ name, n })))
+    .sort((a, b) => a.n - b.n)
+    .map((x) => x.name);
+
 describe('undoLabel', () => {
   it('is plain "Undo" (the disabled state) when there is nothing to undo', () => {
     expect(undoLabel(undefined)).toBe('Undo');
@@ -95,11 +103,34 @@ describe('undoLabel', () => {
 });
 
 describe('applyUndo', () => {
-  it('record: deletes that at-bat by id and nothing else', () => {
+  it('record: deletes that at-bat by id and puts the batter back up at his slot in the CURRENT order', () => {
     const actions = mockActions();
     applyUndo(record({ id: 'ab_recorded' }), tigers, actions);
     expect(actions.deleteAtBat).toHaveBeenCalledTimes(1);
-    expect(actions.deleteAtBat).toHaveBeenCalledWith('ab_recorded');
+    // The pointer is set from the entry, never by deleteAtBat's newest-on-the-clock rule.
+    expect(actions.deleteAtBat).toHaveBeenCalledWith('ab_recorded', { keepPointer: true });
+    expect(actions.setNextBatter).toHaveBeenCalledWith(tigers.id, 'us', 0);
+    expect(callOrder(actions)).toEqual(['deleteAtBat', 'setNextBatter']);
+    // The order changed since: the batter's id is resolved again, not a stale index.
+    const reordered: Game = { ...tigers, lineup: [...tigers.lineup].reverse() };
+    const again = mockActions();
+    applyUndo(record({ id: 'ab_recorded' }), reordered, again);
+    expect(again.setNextBatter).toHaveBeenCalledWith(tigers.id, 'us', tigers.lineup.length - 1);
+  });
+
+  it('record (them): resolves the opponent order', () => {
+    const actions = mockActions();
+    const theirs = record({ id: 'ab_theirs', side: 'them', batterId: tigers.opponentLineup[2].id, pitcherId: 'p_weedon' });
+    applyUndo(theirs, tigers, actions);
+    expect(actions.deleteAtBat).toHaveBeenCalledWith('ab_theirs', { keepPointer: true });
+    expect(actions.setNextBatter).toHaveBeenCalledWith(tigers.id, 'them', 2);
+  });
+
+  it('record: only deletes when the batter has left the order', () => {
+    const actions = mockActions();
+    const without: Game = { ...tigers, lineup: tigers.lineup.filter((s) => s.playerId !== 'p_owen') };
+    applyUndo(record({ id: 'ab_recorded' }), without, actions);
+    expect(actions.deleteAtBat).toHaveBeenCalledWith('ab_recorded', { keepPointer: true });
     expect(calls(actions)).toEqual(['deleteAtBat']);
   });
 
@@ -169,11 +200,43 @@ describe('applyUndo', () => {
     expect(calls(actions)).toEqual(['updateAtBat']);
   });
 
-  it('remove: puts the removed copy back', () => {
+  it('remove: puts the removed copy back, then the batter who was due before the remove', () => {
     const actions = mockActions();
     const removed = ab({ id: 'ab_gone', outcomeId: 'k_looking', result: 'L' });
+    // Owen's at-bat was removed while Ryder was due; the remove rolled the pointer back to Owen (0).
+    applyUndo({ kind: 'remove', atBat: removed, dueBatterId: 'p_ryder' }, { ...tigers, ourNextBatter: 0 }, actions);
+    expect(actions.restoreAtBat).toHaveBeenCalledWith(removed);
+    expect(actions.setNextBatter).toHaveBeenCalledWith(tigers.id, 'us', 1);
+    expect(callOrder(actions)).toEqual(['restoreAtBat', 'setNextBatter']);
+  });
+
+  it('remove (them): resolves the due batter in the opponent order', () => {
+    const actions = mockActions();
+    const removed = ab({ id: 'ab_gone', side: 'them', batterId: tigers.opponentLineup[2].id, pitcherId: 'p_weedon' });
+    const due = tigers.opponentLineup[3].id;
+    applyUndo({ kind: 'remove', atBat: removed, dueBatterId: due }, { ...tigers, theirNextBatter: 2 }, actions);
+    expect(actions.setNextBatter).toHaveBeenCalledWith(tigers.id, 'them', 3);
+    expect(callOrder(actions)).toEqual(['restoreAtBat', 'setNextBatter']);
+  });
+
+  it('remove: restores only, when no due batter was captured', () => {
+    const actions = mockActions();
+    const removed = ab({ id: 'ab_gone' });
     applyUndo({ kind: 'remove', atBat: removed }, tigers, actions);
     expect(actions.restoreAtBat).toHaveBeenCalledWith(removed);
+    expect(calls(actions)).toEqual(['restoreAtBat']);
+  });
+
+  it('remove: restores only, when the due batter has left the order', () => {
+    const actions = mockActions();
+    const without: Game = { ...tigers, lineup: tigers.lineup.filter((s) => s.playerId !== 'p_ryder') };
+    applyUndo({ kind: 'remove', atBat: ab({ id: 'ab_gone' }), dueBatterId: 'p_ryder' }, without, actions);
+    expect(calls(actions)).toEqual(['restoreAtBat']);
+  });
+
+  it('remove: restores only, when the due batter is already up (the remove had not moved the pointer)', () => {
+    const actions = mockActions();
+    applyUndo({ kind: 'remove', atBat: ab({ id: 'ab_gone' }), dueBatterId: 'p_ryder' }, { ...tigers, ourNextBatter: 1 }, actions);
     expect(calls(actions)).toEqual(['restoreAtBat']);
   });
 });
@@ -228,6 +291,15 @@ describe('the per-game stack', () => {
     expect(peekUndo('g_a')).toBeUndefined();
     expect(() => clearUndo('g_never')).not.toThrow();
   });
+
+  it('clearAllUndo empties every game’s stack', () => {
+    pushUndo('g_a', record({ id: 'ab_a' }));
+    pushUndo('g_b', record({ id: 'ab_b' }));
+    clearAllUndo();
+    expect(peekUndo('g_a')).toBeUndefined();
+    expect(peekUndo('g_b')).toBeUndefined();
+    expect(() => clearAllUndo()).not.toThrow();
+  });
 });
 
 describe('useUndoStack', () => {
@@ -268,6 +340,10 @@ describe('useUndoStack', () => {
     });
     expect(latest()).toEqual([entry]);
     act(() => clearUndo('g_hook'));
+    expect(latest()).toEqual([]);
+    act(() => pushUndo('g_hook', entry));
+    expect(latest()).toEqual([entry]);
+    act(() => clearAllUndo());
     expect(latest()).toEqual([]);
   });
 

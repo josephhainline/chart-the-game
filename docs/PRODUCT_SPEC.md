@@ -141,8 +141,10 @@ returns to the team's Home.
     orange **End Game** at the right. Line 2, left: while pitching the
     pitcher chip "⚾ Weedon H. (#10) ›" (opens the pitcher picker; the number
     is dropped under 390pt) or an orange "Set pitcher" link; when the clock
-    is behind the newest charted half (after Prev half) an amber review line
-    "Reviewing ▲ 1st · game is in ▼ 2nd · Jump ahead" replaces it. Right:
+    is behind the newest charted half (after Prev half, or after the editor
+    moves an at-bat to a later half than the clock) an amber review line
+    "Reviewing ▲ 1st · game is in ▼ 2nd · Jump ahead" replaces it; Jump ahead
+    steps Next half until the clock reaches that half. Right:
     "Us N [−][+] · Them N [−][+]" on one line. Away team bats in the top half.
   - Batting-order list: one row per batter of the side at bat — number, name
     and, when the batter has at-bats this game, the label of this half's
@@ -151,11 +153,15 @@ returns to the team's Home.
     tag, or this half's newest at-bat as a solid W/L tile (letter over the
     outcome code; letter alone for a plain at-bat). The AT-BAT row has an
     orange left rail. A forward-step target on every other row is the only
-    skip control: no dialog for the next batter; "Bring Lucas Kloster (#13) up
-    now? 2 batters will be skipped." otherwise (counting batters without a
-    result this half); "… already batted this half. Give him another at-bat
-    now? …" for a batter who has. Tapping a tile or chip selects that at-bat
-    for re-judging; tapping the row body opens the batter sheet.
+    skip control. The next batter comes up with no dialog, even if he already
+    batted this half. A farther target asks first unless nothing is skipped:
+    "Bring Lucas Kloster (#13) up now? 2 batters will be skipped." counts only
+    passed-over batters without a result this half (no dialog when that count
+    is 0 and the target has not batted this half); a farther target who
+    already has a result this half asks "… already batted this half. Give him
+    another at-bat now?" followed by "N batters will be skipped." only when
+    N > 0. Tapping a tile or chip selects that at-bat for re-judging; tapping
+    the row body opens the batter sheet.
   - Capture Dock, fixed above the tab bar with a 3pt top border (blue while
     charting, orange while re-judging). Top to bottom: a context row with
     ‹ › steppers that walk the game's at-bats in inning/half/time order
@@ -164,40 +170,64 @@ returns to the team's Home.
     at-bat reads "· W · add type ›"; suffix "· ▲ 1st" when it belongs to
     another half; tapping it selects that at-bat) and **Undo**, whose label
     names the top of the stack ("Undo W", "Undo skip", "Undo Next half",
-    "Undo Prev half", "Undo re-judge", "Undo remove"); the AT-BAT header
-    ("4. Cooper Woollen (#50)" with his chips; "AT-BAT · ▲ 1st" in amber while
-    reviewing); the big row — solid red **L** · the CTG gauge (seven chunky
+    "Undo Prev half", "Undo re-judge", "Undo remove") — while an at-bat is
+    selected the LAST readout and Undo give way to the RE-JUDGE readout with
+    "▶ Now" and "More…", and Undo is not shown until ▶ Now or a commit
+    returns the dock to live; the AT-BAT header ("4. Cooper Woollen (#50)"
+    with his chips; "AT-BAT · ▲ 1st" in amber while reviewing); the big row —
+    solid red **L** · the CTG gauge (seven chunky
     bars) · solid green **W** (pitching: W left, L right, gauge in the
     pitcher's perspective); the "OUTCOME TYPES" toggle and, when open, the
-    twelve outcome buttons in two columns (§5). The types default open on
-    windows 760pt and taller and collapsed otherwise; a toggle persists at
-    AsyncStorage key `ctg:ui:typesExpanded`; an open dock taller than 60% of
-    the window collapses them.
+    twelve outcome buttons in two columns (§5): 36pt buttons and 64pt big L/W
+    on windows 700pt and taller, 28pt and 56pt below. The types default open
+    on windows 760pt and taller and collapsed otherwise; a toggle persists at
+    AsyncStorage key `ctg:ui:typesExpanded`; tapping the LAST readout of a
+    plain at-bat also opens the types for that re-judge without saving the
+    preference (they close again when the selection clears); an open dock
+    taller than 60% of the window collapses them until the coach toggles the
+    types at that window height (a resize re-arms the rule).
   - Recording: the big L or W charts a plain at-bat (no play type) in one tap;
     an outcome button charts that type. Either swings the needle, advances the
     batter pointer, scrolls the list so one previous row stays above the
-    AT-BAT row, and pushes an undo entry. The fourteen buttons ignore presses
-    for 450ms after a record so a double tap cannot chart two batters.
+    AT-BAT row, and pushes an undo entry. Recording stays live while reviewing
+    and charts into the reviewed half (the clock's half, which the dock header
+    names as "AT-BAT · ▲ 1st" in amber). The fourteen buttons ignore presses
+    for 450ms after a record, after a re-judge commit, and after a
+    farther-target skip resolves (with or without its dialog, confirmed or
+    cancelled), so a double tap cannot chart two batters; the skip targets and
+    the row tap honour the same lockout, which never blocks Undo, the steppers
+    or the inning strip. Leaving re-judge mode from the dock (▶ Now, a commit,
+    › past the newest) makes the LAST readout and Undo ignore presses for
+    350ms, since they appear where ▶ Now and the types were.
   - Re-judging: with an at-bat selected (tile, chip, LAST readout or the
-    steppers) the dock reads "RE-JUDGE · Cooper W. (#50) · ▲ 2nd · L ·
-    Strikeout Swinging" with "▶ Now" (back to live) and "More…" (the full
-    editor); the recorded letter is solid, the other outlined, the current
+    steppers; a stepper or LAST selection scrolls that at-bat's row into
+    view, a tile or chip tap does not) the dock reads "RE-JUDGE · Cooper W.
+    (#50) · ▲ 2nd · L · Strikeout Swinging" with "▶ Now" (back to live) and
+    "More…" (the full editor); the recorded letter is solid, the other
+    outlined, the current
     type ringed in the grid. The outlined letter flips the at-bat to a plain
     result; a type sets that outcome; the ringed type again drops it to
     plain; each commit flashes the row, pushes "Undo re-judge" and snaps back
     to live. Selecting an at-bat of the side not batting peeks that side's
     order (light-blue rows, no tags or skip targets) until the selection
-    clears — on any commit, ▶ Now, Undo, a half change, End Game or leaving
-    the screen. Pointer, clock and score never change on a re-judge.
+    clears — on any commit, ▶ Now, a half change, End Game or leaving the
+    screen. Pointer, clock and score never change on a re-judge.
   - Undo is a per-game session stack (20 deep; survives tab switches, not a
     reload): record → delete it (a batter-sheet backfill leaves the pointer
     where it is); skip → the skipped-from batter is due up again; Next/Prev
-    half → the other; a re-judge or editor change → the previous fields;
-    remove → restore. Undo right after Next half reads "Undo Next half" and
-    deletes nothing.
+    half → the other (Jump ahead pushes one Next half entry per half stepped,
+    so Undo walks back one half at a time); a re-judge or editor change → the
+    previous fields; remove → restore (the batter who was due before the
+    remove is due again). Undo right after Next half reads "Undo Next half"
+    and deletes nothing. The stack is emptied by Reset demo data, Clear all
+    data and deleting the game.
   - Pitching half: the list shows the opponent order and every readout shows
     our pitcher's result (green = our pitcher won the battle); storage stays
-    the batter's result. With no pitcher set the record controls are dimmed
+    the batter's result. The big buttons' accessibility labels speak in the
+    pitcher's perspective too: "Knox K. (#8) won against Batter 1" / "Knox K.
+    (#8) lost to Batter 1" ("Our pitcher …" until one is set), where hitting
+    reads "Win for Owen Haynes (#7)" / "Loss for …". With no pitcher set the
+    record controls are dimmed
     behind an orange **Set pitcher** in the dock header (and the strip's
     link); picking one credits this half's unassigned opponent at-bats.
   - A game becomes "in progress" on the first at-bat, half-inning change,
@@ -205,8 +235,10 @@ returns to the team's Home.
   - **End Game** opens the finish sheet (final score, notes) and marks the
     game final. A finished game's CTG tab shows our lineup with every at-bat
     as a tile (tap to open the editor) and each player's game W/L under the
-    "Final: Won 19 - 5" band with **Reopen game**; recording again needs
-    Reopen game.
+    "Final: Won 19 - 5" band with **Reopen game**; batters with at-bats who
+    have since left the order follow the lineup as muted "LEFT GAME" rows (a
+    dash for the slot number), so the tiles add up to the game's hitting
+    line; recording again needs Reopen game.
 - Game sheets (modal routes beside End Game and Edit Game, orange header):
   - At-bat editor `/game/[gameId]/atbat/[atBatId]`: title "Cooper Woollen
     (#50) · ▲ 2nd" (pitching: "Batter 3 · ▼ 2nd · Weedon H. (#10) pitching"),

@@ -231,6 +231,21 @@ export function WLText({ wl, style }: { wl: WL; style?: StyleProp<TextStyle> }) 
 }
 
 /** Dark-blue position pill (CF, 3B, …). */
+/** Pill chip for pickers (pitcher, batter): gray, filled navy when selected. */
+export function Chip({ label, selected, onPress, accessibilityLabel }: { label: string; selected?: boolean; onPress: () => void; accessibilityLabel?: string }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? label}
+      accessibilityState={{ selected: Boolean(selected) }}
+      style={({ pressed }) => [styles.chip, selected && styles.chipSelected, pressed && styles.chipPressed, webCursor]}
+    >
+      <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{label}</Text>
+    </Pressable>
+  );
+}
+
 export function PositionBadge({ position, onPress, muted }: { position?: string; onPress?: () => void; muted?: boolean }) {
   return (
     <Pressable
@@ -248,6 +263,18 @@ export function PositionBadge({ position, onPress, muted }: { position?: string;
 }
 
 const styles = StyleSheet.create({
+  chip: {
+    height: 44,
+    paddingHorizontal: 14,
+    borderRadius: radii.pill,
+    backgroundColor: colors.chip,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chipSelected: { backgroundColor: colors.primaryDark },
+  chipPressed: { opacity: 0.7 },
+  chipText: { fontFamily: fonts.bold, fontSize: 16, color: colors.text },
+  chipTextSelected: { color: colors.white },
   button: {
     flexDirection: 'row',
     alignItems: 'center',

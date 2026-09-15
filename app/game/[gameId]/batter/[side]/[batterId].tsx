@@ -7,7 +7,7 @@ import ModalScreen from '@/components/ModalScreen';
 import ResultTile from '@/components/ResultTile';
 import { Button, EmptyState, WLText } from '@/components/ui';
 import { colors, fonts, type } from '@/constants/theme';
-import { displayResult, sortAtBats } from '@/lib/atbats';
+import { displayResult, invertResult, sortAtBats } from '@/lib/atbats';
 import { halfLabel, opponentBatterLabel, playerLabel } from '@/lib/format';
 import { useDismiss } from '@/lib/navigation';
 import { outcomeLabel, outcomeShort, plainFor } from '@/lib/outcomes';
@@ -17,10 +17,6 @@ import type { Result, Side } from '@/lib/types';
 import { pushUndo } from '@/lib/undo';
 
 const webCursor = Platform.OS === 'web' ? ({ cursor: 'pointer' } as const) : null;
-
-function invert(r: Result): Result {
-  return r === 'W' ? 'L' : 'W';
-}
 
 /**
  * The batter sheet: one batter's at-bats this game, newest first (each opens
@@ -74,7 +70,7 @@ export default function BatterSheetScreen() {
 
   /** A plain at-bat in the current half-inning; the letter is in the perspective shown (our pitcher's for them). */
   const add = (shownResult: Result) => {
-    const batterResult = side === 'them' ? invert(shownResult) : shownResult;
+    const batterResult = side === 'them' ? invertResult(shownResult) : shownResult;
     const ab = recordAtBat(game.id, plainFor(batterResult), { side, batterId, inning: game.inning, half: game.half });
     if (ab) pushUndo(game.id, { kind: 'record', atBat: ab, backfill: true });
   };

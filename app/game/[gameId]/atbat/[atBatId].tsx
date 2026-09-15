@@ -1,19 +1,20 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRootNavigationState } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import ModalScreen from '@/components/ModalScreen';
 import OutcomeButtons from '@/components/OutcomeButtons';
 import ResultTile from '@/components/ResultTile';
+import { Chip, EmptyState } from '@/components/ui';
 import { colors, fonts, radii, type } from '@/constants/theme';
-import { displayResult } from '@/lib/atbats';
+import { displayResult, invertResult } from '@/lib/atbats';
 import { confirmAction } from '@/lib/confirm';
-import { byLastName, halfLabel, inningOrdinal, opponentBatterLabel, playerLabel, playerName, playerShort } from '@/lib/format';
+import { halfLabel, inningOrdinal, lineupFirstRoster, opponentBatterLabel, playerLabel, playerName, playerShort } from '@/lib/format';
 import { useDismiss } from '@/lib/navigation';
 import { isPlain, outcomeLabel, outcomeShort, plainFor } from '@/lib/outcomes';
 import { useGame, useGameAtBats, useStore, useTeamPlayers, type AtBatPatch } from '@/lib/store';
-import type { AtBat, Half, Id, LineupSlot, OutcomeId, Player, Result } from '@/lib/types';
+import type { AtBat, Half, Id, OutcomeId, Result } from '@/lib/types';
 import { pushUndo, type UndoEntry } from '@/lib/undo';
 
 const webCursor = Platform.OS === 'web' ? ({ cursor: 'pointer' } as const) : null;
@@ -23,24 +24,6 @@ type Previous = Extract<UndoEntry, { kind: 'rejudge' }>['previous'];
 /** The fields an undo entry restores, captured before a change. */
 function previousOf(ab: AtBat): Previous {
   return { outcomeId: ab.outcomeId, result: ab.result, batterId: ab.batterId, pitcherId: ab.pitcherId, inning: ab.inning, half: ab.half };
-}
-
-function invert(r: Result): Result {
-  return r === 'W' ? 'L' : 'W';
-}
-
-/** Pitcher choices ordered like the Opponent tab: this game's batting order first, then the rest of the roster by last name. */
-function orderedRoster(players: Player[], lineup: LineupSlot[] | undefined): Player[] {
-  const byId = new Map(players.map((p) => [p.id, p]));
-  const ordered: Player[] = [];
-  for (const slot of lineup ?? []) {
-    const p = byId.get(slot.playerId);
-    if (p && !ordered.includes(p)) ordered.push(p);
-  }
-  for (const p of [...players].sort(byLastName)) {
-    if (!ordered.includes(p)) ordered.push(p);
-  }
-  return ordered;
 }
 
 /**
@@ -54,7 +37,7 @@ function orderedRoster(players: Player[], lineup: LineupSlot[] | undefined): Pla
  */
 export default function AtBatEditorScreen() {
   const { gameId, atBatId } = useLocalSearchParams<{ gameId: string; atBatId: string }>();
-  const { ready, updateAtBat, deleteAtBat } = useStore();
+  const { updateAtBat, deleteAtBat } = useStore();
   const game = useGame(gameId);
   const atBats = useGameAtBats(gameId);
   const players = useTeamPlayers(game?.teamId);
@@ -66,17 +49,32 @@ export default function AtBatEditorScreen() {
   /** Set once this screen has started dismissing itself, so a store change cannot dismiss it twice. */
   const closing = useRef(false);
 
-  // Deleted elsewhere (Undo on the CTG tab, another sheet): nothing left to edit.
+  // Deleted elsewhere (Undo on the CTG tab, another sheet) or a stale URL on a
+  // cold load (bookmark, reload, deep link): nothing left to edit, so dismiss.
+  // A cold load mounts this sheet in the same commit as the navigators and its
+  // effect runs before theirs, when the router cannot navigate yet; the root
+  // navigation state only gets a key once the root navigator is mounted.
+  const rootState = useRootNavigationState();
+  const navigatorReady = Boolean(rootState?.key);
+  const hasGame = Boolean(game);
   useEffect(() => {
-    if (!ready || closing.current || atBat) return;
+    if (!navigatorReady || !hasGame || closing.current || atBat) return;
     closing.current = true;
     close();
-  }, [ready, atBat, close]);
+  }, [navigatorReady, hasGame, atBat, close]);
 
   const lineup = game?.lineup;
-  const roster = useMemo(() => orderedRoster(players, lineup), [players, lineup]);
+  const roster = useMemo(() => lineupFirstRoster(players, lineup), [players, lineup]);
 
-  if (!game || !atBat) return null;
+  if (!game) {
+    return (
+      <ModalScreen title="At-bat" color={colors.orange} onClose={close}>
+        <EmptyState title="Game not found" body="It may have been deleted." />
+      </ModalScreen>
+    );
+  }
+  // Dismissing (the effect above): nothing to draw while the router gets ready.
+  if (!atBat) return null;
 
   const side = atBat.side;
   const perspective = side === 'us' ? 'batter' : 'pitcher';
@@ -104,7 +102,7 @@ export default function AtBatEditorScreen() {
   /** A result that disagrees with the current type drops the type: the at-bat becomes plain. */
   const chooseResult = (shownResult: Result) => {
     if (shownResult === shown) return;
-    apply({ outcomeId: plainFor(perspective === 'pitcher' ? invert(shownResult) : shownResult) });
+    apply({ outcomeId: plainFor(perspective === 'pitcher' ? invertResult(shownResult) : shownResult) });
   };
 
   const chooseType = (outcomeId: OutcomeId) => {
@@ -141,15 +139,19 @@ export default function AtBatEditorScreen() {
       'Remove',
     );
     if (!ok) return;
+    // Whoever is due before the remove (which may roll the pointer back): Undo puts them up again.
+    const sideOrder = side === 'us' ? game.lineup.map((slot) => slot.playerId) : game.opponentLineup.map((b) => b.id);
+    const pointer = side === 'us' ? game.ourNextBatter : game.theirNextBatter;
+    const dueBatterId = sideOrder.length > 0 ? sideOrder[pointer % sideOrder.length] : undefined;
     const removed = deleteAtBat(atBat.id);
-    if (removed) pushUndo(game.id, { kind: 'remove', atBat: removed });
+    if (removed) pushUndo(game.id, { kind: 'remove', atBat: removed, dueBatterId });
     closing.current = true;
     close();
   };
 
   // Pitching: W (our pitcher won the battle) on the left, like the dock and the grid.
   const leftResult: Result = perspective === 'pitcher' ? 'W' : 'L';
-  const rightResult = invert(leftResult);
+  const rightResult = invertResult(leftResult);
   const order =
     side === 'us'
       ? game.lineup.map((slot) => {
@@ -316,20 +318,6 @@ function PickRow({ label, selected, onPress }: { label: string; selected: boolea
   );
 }
 
-function Chip({ label, accessibilityLabel, selected, onPress }: { label: string; accessibilityLabel: string; selected: boolean; onPress: () => void }) {
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel}
-      accessibilityState={{ selected }}
-      style={({ pressed }) => [styles.chip, selected && styles.chipSelected, pressed && styles.pressed, webCursor]}
-    >
-      <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{label}</Text>
-    </Pressable>
-  );
-}
-
 function SegmentButton({ label, accessibilityLabel, selected, onPress }: { label: string; accessibilityLabel: string; selected: boolean; onPress: () => void }) {
   return (
     <Pressable
@@ -407,17 +395,6 @@ const styles = StyleSheet.create({
   pickRowText: { flex: 1, fontFamily: fonts.regular, fontSize: 16, color: colors.text },
   pickRowTextSelected: { fontFamily: fonts.bold },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingBottom: 12 },
-  chip: {
-    height: 44,
-    paddingHorizontal: 14,
-    borderRadius: radii.pill,
-    backgroundColor: colors.chip,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  chipSelected: { backgroundColor: colors.primaryDark },
-  chipText: { fontFamily: fonts.bold, fontSize: 16, color: colors.text },
-  chipTextSelected: { color: colors.white },
   halfControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingBottom: 16 },
   segment: { flexDirection: 'row', gap: 6 },
   segmentButton: { width: 48, height: 40, borderRadius: radii.sm, backgroundColor: colors.band, alignItems: 'center', justifyContent: 'center' },

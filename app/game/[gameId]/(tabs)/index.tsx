@@ -1,7 +1,7 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type StyleProp, type ViewStyle } from 'react-native';
 
 import AppHeader from '@/components/AppHeader';
 import CaptureDock, { type DockLast, type DockRejudge } from '@/components/CaptureDock';
@@ -12,11 +12,11 @@ import ResultTile from '@/components/ResultTile';
 import Screen from '@/components/Screen';
 import { Button, EmptyState, WLText } from '@/components/ui';
 import { colors, fonts } from '@/constants/theme';
-import { compareClock, displayResult, sortAtBats } from '@/lib/atbats';
+import { compareClock, displayResult, invertResult, sortAtBats } from '@/lib/atbats';
 import { confirmAction } from '@/lib/confirm';
 import { gameTitle, halfLabel, opponentBatterLabel, playerLabel, playerShort } from '@/lib/format';
 import { isPlain, outcomeLabel, outcomeShort, plainFor } from '@/lib/outcomes';
-import { hittingFor } from '@/lib/stats';
+import { hittingFor, leftGameBatterIds } from '@/lib/stats';
 import { battingSide, useGame, useGameAtBats, useStore, useTeamPlayers, type AtBatPatch } from '@/lib/store';
 import type { AtBat, Game, Half, OutcomeId, Result, Side } from '@/lib/types';
 import { useTypesExpanded } from '@/lib/uiPrefs';
@@ -24,7 +24,13 @@ import { applyUndo, popUndo, pushUndo, undoLabel, useUndoStack } from '@/lib/und
 
 const webCursor = Platform.OS === 'web' ? ({ cursor: 'pointer' } as const) : null;
 
-type Batter = { id: string; label: string; short: string };
+type Batter = {
+  id: string;
+  label: string;
+  short: string;
+  /** A finished game: this batter has at-bats but is no longer in the order (a muted "LEFT GAME" row). */
+  left?: boolean;
+};
 
 /** Which row to bring into view after the next render. */
 type PendingScroll = { kind: 'current' } | { kind: 'batter'; batterId: string } | null;
@@ -33,6 +39,16 @@ type PendingScroll = { kind: 'current' } | { kind: 'batter'; batterId: string } 
 const SCROLL_LEAD = 56;
 /** The fourteen record buttons ignore presses this long after a record, so a double tap cannot chart two batters. */
 const LOCK_MS = 450;
+/**
+ * Leaving re-judge mode swaps the dock's context row (▶ Now / More… give way
+ * to LAST / Undo) and may collapse a forced-open grid, so the LAST readout and
+ * Undo ignore presses this long after the switch: a double tap on ▶ Now or on
+ * a type must not land on the control that moved under the finger. The record
+ * lockout stays separate and never blocks Undo.
+ */
+const MODE_SWITCH_MS = 350;
+/** Below this window width "IN THE HOLE" breaks onto two lines so the longest names keep their jersey number. */
+const TAG_ONE_LINE_MIN_WIDTH = 390;
 /** Windows at least this tall open the outcome types by default (until the coach toggles them). */
 const TYPES_DEFAULT_OPEN_HEIGHT = 760;
 /** Below this window height the grid uses the 'tiny' size. */
@@ -51,10 +67,6 @@ function currentIndex(game: Game | undefined, side: Side): number {
   if (!game) return 0;
   const n = side === 'us' ? game.lineup.length : game.opponentLineup.length;
   return n ? (side === 'us' ? game.ourNextBatter : game.theirNextBatter) % n : 0;
-}
-
-function invert(result: Result): Result {
-  return result === 'W' ? 'L' : 'W';
 }
 
 /** The half-inning after this one (mirrors the store's clock). */
@@ -81,7 +93,7 @@ export default function ChartTheGameScreen() {
   const game = useGame(gameId);
   const atBats = useGameAtBats(gameId);
   const players = useTeamPlayers(game?.teamId);
-  const { height: windowHeight } = useWindowDimensions();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const undoStack = useUndoStack(game?.id);
 
   /** The at-bat being re-judged, if any. */
@@ -90,13 +102,13 @@ export default function ChartTheGameScreen() {
   const [pulse, setPulse] = useState(0);
   /** A just re-judged at-bat: its row is tinted for a second. */
   const [flash, setFlash] = useState<{ id: string; result: Result } | null>(null);
-  const [typesPref, setTypesPref] = useTypesExpanded(windowHeight >= TYPES_DEFAULT_OPEN_HEIGHT);
+  const [typesPref, setTypesPref, typesExplicit] = useTypesExpanded(windowHeight >= TYPES_DEFAULT_OPEN_HEIGHT);
   /** "add type ›" opens the grid for that re-judge without changing the saved preference. */
   const [typesForced, setTypesForced] = useState(false);
   const [autoCollapsed, setAutoCollapsed] = useState(false);
   const [dockHeight, setDockHeight] = useState(0);
-  const userToggledTypes = useRef(false);
   const lockedUntil = useRef(0);
+  const modeSwitchedAt = useRef(0);
   const needleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollRef = useRef<ScrollView>(null);
@@ -162,18 +174,16 @@ export default function ChartTheGameScreen() {
   // already chose a row. A final game has no current batter: it opens at the top.
   useEffect(() => {
     if (!pendingScroll.current && !isFinal) pendingScroll.current = { kind: 'current' };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game?.id, side, isFinal]);
 
-  const typesOpen = (typesPref || typesForced) && !autoCollapsed;
+  // Only the height-based default is ever auto-collapsed: a saved preference is
+  // the coach's own choice, and "add type ›" (typesForced) always wins.
+  const typesOpen = typesForced || (typesPref && (typesExplicit || !autoCollapsed));
   // Heights come from onLayout: an open dock past 60% of the window collapses the types (large system text).
   useEffect(() => {
-    if (typesOpen && dockHeight > windowHeight * DOCK_MAX_SHARE && !userToggledTypes.current) setAutoCollapsed(true);
-  }, [typesOpen, dockHeight, windowHeight]);
-  useEffect(() => {
-    setAutoCollapsed(false);
-    userToggledTypes.current = false;
-  }, [windowHeight]);
+    if (typesOpen && !typesForced && !typesExplicit && dockHeight > windowHeight * DOCK_MAX_SHARE) setAutoCollapsed(true);
+  }, [typesOpen, typesForced, typesExplicit, dockHeight, windowHeight]);
+  useEffect(() => setAutoCollapsed(false), [windowHeight]);
 
   // The one scroll rule: after a record, undo, skip, half flip or a stepper
   // selection, put the row 56pt below the top so one previous row stays in view.
@@ -263,6 +273,12 @@ export default function ChartTheGameScreen() {
     setSelection(null);
     setTypesForced(false);
   };
+  /** Re-judge mode ends from a dock tap (▶ Now, a commit, › past the newest): the context row is about to move. */
+  const leaveRejudge = () => {
+    modeSwitchedAt.current = Date.now();
+    clearSelection();
+  };
+  const justSwitched = () => Date.now() - modeSwitchedAt.current < MODE_SWITCH_MS;
 
   /** Puts the dock in re-judge mode for an at-bat; steppers and the readout also scroll its row into view. */
   const selectAtBat = (id: string, opts?: { scroll?: boolean; openTypes?: boolean }) => {
@@ -273,7 +289,10 @@ export default function ChartTheGameScreen() {
     if (opts?.scroll) pendingScroll.current = { kind: 'batter', batterId: ab.batterId };
   };
 
-  const openBatter = (batterId: string) => router.push(`/game/${game.id}/batter/${side}/${batterId}`);
+  const openBatter = (batterId: string) => {
+    if (locked()) return; // a double tap on a skip target lands here once the row re-renders as current
+    router.push(`/game/${game.id}/batter/${side}/${batterId}`);
+  };
   const openEditor = (atBatId: string) => router.push(`/game/${game.id}/atbat/${atBatId}`);
 
   const handleRecord = (outcomeId: OutcomeId) => {
@@ -297,18 +316,18 @@ export default function ChartTheGameScreen() {
     lock();
     swingNeedle(displayResult(updated));
     flashRow(ab.id, displayResult(updated));
-    clearSelection();
+    leaveRejudge();
   };
 
   /** A big button, by the letter shown. Chart mode records a plain at-bat; re-judge flips the outlined letter. */
   const handleBig = (letter: Result) => {
     if (selected) {
       if (letter === displayResult(selected)) return; // the solid letter changes nothing
-      const batterResult = selected.side === 'us' ? letter : invert(letter);
+      const batterResult = selected.side === 'us' ? letter : invertResult(letter);
       commitRejudge(selected, { outcomeId: plainFor(batterResult) });
       return;
     }
-    handleRecord(plainFor(liveSide === 'us' ? letter : invert(letter)));
+    handleRecord(plainFor(liveSide === 'us' ? letter : invertResult(letter)));
   };
 
   const handleOutcome = (outcomeId: OutcomeId) => {
@@ -321,6 +340,7 @@ export default function ChartTheGameScreen() {
   };
 
   const handleUndo = () => {
+    if (justSwitched()) return; // Undo just appeared where ▶ Now or a type was; the record lockout never applies here
     const entry = popUndo(game.id);
     if (!entry) return;
     applyUndo(entry, game, store);
@@ -338,12 +358,13 @@ export default function ChartTheGameScreen() {
     if (selectedIndex === -1) return;
     const target = sorted[selectedIndex + 1];
     if (target) selectAtBat(target.id, { scroll: true });
-    else clearSelection(); // past the newest: back to live
+    else leaveRejudge(); // past the newest: back to live
   };
 
   /** The forward-step target on a row brings that batter up now; multi-batter skips are confirmed by name. */
   const skipTo = async (i: number) => {
-    if (i === current || peeking) return;
+    // The list scrolls after a skip, so a double tap can land on another row's skip target.
+    if (locked() || i === current || peeking) return;
     const target = order[i];
     const from = order[current];
     const forward = (i - current + n) % n;
@@ -353,8 +374,8 @@ export default function ChartTheGameScreen() {
       if (!newestThisHalf(abs)) skipped++;
     }
     const already = Boolean(newestThisHalf(atBatsByBatter.get(target.id) ?? []));
+    let ok = true;
     if (forward !== 1) {
-      let ok = true;
       if (already) {
         ok = await confirmAction(
           'Another at-bat?',
@@ -364,9 +385,11 @@ export default function ChartTheGameScreen() {
       } else if (skipped > 0) {
         ok = await confirmAction('Skip batters?', `Bring ${target.label} up now? ${plural(skipped, 'batter')} will be skipped.`, 'Bring up');
       }
-      lock(); // set after the dialog resolves, never before
-      if (!ok) return;
     }
+    // Every path locks (a double tap on the skip target would otherwise open the
+    // batter sheet once the row is current), set after any dialog resolves, never before.
+    lock();
+    if (!ok) return;
     pushUndo(game.id, { kind: 'skip', side, fromBatterId: from.id, toBatterId: target.id });
     setNextBatter(game.id, side, i);
     clearSelection();
@@ -408,7 +431,6 @@ export default function ChartTheGameScreen() {
   };
 
   const toggleTypes = () => {
-    userToggledTypes.current = true;
     setAutoCollapsed(false);
     setTypesForced(false);
     setTypesPref(!typesOpen);
@@ -423,7 +445,10 @@ export default function ChartTheGameScreen() {
         result: displayResult(newest),
         label: outcomeLabel(newest.outcomeId),
         half: inCurrentHalf(newest) ? undefined : halfLabel(newest.inning, newest.half),
-        onPress: () => selectAtBat(newest.id, { scroll: true, openTypes: isPlain(newest.outcomeId) }),
+        onPress: () => {
+          if (justSwitched()) return; // the readout just appeared under ▶ Now's left half
+          selectAtBat(newest.id, { scroll: true, openTypes: isPlain(newest.outcomeId) });
+        },
       }
     : undefined;
   const rejudge: DockRejudge | undefined = selected
@@ -434,7 +459,7 @@ export default function ChartTheGameScreen() {
         recorded: displayResult(selected),
         perspective: selected.side === 'us' ? 'batter' : 'pitcher',
         selectedId: isPlain(selected.outcomeId) ? undefined : selected.outcomeId,
-        onNow: clearSelection,
+        onNow: leaveRejudge,
         onMore: () => openEditor(selected.id),
       }
     : undefined;
@@ -445,19 +470,37 @@ export default function ChartTheGameScreen() {
     title: currentBatter ? `${liveCurrent + 1}. ${currentBatter.label}` : 'No batters',
     chips: headerChips,
   };
+  // While pitching the big W records our pitcher's win (the batter's L), so the
+  // labels speak in the pitcher's perspective like everything else on that side.
+  const batterName = currentBatter?.label ?? 'batter';
+  const pitcherName = pitcher ? playerShort(pitcher) : 'Our pitcher';
   const bigLabels: Record<Result, string> = selected
     ? { L: 'Change to L', W: 'Change to W' }
-    : { L: `Loss for ${currentBatter?.label ?? 'batter'}`, W: `Win for ${currentBatter?.label ?? 'batter'}` };
+    : liveSide === 'us'
+      ? { L: `Loss for ${batterName}`, W: `Win for ${batterName}` }
+      : { L: `${pitcherName} lost to ${batterName}`, W: `${pitcherName} won against ${batterName}` };
 
   const finalWord = game.score.us > game.score.them ? 'Won' : game.score.us < game.score.them ? 'Lost' : 'Tied';
   const finalColor = finalWord === 'Won' ? colors.win : finalWord === 'Lost' ? colors.loss : colors.text;
 
   // ---- Rows ----
 
-  const rows = order.map((batter, i) => {
+  // A finished game lists every at-bat: batters who left the order after
+  // batting follow the lineup as muted "LEFT GAME" rows, so the tiles add up
+  // to the game's hitting line (the Stats grid appends the same rows).
+  const leftRows: Batter[] = isFinal
+    ? leftGameBatterIds(atBats, game.id, 'us', game.lineup.map((s) => s.playerId)).map((id) => {
+        const p = playersById.get(id);
+        return { id, label: p ? playerLabel(p) : 'Removed player', short: p ? playerShort(p) : 'Removed player', left: true };
+      })
+    : [];
+  const listed = isFinal ? [...order, ...leftRows] : order;
+
+  const rows = listed.map((batter, i) => {
     const abs = atBatsByBatter.get(batter.id) ?? [];
     const isCurrent = !isFinal && !peeking && i === current;
     const tag = isFinal || peeking ? undefined : isCurrent ? 'AT-BAT' : i === onDeck ? 'ON DECK' : i === inHole ? 'IN THE HOLE' : undefined;
+    const tagTwoLines = tag === 'IN THE HOLE' && windowWidth < TAG_ONE_LINE_MIN_WIDTH;
     // This half's newest at-bat: its label under the name and, on untagged rows, its tile at the right.
     const lastHalf = isFinal ? undefined : newestThisHalf(abs);
     const label = lastHalf ? outcomeLabel(lastHalf.outcomeId) : '';
@@ -466,38 +509,48 @@ export default function ChartTheGameScreen() {
     // A finished game reads as a box score: every at-bat as a tile and the game's W/L.
     const gameLine = isFinal ? hittingFor(atBats, batter.id, game.id) : undefined;
     const flashing = flash && abs.some((ab) => ab.id === flash.id) ? flash.result : undefined;
+    const slot = batter.left ? '–' : `${i + 1}.`;
 
     return (
-      <Pressable
+      <View
         key={batter.id}
         ref={(node) => {
           rowRefs.current[batter.id] = node;
         }}
-        onPress={() => openBatter(batter.id)}
-        // On web a role of "button" renders a <button>, which may not contain the tile, chip and skip buttons.
-        accessibilityRole={Platform.OS === 'web' ? undefined : 'button'}
-        accessibilityLabel={`${i + 1}. ${batter.label}${tag ? `, ${tag.toLowerCase()}` : ''}`}
-        accessibilityHint="Open this batter's at-bats"
-        style={({ pressed }) => [
-          styles.row,
-          isCurrent && styles.rowCurrent,
-          peeking && styles.rowPeek,
-          flashing && (flashing === 'W' ? styles.rowFlashWin : styles.rowFlashLoss),
-          pressed && styles.rowPressed,
-          webCursor,
-        ]}
+        style={[styles.row, isCurrent && styles.rowCurrent, peeking && styles.rowPeek, flashing && (flashing === 'W' ? styles.rowFlashWin : styles.rowFlashLoss)]}
       >
-        <Text style={styles.num}>{i + 1}.</Text>
+        {/*
+          The row's tap target is a button stretched under the content rather
+          than around it: the tile, mini chips and skip target stay siblings, so
+          they are never buttons inside a button on web and VoiceOver reaches
+          them on iOS. The static text lets taps through (Inert) and is hidden
+          from assistive tech because this button already carries the row's label.
+        */}
+        <Pressable
+          onPress={() => openBatter(batter.id)}
+          accessibilityRole="button"
+          accessibilityLabel={`${slot} ${batter.label}${tag ? `, ${tag.toLowerCase()}` : ''}${batter.left ? ', left game' : ''}`}
+          accessibilityHint="Open this batter's at-bats"
+          style={({ pressed }) => [StyleSheet.absoluteFill, pressed && styles.rowPressed, webCursor]}
+        />
+        <Inert>
+          <Text style={styles.num}>{slot}</Text>
+        </Inert>
         <View style={styles.rowBody}>
-          <Text style={styles.name} numberOfLines={1}>
-            {batter.label}
-          </Text>
+          <BatterName label={batter.label} muted={batter.left} />
+          {batter.left ? (
+            <Inert>
+              <Text style={styles.leftCaption}>LEFT GAME</Text>
+            </Inert>
+          ) : null}
           {label || chips.length ? (
             <View style={styles.line2}>
               {label ? (
-                <Text style={styles.outcome} numberOfLines={1}>
-                  {label}
-                </Text>
+                <Inert style={styles.outcomeWrap}>
+                  <Text style={styles.outcome} numberOfLines={1}>
+                    {label}
+                  </Text>
+                </Inert>
               ) : null}
               <MiniChips chips={chips} onPress={(id) => selectAtBat(id)} />
             </View>
@@ -516,7 +569,11 @@ export default function ChartTheGameScreen() {
             </View>
           ) : null}
         </View>
-        {tag ? <Text style={styles.tag}>{tag}</Text> : null}
+        {tag ? (
+          <Inert>
+            <Text style={[styles.tag, tagTwoLines && styles.tagTwoLines]}>{tagTwoLines ? 'IN THE\nHOLE' : tag}</Text>
+          </Inert>
+        ) : null}
         {!tag && lastHalf ? (
           <ResultTile
             result={displayResult(lastHalf)}
@@ -527,11 +584,13 @@ export default function ChartTheGameScreen() {
           />
         ) : null}
         {gameLine ? (
-          gameLine.w + gameLine.l > 0 ? (
-            <WLText wl={gameLine} style={styles.gameLine} />
-          ) : (
-            <Text style={[styles.gameLine, styles.gameLineEmpty]}>-</Text>
-          )
+          <Inert>
+            {gameLine.w + gameLine.l > 0 ? (
+              <WLText wl={gameLine} style={styles.gameLine} />
+            ) : (
+              <Text style={[styles.gameLine, styles.gameLineEmpty]}>-</Text>
+            )}
+          </Inert>
         ) : null}
         {showSkip ? (
           <Pressable
@@ -544,7 +603,7 @@ export default function ChartTheGameScreen() {
             <FontAwesome6 name="forward-step" size={12} color={colors.tabLabel} style={styles.skipIcon} />
           </Pressable>
         ) : null}
-      </Pressable>
+      </View>
     );
   });
 
@@ -626,6 +685,42 @@ export default function ChartTheGameScreen() {
   );
 }
 
+/**
+ * Static row content: taps pass through to the row's stretched button
+ * beneath, and assistive tech skips it because that button already carries
+ * the row's label.
+ */
+function Inert({ style, children }: { style?: StyleProp<ViewStyle>; children: React.ReactNode }) {
+  return (
+    <View aria-hidden style={[styles.inert, style]}>
+      {children}
+    </View>
+  );
+}
+
+/**
+ * The batter's name on one line: 20pt bold, dropping to 18pt when the label
+ * would not fit its column (the layout spec's rule; React Native Web has no
+ * adjustsFontSizeToFit). A hidden copy at 20pt measures the natural width
+ * against the column's, so the rule holds for whatever the tag, tile and
+ * skip target leave free on this row.
+ */
+function BatterName({ label, muted }: { label: string; muted?: boolean }) {
+  const [natural, setNatural] = useState(0);
+  const [available, setAvailable] = useState(0);
+  const small = natural > 0 && available > 0 && natural > available;
+  return (
+    <View aria-hidden style={styles.inert} onLayout={(e) => setAvailable(e.nativeEvent.layout.width)}>
+      <Text style={[styles.name, small && styles.nameSmall, muted && styles.nameMuted]} numberOfLines={1}>
+        {label}
+      </Text>
+      <Text style={[styles.name, styles.nameMeasure]} numberOfLines={1} onLayout={(e) => setNatural(e.nativeEvent.layout.width)}>
+        {label}
+      </Text>
+    </View>
+  );
+}
+
 /* Row sizes follow the prototype at 375pt: 56pt rows, 20pt names, 14pt tags, 36x40 tiles. */
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
@@ -653,17 +748,26 @@ const styles = StyleSheet.create({
     minHeight: 56,
   },
   rowCurrent: { borderLeftWidth: 4, borderLeftColor: colors.currentRail, paddingLeft: 9 },
-  rowPeek: { backgroundColor: 'rgba(0, 166, 255, 0.08)' },
-  rowFlashWin: { backgroundColor: 'rgba(119, 211, 83, 0.15)' },
-  rowFlashLoss: { backgroundColor: 'rgba(249, 95, 98, 0.15)' },
+  rowPeek: { backgroundColor: colors.primaryTint },
+  rowFlashWin: { backgroundColor: colors.winTint },
+  rowFlashLoss: { backgroundColor: colors.lossTint },
   rowPressed: { backgroundColor: colors.pressed },
+  inert: { pointerEvents: 'none' },
   num: { fontFamily: fonts.regular, fontSize: 20, color: colors.textMuted, width: 34, lineHeight: 26 },
-  rowBody: { flex: 1, minWidth: 0, gap: 2 },
+  // box-none: the column itself lets taps through to the row button; the chips and tiles inside still take theirs.
+  rowBody: { flex: 1, minWidth: 0, gap: 2, pointerEvents: 'box-none' },
   name: { fontFamily: fonts.bold, fontSize: 20, color: colors.text, lineHeight: 26 },
-  line2: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  outcome: { fontFamily: fonts.bold, fontSize: 13, lineHeight: 16, color: colors.text, flexShrink: 1 },
-  tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, paddingTop: 2 },
+  nameSmall: { fontSize: 18 },
+  nameMuted: { color: colors.textMuted },
+  // Invisible, out of flow, and wider than any column, so its onLayout width is the label's natural width.
+  nameMeasure: { position: 'absolute', left: 0, top: 0, opacity: 0, maxWidth: 10000 },
+  leftCaption: { fontFamily: fonts.bold, fontSize: 10, lineHeight: 12, color: colors.textMuted, letterSpacing: 0.6 },
+  line2: { flexDirection: 'row', alignItems: 'center', gap: 6, pointerEvents: 'box-none' },
+  outcomeWrap: { flexShrink: 1, minWidth: 0 },
+  outcome: { fontFamily: fonts.bold, fontSize: 13, lineHeight: 16, color: colors.text },
+  tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, paddingTop: 2, pointerEvents: 'box-none' },
   tag: { fontFamily: fonts.regular, fontSize: 14, color: colors.text, textTransform: 'uppercase', lineHeight: 26, flexShrink: 0 },
+  tagTwoLines: { lineHeight: 18, textAlign: 'right' },
   gameLine: { fontSize: 15, lineHeight: 26, marginRight: 8 },
   gameLineEmpty: { fontFamily: fonts.bold, color: colors.textMuted },
   skip: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },

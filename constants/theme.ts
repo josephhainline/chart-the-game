@@ -18,6 +18,10 @@ export const colors = {
   amberInk: '#8A5A00',
   /** Left rail on the AT-BAT row and the re-judge border. */
   currentRail: '#FF9052',
+  /** Translucent tints for row states: peeking the other side's order, a re-judged W or L. */
+  primaryTint: 'rgba(0, 166, 255, 0.08)',
+  winTint: 'rgba(119, 211, 83, 0.15)',
+  lossTint: 'rgba(249, 95, 98, 0.15)',
   pitching: '#976DD0',
   navy: '#040B71',
   text: '#495460',

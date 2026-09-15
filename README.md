@@ -53,6 +53,6 @@ Artifact prototype is built from.
 | `docs/PRODUCT_SPEC.md` | Screens, palette, copy, data model — the source of truth |
 | `MarvelPrototype_v1/` | Offline export of the Marvel prototype (open `index.html`) |
 | `app/` | expo-router routes: app level → team level → game level |
-| `lib/` | Data model, store + persistence, stats, demo seed, outcomes |
-| `components/` | Header, tab bar, charting gauge, lineup editor, scorebook, … |
+| `lib/` | Data model, store + persistence, stats, demo seed, outcomes, at-bat ordering, undo stack, UI prefs |
+| `components/` | Header, tab bar, capture dock, inning strip, charting gauge, lineup editor, scorebook, … |
 | `constants/theme.ts` | Design tokens sampled from the prototype |
