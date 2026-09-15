@@ -72,7 +72,9 @@ FontAwesome6 from `@expo/vector-icons` only. No react-native-paper, no lucide.
   the pitcher lives in `Game.pitcherId`. A substitution swaps one slot's
   player in place and appends a `Substitution` record; taking a player out
   with the lineup editor records nothing (his row becomes LEFT GAME).
-- React Native Web's `Alert` is a no-op: use `confirmAction()` from `lib/confirm.ts`.
+- React Native Web's `Alert` is a no-op and `window.confirm` is ignored inside the
+  sandboxed frames artifact hosts use: use `confirmAction()` from `lib/confirm.ts`,
+  which shows the in-app `ConfirmDialog` on web (mounted once in `app/_layout.tsx`).
 - Reorder controls are up/down arrows (web drag-and-drop is unreliable).
 - Tab layouts must pass `initialParams={{ teamId }}` / `{{ gameId }}` to every
   `Tabs.Screen`, or unvisited tabs render without their route id.

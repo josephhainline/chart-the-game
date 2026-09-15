@@ -9,6 +9,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import ConfirmDialog from '@/components/ConfirmDialog';
 import PhoneFrame from '@/components/PhoneFrame';
 import { colors, fonts } from '@/constants/theme';
 import { StoreProvider, useStore } from '@/lib/store';
@@ -55,6 +56,7 @@ export default function RootLayout() {
             <PhoneFrame>
               <StatusBar style="light" />
               {fontsLoaded || fontError ? <AppStack /> : <Splash />}
+              <ConfirmDialog />
             </PhoneFrame>
           </ThemeProvider>
         </StoreProvider>
