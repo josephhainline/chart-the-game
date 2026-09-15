@@ -1,15 +1,18 @@
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { PHONE_MAX_WIDTH, colors, fonts } from '@/constants/theme';
 import type { WL } from '@/lib/stats';
 import type { Result } from '@/lib/types';
 
+const webCursor = Platform.OS === 'web' ? ({ cursor: 'pointer' } as const) : null;
+
 /** One charted at-bat as shown in a scorebook cell. */
 export type ScorebookCell = {
+  atBatId: string;
   /** Already from the perspective being shown (W = green). */
   result: Result;
-  /** Outcome abbreviation ("K", "BB", "H", …) from `lib/outcomes`. */
+  /** Outcome abbreviation ("K", "BB", "H", …) from `lib/outcomes`; '' for a plain at-bat. */
   short: string;
 };
 
@@ -24,6 +27,10 @@ export type ScorebookRowView = {
   /** One entry per inning, each holding that batter's at-bats in the inning. */
   innings: ScorebookCell[][];
   wl: WL;
+  /** Name in the muted color: a batter who left the order mid-game. */
+  muted?: boolean;
+  /** Small note under the name ("LEFT GAME"). */
+  note?: string;
 };
 
 type Props = {
@@ -33,6 +40,8 @@ type Props = {
   color?: string;
   innings: number[];
   rows: ScorebookRowView[];
+  /** Makes every inning cell with at-bats a button: receives the cell's at-bat ids and the row id. */
+  onPressCell?: (atBatIds: string[], rowId: string) => void;
 };
 
 /*
@@ -56,7 +65,7 @@ const HEADER_H = 26;
  * W or L over the outcome code in each cell (over a faint diamond), and a
  * W-L total pinned on the right.
  */
-export default function Scorebook({ title, color = colors.primaryDark, innings, rows }: Props) {
+export default function Scorebook({ title, color = colors.primaryDark, innings, rows, onPressCell }: Props) {
   const dims = useWindowDimensions();
   const [measured, setMeasured] = useState(0);
   const gridW = measured || Math.min(dims.width, PHONE_MAX_WIDTH);
@@ -117,18 +126,32 @@ export default function Scorebook({ title, color = colors.primaryDark, innings, 
                     <Text style={styles.slotText}>{row.slot}</Text>
                   </View>
                   <View style={[styles.cell, styles.nameCell, { width: nameW }]}>
-                    <Text style={[styles.nameText, { fontSize: nameFont }]} numberOfLines={2}>
+                    <Text
+                      style={[styles.nameText, { fontSize: nameFont }, row.muted && styles.nameMuted]}
+                      numberOfLines={row.note ? 1 : 2}
+                    >
                       {row.name}
                     </Text>
+                    {row.note ? <Text style={styles.noteText}>{row.note}</Text> : null}
                   </View>
                   {showPos ? (
                     <View style={[styles.cell, { width: POS_W }]}>
                       <Text style={styles.posText}>{row.position ?? ''}</Text>
                     </View>
                   ) : null}
-                  {innings.map((n, i) => (
-                    <InningCell key={n} atBats={row.innings[i] ?? []} width={cellW} />
-                  ))}
+                  {innings.map((n, i) => {
+                    const atBats = row.innings[i] ?? [];
+                    const pressable = Boolean(onPressCell) && atBats.length > 0;
+                    return (
+                      <InningCell
+                        key={n}
+                        atBats={atBats}
+                        width={cellW}
+                        onPress={pressable ? () => onPressCell?.(atBats.map((ab) => ab.atBatId), row.id) : undefined}
+                        accessibilityLabel={`${row.name}, inning ${n}, ${atBats.map((ab) => ab.result).join(', ')}`}
+                      />
+                    );
+                  })}
                 </View>
               ))}
             </View>
@@ -170,9 +193,20 @@ function resultColor(result: Result): string {
   return result === 'W' ? colors.win : colors.loss;
 }
 
-function InningCell({ atBats, width }: { atBats: ScorebookCell[]; width: number }) {
-  return (
-    <View style={[styles.cell, styles.inningCell, { width }]}>
+/** One inning cell; a button (tap to edit that at-bat) when `onPress` is given. */
+function InningCell({
+  atBats,
+  width,
+  onPress,
+  accessibilityLabel,
+}: {
+  atBats: ScorebookCell[];
+  width: number;
+  onPress?: () => void;
+  accessibilityLabel: string;
+}) {
+  const body = (
+    <>
       <View style={styles.countBox}>
         <View style={styles.countBoxLine} />
       </View>
@@ -186,8 +220,8 @@ function InningCell({ atBats, width }: { atBats: ScorebookCell[]; width: number 
         </>
       ) : atBats.length > 1 ? (
         <View style={styles.multi}>
-          {atBats.map((ab, i) => (
-            <View key={i} style={styles.multiRow}>
+          {atBats.map((ab) => (
+            <View key={ab.atBatId} style={styles.multiRow}>
               <Text style={[styles.smallResult, { color: resultColor(ab.result) }]}>{ab.result}</Text>
               <Text style={[styles.smallCode, { color: resultColor(ab.result) }]} numberOfLines={1}>
                 {ab.short}
@@ -196,7 +230,21 @@ function InningCell({ atBats, width }: { atBats: ScorebookCell[]; width: number 
           ))}
         </View>
       ) : null}
-    </View>
+    </>
+  );
+  if (!onPress) {
+    return <View style={[styles.cell, styles.inningCell, { width }]}>{body}</View>;
+  }
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityHint="Edit this at-bat"
+      style={({ pressed }) => [styles.cell, styles.inningCell, { width }, pressed && styles.cellPressed, webCursor]}
+    >
+      {body}
+    </Pressable>
   );
 }
 
@@ -236,11 +284,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  cellPressed: { backgroundColor: colors.pressed },
   nameCell: { alignItems: 'flex-start', paddingHorizontal: 4 },
   emptyCell: { flex: 1, paddingHorizontal: 12 },
   emptyText: { fontFamily: fonts.regular, fontSize: 16, color: colors.textMuted },
   slotText: { fontFamily: fonts.regular, fontSize: 14, color: colors.text, fontVariant: ['tabular-nums'] },
   nameText: { fontFamily: fonts.bold, fontSize: 16, lineHeight: 20, color: colors.text },
+  nameMuted: { color: colors.textMuted },
+  noteText: { fontFamily: fonts.bold, fontSize: 10, lineHeight: 12, color: colors.textMuted, letterSpacing: 0.5 },
   posText: { fontFamily: fonts.bold, fontSize: 14, color: colors.primaryDark },
   inningCell: { overflow: 'hidden' },
   countBox: {

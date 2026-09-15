@@ -7,7 +7,7 @@ import { colors, fonts } from '@/constants/theme';
 export type NeedleSide = 'center' | 'L' | 'W';
 
 type Props = {
-  /** Where the needle should swing. 'L'/'W' swing toward that result's side, then ease back to center. */
+  /** Where the needle should swing. 'L'/'W' swing toward that result's side, then ease back to `rest`. */
   needle: NeedleSide;
   /** Bump this to replay the swing when the same result is recorded twice in a row. */
   pulse?: number;
@@ -17,6 +17,11 @@ type Props = {
    * matching the outcome button columns when the opponent is batting.
    */
   perspective?: 'batter' | 'pitcher';
+  /**
+   * Where the needle sits between swings (default 'center'). The dock's
+   * re-judge mode rests it on the recorded side of the at-bat being reviewed.
+   */
+  rest?: NeedleSide;
   /** Rendered width in px. Height follows the semicircle's proportions. */
   width?: number;
 };
@@ -41,34 +46,43 @@ const TICKS = 7; // three red, one amber, three green
 const TICK_PITCH_DEG = 35;
 const HUB_BOX = 64; // side of the square that the needle rotates inside
 const SWING_DEG = 62;
+/** A resting needle points at the middle bar of its side, short of a full swing so a swing still reads. */
+const REST_DEG = 45;
 
 const NEEDLE_PATH = 'M 0 -22 L 11 -4.8 A 12 12 0 1 1 -11 -4.8 Z';
+
+/** Angle for a side in the given perspective: the W side is on the right when we bat, on the left when we pitch. */
+function sideAngle(side: NeedleSide, perspective: 'batter' | 'pitcher', degrees: number): number {
+  if (side === 'center') return 0;
+  const goesRight = side === 'W' ? perspective === 'batter' : perspective === 'pitcher';
+  return goesRight ? degrees : -degrees;
+}
 
 /**
  * The "Chart The Game" gauge from the prototype: a gray arc, seven chunky
  * bars (loss side, amber center, win side) and a gray teardrop needle that
- * swings toward the recorded result and eases back to center.
+ * swings toward the recorded result and eases back to its resting position.
  */
-export default function CTGGauge({ needle, pulse = 0, perspective = 'batter', width = 80 }: Props) {
+export default function CTGGauge({ needle, pulse = 0, perspective = 'batter', rest = 'center', width = 80 }: Props) {
   const angle = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    const restAngle = sideAngle(rest, perspective, REST_DEG);
     if (needle === 'center') {
-      Animated.timing(angle, { toValue: 0, duration: 350, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
+      Animated.timing(angle, { toValue: restAngle, duration: 350, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
       return;
     }
-    const goesRight = needle === 'W' ? perspective === 'batter' : perspective === 'pitcher';
     Animated.sequence([
       Animated.timing(angle, {
-        toValue: goesRight ? SWING_DEG : -SWING_DEG,
+        toValue: sideAngle(needle, perspective, SWING_DEG),
         duration: 260,
         easing: Easing.out(Easing.back(1.2)),
         useNativeDriver: false,
       }),
       Animated.delay(700),
-      Animated.timing(angle, { toValue: 0, duration: 450, easing: Easing.inOut(Easing.cubic), useNativeDriver: false }),
+      Animated.timing(angle, { toValue: restAngle, duration: 450, easing: Easing.inOut(Easing.cubic), useNativeDriver: false }),
     ]).start();
-  }, [needle, pulse, perspective, angle]);
+  }, [needle, pulse, perspective, rest, angle]);
 
   const k = width / VB_W;
   const height = VB_H * k;

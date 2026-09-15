@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Platform } from 'react-native';
 
+import { newestAtBat } from './atbats';
 import { newId } from './ids';
 import { getOutcome } from './outcomes';
 import { buildDemoData } from './seed';
@@ -78,6 +79,12 @@ export type NewPlayerInput = {
   number?: string;
 };
 
+/** Where a backfilled at-bat goes: the batter and half-inning it belongs to. */
+export type AtBatTarget = { side: Side; batterId: Id; inning: number; half: Half };
+
+/** The fields of an at-bat the editor and the re-judge path may change; `result` is always derived. */
+export type AtBatPatch = Partial<Pick<AtBat, 'outcomeId' | 'batterId' | 'pitcherId' | 'inning' | 'half'>>;
+
 export type Store = {
   data: AppData;
   /** false until the persisted document has been read. */
@@ -102,12 +109,35 @@ export type Store = {
   deleteGame: (gameId: Id) => void;
   setGameLineup: (gameId: Id, lineup: LineupSlot[]) => void;
   setOpponentLineup: (gameId: Id, batters: OpponentBatter[]) => void;
-  setPitcher: (gameId: Id, playerId: Id | undefined) => void;
+  /**
+   * Sets our pitcher and credits this half's opponent at-bats that have no
+   * pitcher yet. With `recreditHalf`, this half's opponent at-bats that name a
+   * different pitcher are re-stamped too (a pitching change charted late).
+   */
+  setPitcher: (gameId: Id, playerId: Id | undefined, opts?: { recreditHalf?: boolean }) => void;
   setScore: (gameId: Id, score: Game['score']) => void;
   nextHalfInning: (gameId: Id) => void;
   prevHalfInning: (gameId: Id) => void;
   setNextBatter: (gameId: Id, side: Side, index: number) => void;
-  recordAtBat: (gameId: Id, outcomeId: OutcomeId) => AtBat | undefined;
+  /**
+   * Without `target`: charts the batter due up in the current half-inning and
+   * advances that side's pointer. With `target` (a backfill): stamps those
+   * four fields and leaves both pointers and the clock alone.
+   */
+  recordAtBat: (gameId: Id, outcomeId: OutcomeId, target?: AtBatTarget) => AtBat | undefined;
+  /** Re-judges an at-bat in place: `result` is derived from the outcome; the game document is never touched. */
+  updateAtBat: (atBatId: Id, patch: AtBatPatch) => AtBat | undefined;
+  /**
+   * Removes an at-bat. That side's pointer rolls back to the batter's slot
+   * only when the at-bat is the game's newest and the pointer sits right after
+   * the slot (record-then-remove equals undo; a skip made since is kept).
+   * The clock never changes. Returns the removed copy for `restoreAtBat`.
+   * `keepPointer` skips the roll-back (undoing a backfill, which never moved
+   * the pointer in the first place).
+   */
+  deleteAtBat: (atBatId: Id, opts?: { keepPointer?: boolean }) => AtBat | undefined;
+  /** Puts a removed at-bat back (no-op if its id exists); pointers and clock untouched. */
+  restoreAtBat: (atBat: AtBat) => void;
   undoLastAtBat: (gameId: Id) => AtBat | undefined;
   finishGame: (gameId: Id, input: { score: Game['score']; notes?: string }) => void;
   reopenGame: (gameId: Id) => void;
@@ -423,20 +453,22 @@ export function StoreProvider({ children, initialData }: { children: React.React
           theirNextBatter: carryNextBatter(g.opponentLineup, g.theirNextBatter, batters, (b) => b.id),
         })),
 
-      setPitcher: (gameId, playerId) =>
+      setPitcher: (gameId, playerId, opts) =>
         update((d) => {
           const game = d.games.find((g) => g.id === gameId);
           if (!game) return d;
           // Opponent at-bats charted this half-inning before a pitcher was
           // chosen were thrown by this pitcher: credit them now. At-bats that
-          // already name a pitcher are never re-credited.
+          // already name a pitcher are only re-credited when asked to
+          // (`recreditHalf`: the change happened before they were charted).
+          const recredit = Boolean(opts?.recreditHalf);
           const atBats =
             playerId === undefined
               ? d.atBats
               : d.atBats.map((ab) =>
                   ab.gameId === gameId &&
                   ab.side === 'them' &&
-                  ab.pitcherId === undefined &&
+                  (ab.pitcherId === undefined || (recredit && ab.pitcherId !== playerId)) &&
                   ab.inning === game.inning &&
                   ab.half === game.half
                     ? { ...ab, pitcherId: playerId }
@@ -469,15 +501,41 @@ export function StoreProvider({ children, initialData }: { children: React.React
           ...(side === 'us' ? { ourNextBatter: index } : { theirNextBatter: index }),
         })),
 
-      recordAtBat: (gameId, outcomeId) => {
+      recordAtBat: (gameId, outcomeId, target) => {
         const game = dataRef.current.games.find((g) => g.id === gameId);
         if (!game) return undefined;
+        const outcome = getOutcome(outcomeId);
+
+        if (target) {
+          // A backfill: the at-bat goes where the coach says; nothing else moves.
+          const atBat: AtBat = {
+            id: newId('ab'),
+            gameId,
+            side: target.side,
+            batterId: target.batterId,
+            pitcherId: target.side === 'them' ? game.pitcherId : undefined,
+            inning: target.inning,
+            half: target.half,
+            outcomeId,
+            result: outcome.result,
+            recordedAt: now(),
+          };
+          update((d) => ({
+            ...d,
+            atBats: [...d.atBats, atBat],
+            games: d.games.map((g) =>
+              g.id === gameId ? { ...g, status: g.status === 'scheduled' ? 'in_progress' : g.status } : g,
+            ),
+          }));
+          flushNow();
+          return atBat;
+        }
+
         const side = battingSide(game);
         const order = side === 'us' ? game.lineup : game.opponentLineup;
         if (order.length === 0) return undefined;
         const index = side === 'us' ? game.ourNextBatter % order.length : game.theirNextBatter % order.length;
         const batterId = side === 'us' ? game.lineup[index].playerId : game.opponentLineup[index].id;
-        const outcome = getOutcome(outcomeId);
         const atBat: AtBat = {
           id: newId('ab'),
           gameId,
@@ -506,6 +564,62 @@ export function StoreProvider({ children, initialData }: { children: React.React
         // One tap every few seconds: write it straight away.
         flushNow();
         return atBat;
+      },
+
+      updateAtBat: (atBatId, patch) => {
+        const current = dataRef.current.atBats.find((ab) => ab.id === atBatId);
+        if (!current) return undefined;
+        const next: AtBat = { ...current };
+        if (patch.outcomeId !== undefined) next.outcomeId = patch.outcomeId;
+        if (patch.batterId !== undefined) next.batterId = patch.batterId;
+        // An explicit `pitcherId: undefined` clears the pitcher (and restores an at-bat that had none).
+        if ('pitcherId' in patch) next.pitcherId = patch.pitcherId;
+        if (patch.inning !== undefined) next.inning = Math.max(1, Math.round(patch.inning));
+        if (patch.half !== undefined) next.half = patch.half;
+        // The letter is always derived from the outcome, never stored on its own.
+        next.result = getOutcome(next.outcomeId).result;
+        update((d) => ({ ...d, atBats: d.atBats.map((ab) => (ab.id === atBatId ? next : ab)) }));
+        flushNow();
+        return next;
+      },
+
+      deleteAtBat: (atBatId, opts) => {
+        const removed = dataRef.current.atBats.find((ab) => ab.id === atBatId);
+        if (!removed) return undefined;
+        update((d) => {
+          const gameAtBats = d.atBats.filter((ab) => ab.gameId === removed.gameId);
+          const isNewest = newestAtBat(gameAtBats)?.id === atBatId;
+          return {
+            ...d,
+            atBats: d.atBats.filter((ab) => ab.id !== atBatId),
+            games: d.games.map((g) => {
+              if (g.id !== removed.gameId || !isNewest || opts?.keepPointer) return g;
+              // Record-then-remove is an undo: the batter is due up again. Any
+              // other pointer position (a skip since, an earlier at-bat, a
+              // batter who left the order) is left exactly where it is.
+              const slot =
+                removed.side === 'us'
+                  ? g.lineup.findIndex((s) => s.playerId === removed.batterId)
+                  : g.opponentLineup.findIndex((b) => b.id === removed.batterId);
+              if (slot < 0) return g;
+              const n = removed.side === 'us' ? g.lineup.length : g.opponentLineup.length;
+              const pointer = removed.side === 'us' ? g.ourNextBatter : g.theirNextBatter;
+              if (pointer !== (slot + 1) % n) return g;
+              return { ...g, ...(removed.side === 'us' ? { ourNextBatter: slot } : { theirNextBatter: slot }) };
+            }),
+          };
+        });
+        flushNow();
+        return removed;
+      },
+
+      restoreAtBat: (atBat) => {
+        const d = dataRef.current;
+        if (d.atBats.some((ab) => ab.id === atBat.id)) return;
+        if (!d.games.some((g) => g.id === atBat.gameId)) return;
+        // Array order is irrelevant: every view sorts by inning, half, recordedAt.
+        update((doc) => ({ ...doc, atBats: [...doc.atBats, atBat] }));
+        flushNow();
       },
 
       undoLastAtBat: (gameId) => {

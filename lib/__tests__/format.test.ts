@@ -5,6 +5,7 @@ import {
   countdownLabel,
   gameDateLine,
   gameTitle,
+  halfLabel,
   inningOrdinal,
   monthBand,
   monthKey,
@@ -127,6 +128,22 @@ describe('gameDateLine / timeShort / inningOrdinal', () => {
     [31, '31st'],
   ])('inningOrdinal(%i) is "%s"', (n, s) => {
     expect(inningOrdinal(n)).toBe(s);
+  });
+});
+
+describe('halfLabel', () => {
+  it('is a caret for the half followed by the inning ordinal', () => {
+    expect(halfLabel(1, 'top')).toBe('▲ 1st');
+    expect(halfLabel(2, 'bottom')).toBe('▼ 2nd');
+    expect(halfLabel(3, 'top')).toBe('▲ 3rd');
+    expect(halfLabel(11, 'bottom')).toBe('▼ 11th');
+  });
+
+  it('uses the same ordinal as inningOrdinal', () => {
+    for (const n of [1, 2, 3, 4, 12, 21]) {
+      expect(halfLabel(n, 'top')).toBe(`▲ ${inningOrdinal(n)}`);
+      expect(halfLabel(n, 'bottom')).toBe(`▼ ${inningOrdinal(n)}`);
+    }
   });
 });
 

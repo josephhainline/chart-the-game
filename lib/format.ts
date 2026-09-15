@@ -1,6 +1,6 @@
 import { differenceInCalendarDays, format } from 'date-fns';
 
-import type { Game, OpponentBatter, Player } from './types';
+import type { Game, Half, OpponentBatter, Player } from './types';
 
 /** AP-style month abbreviations, matching the prototype ("Sept 2024"). */
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'June', 'July', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'];
@@ -113,4 +113,9 @@ export function signed(n: number): string {
 /** "1st", "2nd", "3rd", "4th" */
 export function inningOrdinal(n: number): string {
   return ordinal(n);
+}
+
+/** "▲ 1st" / "▼ 2nd" — the half-inning as the inning strip and the at-bat readouts show it. */
+export function halfLabel(inning: number, half: Half): string {
+  return `${half === 'top' ? '▲' : '▼'} ${inningOrdinal(inning)}`;
 }

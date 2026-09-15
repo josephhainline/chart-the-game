@@ -1,5 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
+import { isPlain, outcomeShort } from '../outcomes';
 import { buildDemoData } from '../seed';
 import {
   REMOVED_ROW_ID,
@@ -8,6 +9,7 @@ import {
   gameHitting,
   gamePitching,
   hittingFor,
+  leftGameBatterIds,
   pitcherResult,
   pitchingFor,
   rankByHitting,
@@ -374,6 +376,82 @@ describe('scorebook', () => {
   });
 });
 
+describe('leftGameBatterIds', () => {
+  const order = ['p1', 'p2', 'p3'];
+  const atBats: AtBat[] = [
+    // Array order is deliberately not game order: p_late's first at-bat is the earliest on the clock.
+    ab({ batterId: 'p_gone', result: 'W', inning: 2, recordedAt: '2026-09-07T14:20:00.000Z' }),
+    ab({ batterId: 'p1', result: 'W', inning: 1, recordedAt: '2026-09-07T14:00:00.000Z' }),
+    ab({ batterId: 'p_late', result: 'L', inning: 3, recordedAt: '2026-09-07T14:40:00.000Z' }),
+    ab({ batterId: 'p_late', result: 'W', inning: 1, recordedAt: '2026-09-07T14:05:00.000Z' }),
+    ab({ batterId: 'p_gone', result: 'L', inning: 4, recordedAt: '2026-09-07T14:50:00.000Z' }),
+    // Other side and other game: never listed.
+    ab({ batterId: 'ob_x', result: 'L', side: 'them', pitcherId: 'p1', inning: 1 }),
+    ab({ batterId: 'p_other_game', result: 'W', gameId: 'g2', inning: 1 }),
+  ];
+
+  it('lists batters with at-bats who are not in the order, once each, by their first at-bat on the clock', () => {
+    expect(leftGameBatterIds(atBats, 'g1', 'us', order)).toEqual(['p_late', 'p_gone']);
+  });
+
+  it('is empty when everyone with an at-bat is still in the order', () => {
+    expect(leftGameBatterIds(atBats, 'g1', 'us', [...order, 'p_gone', 'p_late'])).toEqual([]);
+    expect(leftGameBatterIds([], 'g1', 'us', order)).toEqual([]);
+  });
+
+  it('only looks at the given game and side', () => {
+    expect(leftGameBatterIds(atBats, 'g1', 'them', [])).toEqual(['ob_x']);
+    expect(leftGameBatterIds(atBats, 'g1', 'them', ['ob_x'])).toEqual([]);
+    expect(leftGameBatterIds(atBats, 'g2', 'us', [])).toEqual(['p_other_game']);
+  });
+
+  it('with an empty order every batter who hit is listed, in clock order', () => {
+    expect(leftGameBatterIds(atBats, 'g1', 'us', [])).toEqual(['p1', 'p_late', 'p_gone']);
+  });
+});
+
+describe('plain at-bats (no play type) in the totals', () => {
+  const atBats: AtBat[] = [
+    ab({ batterId: 'p1', result: 'W', outcomeId: 'plain_w', inning: 1 }),
+    ab({ batterId: 'p1', result: 'L', outcomeId: 'plain_l', inning: 2 }),
+    ab({ batterId: 'p1', result: 'W', outcomeId: 'hit', inning: 3 }),
+    ab({ batterId: 'ob1', result: 'L', outcomeId: 'plain_l', side: 'them', pitcherId: 'p1', inning: 1 }),
+    ab({ batterId: 'ob2', result: 'W', outcomeId: 'plain_w', side: 'them', pitcherId: 'p1', inning: 1 }),
+    ab({ batterId: 'ob3', result: 'L', outcomeId: 'k_swinging', side: 'them', pitcherId: 'p1', inning: 2 }),
+  ];
+
+  it('count exactly like typed ones in hitting and pitching', () => {
+    expect(hittingFor(atBats, 'p1')).toEqual({ w: 2, l: 1 });
+    expect(gameHitting(atBats, 'g1')).toEqual({ w: 2, l: 1 });
+    expect(pitchingFor(atBats, 'p1')).toEqual({ w: 2, l: 1 });
+    expect(gamePitching(atBats, 'g1')).toEqual({ w: 2, l: 1 });
+  });
+
+  it('appear in the scorebook cells with a blank code', () => {
+    const ours = scorebook(atBats, 'g1', 'us', [{ id: 'p1' }]);
+    expect(ours.rows[0].innings.map((cell) => cell.map((x) => [x.result, outcomeShort(x.outcomeId)]))).toEqual([
+      [['W', '']],
+      [['L', '']],
+      [['W', 'H']],
+    ]);
+    expect(ours.rows[0].wl).toEqual({ w: 2, l: 1 });
+    const theirs = scorebook(atBats, 'g1', 'them', [{ id: 'ob1' }, { id: 'ob2' }, { id: 'ob3' }]);
+    expect(theirs.rows.map((r) => r.wl)).toEqual([{ w: 1, l: 0 }, { w: 0, l: 1 }, { w: 1, l: 0 }]);
+    expect(outcomeShort(theirs.rows[0].innings[0][0].outcomeId)).toBe('');
+  });
+
+  it('roll into the season table and rank like any other at-bat', () => {
+    const team: Team = { id: 't1', name: 'Bears', season: '2026', defaultLineup: [{ playerId: 'p1' }], createdAt: '2026-06-01T00:00:00.000Z' };
+    const players = [player('p1', 't1', 'Pat', 'One')];
+    const games = [game('g1', 't1')];
+    const hitting = seasonTable(team, players, games, atBats, 'hitting');
+    expect(hitting[0]).toMatchObject({ wl: { w: 2, l: 1 }, score: 1 });
+    const pitching = seasonTable(team, players, games, atBats, 'pitching');
+    expect(pitching[0]).toMatchObject({ wl: { w: 2, l: 1 }, score: 1 });
+    expect(rankByHitting(['p1', 'p2'], atBats, new Set(['g1']))).toEqual(['p1', 'p2']);
+  });
+});
+
 describe('rankByHitting', () => {
   const gameIds = new Set<Id>(['g1', 'g2']);
   const atBats: AtBat[] = [
@@ -501,6 +579,25 @@ describe('with the demo data', () => {
     const scores = ranked.map((id) => score(hittingFor(data.atBats, id)));
     for (let i = 1; i < scores.length; i++) expect(scores[i - 1]).toBeGreaterThanOrEqual(scores[i]);
     expect(ranked).toHaveLength(ids.length);
+  });
+
+  it('the demo’s plain at-bats are counted in the game lines exactly like the typed ones', () => {
+    const plain = data.atBats.filter((x) => isPlain(x.outcomeId));
+    expect(plain.length).toBeGreaterThan(0);
+    const typedOnly = data.atBats.filter((x) => !isPlain(x.outcomeId));
+    for (const g of data.games) {
+      const all = gameHitting(data.atBats, g.id);
+      const typed = gameHitting(typedOnly, g.id);
+      const ours = plain.filter((x) => x.gameId === g.id && x.side === 'us');
+      expect(all).toEqual({ w: typed.w + ours.filter((x) => x.result === 'W').length, l: typed.l + ours.filter((x) => x.result === 'L').length });
+    }
+  });
+
+  it('nobody has left the order in the demo games, so no LEFT GAME rows are needed', () => {
+    for (const g of data.games) {
+      expect(leftGameBatterIds(data.atBats, g.id, 'us', g.lineup.map((s) => s.playerId))).toEqual([]);
+      expect(leftGameBatterIds(data.atBats, g.id, 'them', g.opponentLineup.map((b) => b.id))).toEqual([]);
+    }
   });
 });
 

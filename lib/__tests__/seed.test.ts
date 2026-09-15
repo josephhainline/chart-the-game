@@ -1,8 +1,8 @@
 import { describe, expect, it } from '@jest/globals';
 import { differenceInCalendarDays } from 'date-fns';
 
-import { getOutcome } from '../outcomes';
-import { DEMO_TEAM_ID, buildDemoData } from '../seed';
+import { getOutcome, isPlain } from '../outcomes';
+import { DEMO_TEAM_ID, PLAIN_EVERY, buildDemoData } from '../seed';
 import type { Game, Half, Side } from '../types';
 
 const NOW = new Date('2026-09-14T12:00:00');
@@ -337,5 +337,38 @@ describe('buildDemoData: at-bats', () => {
         }
       }
     }
+  });
+
+  describe('plain at-bats (charted with the big W/L and no play type)', () => {
+    const plain = data.atBats.filter((x) => isPlain(x.outcomeId));
+
+    it('every 7th at-bat of the dataset is plain and every other one is typed', () => {
+      expect(PLAIN_EVERY).toBe(7);
+      data.atBats.forEach((x, i) => expect(isPlain(x.outcomeId)).toBe(i % PLAIN_EVERY === PLAIN_EVERY - 1));
+      expect(plain).toHaveLength(Math.floor(data.atBats.length / PLAIN_EVERY));
+      expect(plain.length).toBeGreaterThanOrEqual(30);
+    });
+
+    it('carry the batter’s result in the plain id, for both letters and both sides', () => {
+      for (const x of plain) expect(x.outcomeId).toBe(x.result === 'W' ? 'plain_w' : 'plain_l');
+      expect(plain.some((x) => x.outcomeId === 'plain_w')).toBe(true);
+      expect(plain.some((x) => x.outcomeId === 'plain_l')).toBe(true);
+      expect(plain.some((x) => x.side === 'us')).toBe(true);
+      expect(plain.some((x) => x.side === 'them')).toBe(true);
+    });
+
+    it('appear in every final game so plain tiles and blank codes show on every scorebook', () => {
+      for (const g of finalGames) {
+        expect(plain.filter((x) => x.gameId === g.id).length).toBeGreaterThanOrEqual(3);
+      }
+    });
+
+    it('resolve through getOutcome with a blank scorebook code', () => {
+      for (const x of plain) {
+        const o = getOutcome(x.outcomeId);
+        expect(o.result).toBe(x.result);
+        expect(o.short).toBe('');
+      }
+    });
   });
 });

@@ -1,31 +1,46 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import AppHeader from '@/components/AppHeader';
-import CTGGauge, { type NeedleSide } from '@/components/CTGGauge';
+import CaptureDock, { type DockLast, type DockRejudge } from '@/components/CaptureDock';
+import type { NeedleSide } from '@/components/CTGGauge';
 import InningStrip from '@/components/InningStrip';
-import OutcomeButtons from '@/components/OutcomeButtons';
+import MiniChips, { type MiniChip } from '@/components/MiniChips';
+import ResultTile from '@/components/ResultTile';
 import Screen from '@/components/Screen';
 import { Button, EmptyState, WLText } from '@/components/ui';
 import { colors, fonts } from '@/constants/theme';
+import { compareClock, displayResult, sortAtBats } from '@/lib/atbats';
 import { confirmAction } from '@/lib/confirm';
-import { gameTitle, inningOrdinal, opponentBatterLabel, playerLabel, playerShort } from '@/lib/format';
-import { outcomeLabel } from '@/lib/outcomes';
-import { hittingFor, pitcherResult } from '@/lib/stats';
-import { battingSide, useGame, useGameAtBats, useStore, useTeamPlayers } from '@/lib/store';
-import type { AtBat, Game, OutcomeId, Result, Side } from '@/lib/types';
+import { gameTitle, halfLabel, opponentBatterLabel, playerLabel, playerShort } from '@/lib/format';
+import { isPlain, outcomeLabel, outcomeShort, plainFor } from '@/lib/outcomes';
+import { hittingFor } from '@/lib/stats';
+import { battingSide, useGame, useGameAtBats, useStore, useTeamPlayers, type AtBatPatch } from '@/lib/store';
+import type { AtBat, Game, Half, OutcomeId, Result, Side } from '@/lib/types';
+import { useTypesExpanded } from '@/lib/uiPrefs';
+import { applyUndo, popUndo, pushUndo, undoLabel, useUndoStack } from '@/lib/undo';
 
 const webCursor = Platform.OS === 'web' ? ({ cursor: 'pointer' } as const) : null;
 
-type Batter = { id: string; label: string };
+type Batter = { id: string; label: string; short: string };
 
-/** A skip made by tapping a batter row; Undo puts `from` back at bat. */
-type Skip = { side: Side; from: number; to: number };
+/** Which row to bring into view after the next render. */
+type PendingScroll = { kind: 'current' } | { kind: 'batter'; batterId: string } | null;
 
-/** How far above the current batter's row we scroll when there is room, so the previous result stays in view. */
+/** How far above the row we scroll, so exactly one previous row stays in view. */
 const SCROLL_LEAD = 56;
+/** The fourteen record buttons ignore presses this long after a record, so a double tap cannot chart two batters. */
+const LOCK_MS = 450;
+/** Windows at least this tall open the outcome types by default (until the coach toggles them). */
+const TYPES_DEFAULT_OPEN_HEIGHT = 760;
+/** Below this window height the grid uses the 'tiny' size. */
+const COMPACT_MIN_HEIGHT = 700;
+/** An open dock taller than this share of the window collapses its types automatically. */
+const DOCK_MAX_SHARE = 0.6;
+/** How long a re-judged row keeps its tint. */
+const FLASH_MS = 1000;
 
 /** Which side is up on the CTG screen: a final game always shows our lineup. */
 function screenSide(game: Game | undefined): Side {
@@ -38,138 +53,198 @@ function currentIndex(game: Game | undefined, side: Side): number {
   return n ? (side === 'us' ? game.ourNextBatter : game.theirNextBatter) % n : 0;
 }
 
+function invert(result: Result): Result {
+  return result === 'W' ? 'L' : 'W';
+}
+
+/** The half-inning after this one (mirrors the store's clock). */
+function advanceClock(clock: { inning: number; half: Half }): { inning: number; half: Half } {
+  return clock.half === 'top' ? { inning: clock.inning, half: 'bottom' } : { inning: clock.inning + 1, half: 'top' };
+}
+
+function plural(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? '' : 's'}`;
+}
+
 /**
- * The CTG charting screen: inning strip, the batting side's order with each
- * batter's result this half-inning, the expanded AT-BAT block (gauge +
- * outcome buttons) under the current batter, and a fixed Undo / End Game
- * footer that is reachable without scrolling.
+ * The CTG charting screen: a fixed header and inning strip, the batting
+ * side's order scrolling in the middle (every at-bat a tappable tile or mini
+ * chip), and the fixed Capture Dock at the bottom where the big L and W
+ * record a plain at-bat in one tap and the twelve types sit underneath.
+ * Tapping a tile puts the dock in re-judge mode for that at-bat.
  */
 export default function ChartTheGameScreen() {
   const { gameId } = useLocalSearchParams<{ gameId: string }>();
   const router = useRouter();
-  const { setNextBatter, recordAtBat, undoLastAtBat, reopenGame } = useStore();
+  const store = useStore();
+  const { setNextBatter, recordAtBat, updateAtBat, nextHalfInning, prevHalfInning, reopenGame } = store;
   const game = useGame(gameId);
   const atBats = useGameAtBats(gameId);
   const players = useTeamPlayers(game?.teamId);
+  const { height: windowHeight } = useWindowDimensions();
+  const undoStack = useUndoStack(game?.id);
 
+  /** The at-bat being re-judged, if any. */
+  const [selection, setSelection] = useState<string | null>(null);
   const [needle, setNeedle] = useState<NeedleSide>('center');
   const [pulse, setPulse] = useState(0);
+  /** A just re-judged at-bat: its row is tinted for a second. */
+  const [flash, setFlash] = useState<{ id: string; result: Result } | null>(null);
+  const [typesPref, setTypesPref] = useTypesExpanded(windowHeight >= TYPES_DEFAULT_OPEN_HEIGHT);
+  /** "add type ›" opens the grid for that re-judge without changing the saved preference. */
+  const [typesForced, setTypesForced] = useState(false);
+  const [autoCollapsed, setAutoCollapsed] = useState(false);
+  const [dockHeight, setDockHeight] = useState(0);
+  const userToggledTypes = useRef(false);
+  const lockedUntil = useRef(0);
   const needleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  /** Short-lived footer message, e.g. after an undo that crossed a half-inning. */
-  const [notice, setNotice] = useState<string | null>(null);
-  const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [lastSkip, setLastSkip] = useState<Skip | null>(null);
-
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollRef = useRef<ScrollView>(null);
   const contentRef = useRef<View>(null);
-  const atBatRef = useRef<View>(null);
-  const rowRefs = useRef<Record<number, View | null>>({});
-  const viewportHeight = useRef(0);
+  const rowRefs = useRef<Record<string, View | null>>({});
   const mounted = useRef(false);
+  const pendingScroll = useRef<PendingScroll>(null);
 
-  const side = screenSide(game);
+  const sorted = useMemo(() => sortAtBats(atBats), [atBats]);
+  const selected = selection ? sorted.find((ab) => ab.id === selection) : undefined;
+  const isFinal = game?.status === 'final';
+  const liveSide = screenSide(game);
+  // Selecting an at-bat of the side not batting peeks that side's order until the selection clears.
+  const side: Side = selected && !isFinal ? selected.side : liveSide;
+  const peeking = side !== liveSide;
   const current = currentIndex(game, side);
 
-  /** Row index to bring into view after the next render. */
-  const pendingScroll = useRef<number | null>(null);
+  const playersById = useMemo(() => new Map(players.map((p) => [p.id, p])), [players]);
+  const orderFor = useCallback(
+    (s: Side): Batter[] => {
+      if (!game) return [];
+      if (s === 'us') {
+        return game.lineup.map((slot) => {
+          const p = playersById.get(slot.playerId);
+          return { id: slot.playerId, label: p ? playerLabel(p) : 'Removed player', short: p ? playerShort(p) : 'Removed player' };
+        });
+      }
+      return game.opponentLineup.map((b) => ({ id: b.id, label: opponentBatterLabel(b), short: opponentBatterLabel(b) }));
+    },
+    [game, playersById],
+  );
+  const order = useMemo(() => orderFor(side), [orderFor, side]);
 
   useEffect(
     () => () => {
       if (needleTimer.current) clearTimeout(needleTimer.current);
-      if (noticeTimer.current) clearTimeout(noticeTimer.current);
+      if (flashTimer.current) clearTimeout(flashTimer.current);
     },
     [],
   );
 
-  // On open, and when the batting side flips (Next/Prev half), bring that
-  // side's current batter into view unless a record/undo already chose a row.
-  useEffect(() => {
-    if (pendingScroll.current === null) pendingScroll.current = current;
-    setLastSkip(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [game?.id, side]);
+  // Leaving the screen (a modal route, another tab) ends any selection.
+  useFocusEffect(
+    useCallback(
+      () => () => {
+        setSelection(null);
+        setTypesForced(false);
+      },
+      [],
+    ),
+  );
 
-  // After a record/undo/skip, scroll so the current batter's row, the outcome
-  // grid and the next two batters are visible, keeping the previous row on
-  // screen only when there is room for it.
+  // The selected at-bat was removed elsewhere (the editor): back to live.
   useEffect(() => {
+    if (selection && !selected) {
+      setSelection(null);
+      setTypesForced(false);
+    }
+  }, [selection, selected]);
+
+  // On open, and whenever the list switches sides (Next/Prev half, a peek
+  // starting or ending), bring the current batter into view unless a handler
+  // already chose a row. A final game has no current batter: it opens at the top.
+  useEffect(() => {
+    if (!pendingScroll.current && !isFinal) pendingScroll.current = { kind: 'current' };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [game?.id, side, isFinal]);
+
+  const typesOpen = (typesPref || typesForced) && !autoCollapsed;
+  // Heights come from onLayout: an open dock past 60% of the window collapses the types (large system text).
+  useEffect(() => {
+    if (typesOpen && dockHeight > windowHeight * DOCK_MAX_SHARE && !userToggledTypes.current) setAutoCollapsed(true);
+  }, [typesOpen, dockHeight, windowHeight]);
+  useEffect(() => {
+    setAutoCollapsed(false);
+    userToggledTypes.current = false;
+  }, [windowHeight]);
+
+  // The one scroll rule: after a record, undo, skip, half flip or a stepper
+  // selection, put the row 56pt below the top so one previous row stays in view.
+  useEffect(() => {
+    const pending = pendingScroll.current;
+    if (!pending) return;
+    pendingScroll.current = null;
     const animated = mounted.current;
     mounted.current = true;
-    const index = pendingScroll.current;
-    if (index === null) return;
-    pendingScroll.current = null;
-    const row = rowRefs.current[index];
+    const id = pending.kind === 'current' ? order[current]?.id : pending.batterId;
+    const row = id ? rowRefs.current[id] : null;
     const content = contentRef.current;
-    const block = atBatRef.current;
     if (!row || !content) return;
-    const scrollTo = (y: number) => scrollRef.current?.scrollTo({ y: Math.max(0, y), animated });
     row.measureLayout(
       content,
-      (_x, rowY, _w, rowH) => {
-        if (!block) return scrollTo(rowY - SCROLL_LEAD);
-        block.measureLayout(
-          content,
-          (_bx, _by, _bw, blockH) => {
-            const needed = rowH + blockH + 2 * rowH; // AT-BAT row, the grid, ON DECK and IN THE HOLE
-            // Show as much of that as fits, but never push the current batter's own row off the top.
-            scrollTo(Math.min(rowY, Math.max(rowY - SCROLL_LEAD, rowY + needed - viewportHeight.current)));
-          },
-          () => scrollTo(rowY - SCROLL_LEAD),
-        );
-      },
+      (_x, y) => scrollRef.current?.scrollTo({ y: Math.max(0, y - SCROLL_LEAD), animated }),
       () => {},
     );
   });
 
   if (!game) return null;
 
-  const isFinal = game.status === 'final';
-  const perspective = side === 'us' ? 'batter' : 'pitcher';
-  const playersById = new Map(players.map((p) => [p.id, p]));
-  const order: Batter[] =
-    side === 'us'
-      ? game.lineup.map((slot) => {
-          const p = playersById.get(slot.playerId);
-          return { id: slot.playerId, label: p ? playerLabel(p) : 'Removed player' };
-        })
-      : game.opponentLineup.map((b) => ({ id: b.id, label: opponentBatterLabel(b) }));
   const n = order.length;
   const onDeck = n > 1 ? (current + 1) % n : -1;
   const inHole = n > 2 ? (current + 2) % n : -1;
+  const liveOrder = peeking ? orderFor(liveSide) : order;
+  const liveCurrent = currentIndex(game, liveSide);
+  const currentBatter: Batter | undefined = liveOrder[liveCurrent];
   const pitcher = playersById.get(game.pitcherId ?? '');
-  const needsPitcher = !isFinal && side === 'them' && !pitcher;
+  const needsPitcher = !isFinal && liveSide === 'them' && !pitcher;
+  const livePerspective = liveSide === 'us' ? 'batter' : 'pitcher';
+  const newest = sorted.length ? sorted[sorted.length - 1] : undefined;
+  // The clock is behind the newest charted half (Prev half): the strip shows the review line.
+  const reviewing = !isFinal && newest && compareClock(game, newest) < 0 ? { inning: newest.inning, half: newest.half } : undefined;
+  const inCurrentHalf = (ab: AtBat) => ab.inning === game.inning && ab.half === game.half;
 
-  // Each batter's latest at-bat in the current half-inning (atBats are in recording order).
-  const lastByBatter = new Map<string, AtBat>();
-  for (const ab of atBats) {
-    if (ab.side === side && ab.inning === game.inning && ab.half === game.half) lastByBatter.set(ab.batterId, ab);
+  /** Every at-bat of the displayed side, per batter, in game order. */
+  const atBatsByBatter = new Map<string, AtBat[]>();
+  for (const ab of sorted) {
+    if (ab.side !== side) continue;
+    const list = atBatsByBatter.get(ab.batterId);
+    if (list) list.push(ab);
+    else atBatsByBatter.set(ab.batterId, [ab]);
   }
+  const newestThisHalf = (abs: AtBat[]): AtBat | undefined => {
+    let found: AtBat | undefined;
+    for (const ab of abs) if (inCurrentHalf(ab)) found = ab;
+    return found;
+  };
 
-  /** Short name for a batter on either side, for the footer caption. */
-  const shortLabel = (ab: Pick<AtBat, 'side' | 'batterId'>): string => {
-    if (ab.side === 'us') {
-      const p = playersById.get(ab.batterId);
+  const shortName = (s: Side, batterId: string): string => {
+    if (s === 'us') {
+      const p = playersById.get(batterId);
       return p ? playerShort(p) : 'Removed player';
     }
-    const b = game.opponentLineup.find((x) => x.id === ab.batterId);
+    const b = game.opponentLineup.find((x) => x.id === batterId);
     return b ? opponentBatterLabel(b) : 'Removed batter';
   };
-  const halfLabel = (ab: Pick<AtBat, 'inning' | 'half'>) => `${ab.half === 'top' ? '▲' : '▼'} ${inningOrdinal(ab.inning)}`;
 
-  const lastAtBat = atBats.length ? atBats[atBats.length - 1] : undefined;
-  const canUndo = Boolean(lastSkip) || Boolean(lastAtBat);
-  let undoCaption = 'Tap a batter to skip to them';
-  if (lastSkip) {
-    undoCaption = `Skipped to ${order[lastSkip.to]?.label ?? 'batter'}`;
-  } else if (lastAtBat) {
-    const crossesHalf = lastAtBat.inning !== game.inning || lastAtBat.half !== game.half;
-    undoCaption = `${shortLabel(lastAtBat)} · ${outcomeLabel(lastAtBat.outcomeId)}${crossesHalf ? ` · ${halfLabel(lastAtBat)}` : ''}`;
-  }
+  const chipsFor = (abs: AtBat[]): MiniChip[] =>
+    abs.map((ab) => ({
+      id: ab.id,
+      result: displayResult(ab),
+      selected: ab.id === selection,
+      accessibilityLabel: `Re-judge ${shortName(ab.side, ab.batterId)}: ${displayResult(ab)}, ${halfLabel(ab.inning, ab.half)}`,
+    }));
 
-  /** Big letters flanking the gauge follow the button columns: left = left column's result for us. */
-  const left = perspective === 'batter' ? { letter: 'L', color: colors.loss } : { letter: 'W', color: colors.win };
-  const right = perspective === 'batter' ? { letter: 'W', color: colors.win } : { letter: 'L', color: colors.loss };
+  const locked = () => Date.now() < lockedUntil.current;
+  const lock = () => {
+    lockedUntil.current = Date.now() + LOCK_MS;
+  };
 
   const swingNeedle = (result: Result) => {
     setNeedle(result);
@@ -178,88 +253,279 @@ export default function ChartTheGameScreen() {
     needleTimer.current = setTimeout(() => setNeedle('center'), 1500);
   };
 
-  const flashNotice = (text: string) => {
-    setNotice(text);
-    if (noticeTimer.current) clearTimeout(noticeTimer.current);
-    noticeTimer.current = setTimeout(() => setNotice(null), 3000);
+  const flashRow = (id: string, result: Result) => {
+    setFlash({ id, result });
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+    flashTimer.current = setTimeout(() => setFlash(null), FLASH_MS);
+  };
+
+  const clearSelection = () => {
+    setSelection(null);
+    setTypesForced(false);
+  };
+
+  /** Puts the dock in re-judge mode for an at-bat; steppers and the readout also scroll its row into view. */
+  const selectAtBat = (id: string, opts?: { scroll?: boolean; openTypes?: boolean }) => {
+    const ab = sorted.find((x) => x.id === id);
+    if (!ab || isFinal) return;
+    setSelection(id);
+    if (opts?.openTypes) setTypesForced(true);
+    if (opts?.scroll) pendingScroll.current = { kind: 'batter', batterId: ab.batterId };
+  };
+
+  const openBatter = (batterId: string) => router.push(`/game/${game.id}/batter/${side}/${batterId}`);
+  const openEditor = (atBatId: string) => router.push(`/game/${game.id}/atbat/${atBatId}`);
+
+  const handleRecord = (outcomeId: OutcomeId) => {
+    if (locked() || needsPitcher) return;
+    const ab = recordAtBat(game.id, outcomeId);
+    if (!ab) return;
+    pushUndo(game.id, { kind: 'record', atBat: ab });
+    lock();
+    swingNeedle(displayResult(ab));
+    clearSelection();
+    pendingScroll.current = { kind: 'current' };
+  };
+
+  /** A re-judge commit: apply the patch, remember the previous fields for Undo, and snap back to live. */
+  const commitRejudge = (ab: AtBat, patch: AtBatPatch) => {
+    if (locked()) return;
+    const previous = { outcomeId: ab.outcomeId, result: ab.result, batterId: ab.batterId, pitcherId: ab.pitcherId, inning: ab.inning, half: ab.half };
+    const updated = updateAtBat(ab.id, patch);
+    if (!updated) return;
+    pushUndo(game.id, { kind: 'rejudge', atBatId: ab.id, previous });
+    lock();
+    swingNeedle(displayResult(updated));
+    flashRow(ab.id, displayResult(updated));
+    clearSelection();
+  };
+
+  /** A big button, by the letter shown. Chart mode records a plain at-bat; re-judge flips the outlined letter. */
+  const handleBig = (letter: Result) => {
+    if (selected) {
+      if (letter === displayResult(selected)) return; // the solid letter changes nothing
+      const batterResult = selected.side === 'us' ? letter : invert(letter);
+      commitRejudge(selected, { outcomeId: plainFor(batterResult) });
+      return;
+    }
+    handleRecord(plainFor(liveSide === 'us' ? letter : invert(letter)));
   };
 
   const handleOutcome = (outcomeId: OutcomeId) => {
-    const ab = recordAtBat(game.id, outcomeId);
-    if (!ab) return;
-    setLastSkip(null);
-    swingNeedle(ab.side === 'us' ? ab.result : pitcherResult(ab));
-    pendingScroll.current = (current + 1) % n;
+    if (selected) {
+      // The ringed type again drops the at-bat to plain with the same result.
+      commitRejudge(selected, { outcomeId: outcomeId === selected.outcomeId ? plainFor(selected.result) : outcomeId });
+      return;
+    }
+    handleRecord(outcomeId);
   };
 
   const handleUndo = () => {
-    if (lastSkip) {
-      // Undo the skip: put the batter who was due up back at bat.
-      setNextBatter(game.id, lastSkip.side, lastSkip.from);
-      setLastSkip(null);
-      pendingScroll.current = lastSkip.from;
-      return;
-    }
-    const ab = undoLastAtBat(game.id);
-    if (!ab) return;
-    if (ab.inning !== game.inning || ab.half !== game.half) {
-      flashNotice(`Back to ${halfLabel(ab)} — tap Next half when you are done`);
-    }
-    const index =
-      ab.side === 'us'
-        ? game.lineup.findIndex((s) => s.playerId === ab.batterId)
-        : game.opponentLineup.findIndex((b) => b.id === ab.batterId);
-    pendingScroll.current = index >= 0 ? index : null;
+    const entry = popUndo(game.id);
+    if (!entry) return;
+    applyUndo(entry, game, store);
+    clearSelection();
+    pendingScroll.current = { kind: 'current' };
   };
 
-  /** Tapping a row makes that batter current (pinch hitter, missed batter). Skipping past more than one asks first. */
+  const selectedIndex = selected ? sorted.findIndex((ab) => ab.id === selected.id) : -1;
+  const stepBack = () => {
+    if (!sorted.length) return;
+    const target = selectedIndex === -1 ? sorted[sorted.length - 1] : sorted[selectedIndex - 1];
+    if (target) selectAtBat(target.id, { scroll: true });
+  };
+  const stepForward = () => {
+    if (selectedIndex === -1) return;
+    const target = sorted[selectedIndex + 1];
+    if (target) selectAtBat(target.id, { scroll: true });
+    else clearSelection(); // past the newest: back to live
+  };
+
+  /** The forward-step target on a row brings that batter up now; multi-batter skips are confirmed by name. */
   const skipTo = async (i: number) => {
-    const skipped = (i - current + n) % n;
-    if (skipped > 1) {
-      const ok = await confirmAction('Skip batters?', `Skip ${skipped} batters and bring ${order[i].label} up now?`, 'Skip');
+    if (i === current || peeking) return;
+    const target = order[i];
+    const from = order[current];
+    const forward = (i - current + n) % n;
+    let skipped = 0;
+    for (let k = 1; k < forward; k++) {
+      const abs = atBatsByBatter.get(order[(current + k) % n].id) ?? [];
+      if (!newestThisHalf(abs)) skipped++;
+    }
+    const already = Boolean(newestThisHalf(atBatsByBatter.get(target.id) ?? []));
+    if (forward !== 1) {
+      let ok = true;
+      if (already) {
+        ok = await confirmAction(
+          'Another at-bat?',
+          `${target.label} already batted this half. Give him another at-bat now?${skipped ? ` ${plural(skipped, 'batter')} will be skipped.` : ''}`,
+          'Bring up',
+        );
+      } else if (skipped > 0) {
+        ok = await confirmAction('Skip batters?', `Bring ${target.label} up now? ${plural(skipped, 'batter')} will be skipped.`, 'Bring up');
+      }
+      lock(); // set after the dialog resolves, never before
       if (!ok) return;
     }
-    setLastSkip({ side, from: current, to: i });
+    pushUndo(game.id, { kind: 'skip', side, fromBatterId: from.id, toBatterId: target.id });
     setNextBatter(game.id, side, i);
-    pendingScroll.current = i;
+    clearSelection();
+    pendingScroll.current = { kind: 'current' };
   };
+
+  const handleNextHalf = () => {
+    nextHalfInning(game.id);
+    pushUndo(game.id, { kind: 'half', direction: 'next' });
+    clearSelection();
+    pendingScroll.current = { kind: 'current' };
+  };
+  const handlePrevHalf = () => {
+    if (game.inning === 1 && game.half === 'top') return; // the store would not move either
+    prevHalfInning(game.id);
+    pushUndo(game.id, { kind: 'half', direction: 'prev' });
+    clearSelection();
+    pendingScroll.current = { kind: 'current' };
+  };
+  /** Steps the clock forward to the newest charted half, one undoable Next half at a time. */
+  const handleJumpAhead = () => {
+    if (!reviewing) return;
+    let clock = { inning: game.inning, half: game.half };
+    let steps = 0;
+    while (compareClock(clock, reviewing) < 0 && steps < 100) {
+      clock = advanceClock(clock);
+      steps++;
+    }
+    for (let k = 0; k < steps; k++) {
+      nextHalfInning(game.id);
+      pushUndo(game.id, { kind: 'half', direction: 'next' });
+    }
+    clearSelection();
+    pendingScroll.current = { kind: 'current' };
+  };
+  const handleEndGame = () => {
+    clearSelection();
+    router.push(`/game/${game.id}/finish`);
+  };
+
+  const toggleTypes = () => {
+    userToggledTypes.current = true;
+    setAutoCollapsed(false);
+    setTypesForced(false);
+    setTypesPref(!typesOpen);
+  };
+
+  // ---- Dock content ----
+
+  const top = undoStack.length ? undoStack[undoStack.length - 1] : undefined;
+  const last: DockLast | undefined = newest
+    ? {
+        name: shortName(newest.side, newest.batterId),
+        result: displayResult(newest),
+        label: outcomeLabel(newest.outcomeId),
+        half: inCurrentHalf(newest) ? undefined : halfLabel(newest.inning, newest.half),
+        onPress: () => selectAtBat(newest.id, { scroll: true, openTypes: isPlain(newest.outcomeId) }),
+      }
+    : undefined;
+  const rejudge: DockRejudge | undefined = selected
+    ? {
+        readout: `${shortName(selected.side, selected.batterId)} · ${halfLabel(selected.inning, selected.half)} · ${displayResult(selected)} · ${
+          outcomeLabel(selected.outcomeId) || 'no play type'
+        }`,
+        recorded: displayResult(selected),
+        perspective: selected.side === 'us' ? 'batter' : 'pitcher',
+        selectedId: isPlain(selected.outcomeId) ? undefined : selected.outcomeId,
+        onNow: clearSelection,
+        onMore: () => openEditor(selected.id),
+      }
+    : undefined;
+  const headerChips = currentBatter ? chipsFor(sorted.filter((ab) => ab.side === liveSide && ab.batterId === currentBatter.id)) : [];
+  const header = {
+    label: reviewing ? `AT-BAT · ${halfLabel(game.inning, game.half)}` : 'AT-BAT',
+    color: reviewing ? colors.amberInk : liveSide === 'us' ? colors.primaryDark : colors.pitching,
+    title: currentBatter ? `${liveCurrent + 1}. ${currentBatter.label}` : 'No batters',
+    chips: headerChips,
+  };
+  const bigLabels: Record<Result, string> = selected
+    ? { L: 'Change to L', W: 'Change to W' }
+    : { L: `Loss for ${currentBatter?.label ?? 'batter'}`, W: `Win for ${currentBatter?.label ?? 'batter'}` };
 
   const finalWord = game.score.us > game.score.them ? 'Won' : game.score.us < game.score.them ? 'Lost' : 'Tied';
   const finalColor = finalWord === 'Won' ? colors.win : finalWord === 'Lost' ? colors.loss : colors.text;
 
-  const rows: React.ReactNode[] = [];
-  order.forEach((batter, i) => {
-    const isCurrent = !isFinal && i === current;
-    // This half-inning's result; the AT-BAT row shows only the name and tag like the prototype.
-    const last = isFinal || isCurrent ? undefined : lastByBatter.get(batter.id);
-    const result: Result | undefined = last ? (side === 'us' ? last.result : pitcherResult(last)) : undefined;
-    const tag = isFinal ? undefined : isCurrent ? 'AT-BAT' : i === onDeck ? 'ON DECK' : i === inHole ? 'IN THE HOLE' : undefined;
-    const selectable = !isFinal && !isCurrent;
-    // Skip affordance on the rows that would otherwise look inert; tagged rows are obviously next up.
-    const showSkip = selectable && !tag && !result;
-    // A finished game reads as a box score: each of our players' W/L for the game.
-    const gameLine = isFinal ? hittingFor(atBats, batter.id, game.id) : undefined;
+  // ---- Rows ----
 
-    rows.push(
+  const rows = order.map((batter, i) => {
+    const abs = atBatsByBatter.get(batter.id) ?? [];
+    const isCurrent = !isFinal && !peeking && i === current;
+    const tag = isFinal || peeking ? undefined : isCurrent ? 'AT-BAT' : i === onDeck ? 'ON DECK' : i === inHole ? 'IN THE HOLE' : undefined;
+    // This half's newest at-bat: its label under the name and, on untagged rows, its tile at the right.
+    const lastHalf = isFinal ? undefined : newestThisHalf(abs);
+    const label = lastHalf ? outcomeLabel(lastHalf.outcomeId) : '';
+    const chips = isFinal ? [] : chipsFor(abs);
+    const showSkip = !isFinal && !peeking && !isCurrent;
+    // A finished game reads as a box score: every at-bat as a tile and the game's W/L.
+    const gameLine = isFinal ? hittingFor(atBats, batter.id, game.id) : undefined;
+    const flashing = flash && abs.some((ab) => ab.id === flash.id) ? flash.result : undefined;
+
+    return (
       <Pressable
         key={batter.id}
         ref={(node) => {
-          rowRefs.current[i] = node;
+          rowRefs.current[batter.id] = node;
         }}
-        onPress={selectable ? () => void skipTo(i) : undefined}
-        disabled={!selectable}
-        accessibilityRole="button"
+        onPress={() => openBatter(batter.id)}
+        // On web a role of "button" renders a <button>, which may not contain the tile, chip and skip buttons.
+        accessibilityRole={Platform.OS === 'web' ? undefined : 'button'}
         accessibilityLabel={`${i + 1}. ${batter.label}${tag ? `, ${tag.toLowerCase()}` : ''}`}
-        accessibilityHint={selectable ? 'Make this batter current' : undefined}
-        style={({ pressed }) => [styles.row, isCurrent && styles.rowCurrent, pressed && selectable && styles.rowPressed, selectable && webCursor]}
+        accessibilityHint="Open this batter's at-bats"
+        style={({ pressed }) => [
+          styles.row,
+          isCurrent && styles.rowCurrent,
+          peeking && styles.rowPeek,
+          flashing && (flashing === 'W' ? styles.rowFlashWin : styles.rowFlashLoss),
+          pressed && styles.rowPressed,
+          webCursor,
+        ]}
       >
         <Text style={styles.num}>{i + 1}.</Text>
         <View style={styles.rowBody}>
-          <Text style={styles.name}>{batter.label}</Text>
-          {last ? <Text style={styles.outcome}>{outcomeLabel(last.outcomeId)}</Text> : null}
+          <Text style={styles.name} numberOfLines={1}>
+            {batter.label}
+          </Text>
+          {label || chips.length ? (
+            <View style={styles.line2}>
+              {label ? (
+                <Text style={styles.outcome} numberOfLines={1}>
+                  {label}
+                </Text>
+              ) : null}
+              <MiniChips chips={chips} onPress={(id) => selectAtBat(id)} />
+            </View>
+          ) : null}
+          {isFinal && abs.length ? (
+            <View style={styles.tiles}>
+              {abs.map((ab) => (
+                <ResultTile
+                  key={ab.id}
+                  result={displayResult(ab)}
+                  code={outcomeShort(ab.outcomeId) || undefined}
+                  onPress={() => openEditor(ab.id)}
+                  accessibilityLabel={`Edit ${batter.label}: ${displayResult(ab)}${outcomeLabel(ab.outcomeId) ? `, ${outcomeLabel(ab.outcomeId)}` : ''}, ${halfLabel(ab.inning, ab.half)}`}
+                />
+              ))}
+            </View>
+          ) : null}
         </View>
         {tag ? <Text style={styles.tag}>{tag}</Text> : null}
-        {result ? <Text style={[styles.result, { color: result === 'W' ? colors.win : colors.loss }]}>{result}</Text> : null}
+        {!tag && lastHalf ? (
+          <ResultTile
+            result={displayResult(lastHalf)}
+            code={outcomeShort(lastHalf.outcomeId) || undefined}
+            selected={lastHalf.id === selection}
+            onPress={() => selectAtBat(lastHalf.id)}
+            accessibilityLabel={`Re-judge ${batter.label}: ${displayResult(lastHalf)}${label ? `, ${label}` : ''}`}
+          />
+        ) : null}
         {gameLine ? (
           gameLine.w + gameLine.l > 0 ? (
             <WLText wl={gameLine} style={styles.gameLine} />
@@ -267,29 +533,19 @@ export default function ChartTheGameScreen() {
             <Text style={[styles.gameLine, styles.gameLineEmpty]}>-</Text>
           )
         ) : null}
-        {showSkip ? <FontAwesome6 name="forward-step" size={12} color={colors.tabLabel} style={styles.skipIcon} /> : null}
-      </Pressable>,
+        {showSkip ? (
+          <Pressable
+            onPress={() => void skipTo(i)}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={`Bring ${batter.label} up now`}
+            style={({ pressed }) => [styles.skip, pressed && styles.skipPressed, webCursor]}
+          >
+            <FontAwesome6 name="forward-step" size={12} color={colors.tabLabel} style={styles.skipIcon} />
+          </Pressable>
+        ) : null}
+      </Pressable>
     );
-
-    if (isCurrent) {
-      // Keyed as a stable sibling so the gauge (and its animation) survives moving between batters.
-      rows.push(
-        <View key="atbat" ref={atBatRef} collapsable={false} style={styles.atBat}>
-          <View style={styles.gaugeRow}>
-            <Text style={[styles.bigLetter, { color: left.color }]}>{left.letter}</Text>
-            <CTGGauge needle={needle} pulse={pulse} perspective={perspective} />
-            <Text style={[styles.bigLetter, { color: right.color }]}>{right.letter}</Text>
-          </View>
-          {needsPitcher ? (
-            <View style={styles.pitcherPrompt}>
-              <Text style={styles.pitcherPromptText}>Pick who is pitching so their W/L is credited.</Text>
-              <Button variant="orange" title="Set pitcher" icon="baseball" onPress={() => router.push(`/game/${game.id}/opponent`)} />
-            </View>
-          ) : null}
-          <OutcomeButtons perspective={perspective} onPress={handleOutcome} disabled={needsPitcher} />
-        </View>,
-      );
-    }
   });
 
   return (
@@ -305,16 +561,19 @@ export default function ChartTheGameScreen() {
         </View>
       ) : null}
 
-      <InningStrip game={game} pitcher={pitcher} side={side} readOnly={isFinal} />
+      <InningStrip
+        game={game}
+        pitcher={pitcher}
+        side={liveSide}
+        readOnly={isFinal}
+        onPrevHalf={handlePrevHalf}
+        onNextHalf={handleNextHalf}
+        onEndGame={handleEndGame}
+        reviewing={reviewing}
+        onJumpAhead={handleJumpAhead}
+      />
 
-      <ScrollView
-        ref={scrollRef}
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        onLayout={(e) => {
-          viewportHeight.current = e.nativeEvent.layout.height;
-        }}
-      >
+      <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         <View ref={contentRef} collapsable={false}>
           {n === 0 ? (
             side === 'us' ? (
@@ -336,35 +595,38 @@ export default function ChartTheGameScreen() {
         </View>
       </ScrollView>
 
-      {!isFinal ? (
-        <View style={styles.footer}>
-          <Button
-            variant="ghost"
-            size="sm"
-            icon="rotate-left"
-            title="Undo"
-            accessibilityLabel={canUndo ? `Undo: ${undoCaption}` : 'Undo'}
-            disabled={!canUndo}
-            onPress={handleUndo}
-          />
-          <Text style={[styles.footerNote, notice ? styles.footerNotice : null]} numberOfLines={2}>
-            {notice ?? undoCaption}
-          </Text>
-          <Button
-            title="End Game"
-            variant="outline"
-            size="sm"
-            style={styles.endButton}
-            textStyle={{ color: colors.orange }}
-            onPress={() => router.push(`/game/${game.id}/finish`)}
-          />
-        </View>
+      {!isFinal && (liveOrder.length > 0 || selected) ? (
+        <CaptureDock
+          perspective={livePerspective}
+          rejudge={rejudge}
+          last={last}
+          canStepBack={sorted.length > 0 && selectedIndex !== 0}
+          canStepForward={selectedIndex !== -1}
+          onStepBack={stepBack}
+          onStepForward={stepForward}
+          undoLabel={undoLabel(top)}
+          canUndo={Boolean(top)}
+          onUndo={handleUndo}
+          header={header}
+          onChipPress={(id) => selectAtBat(id)}
+          needsPitcher={needsPitcher}
+          onSetPitcher={() => router.push(`/game/${game.id}/pitcher`)}
+          needle={needle}
+          pulse={pulse}
+          bigLabels={bigLabels}
+          onBig={handleBig}
+          onOutcome={handleOutcome}
+          typesOpen={typesOpen}
+          onToggleTypes={toggleTypes}
+          typesSize={windowHeight >= COMPACT_MIN_HEIGHT ? 'compact' : 'tiny'}
+          onHeight={setDockHeight}
+        />
       ) : null}
     </Screen>
   );
 }
 
-/* Row and block sizes follow the prototype at 375pt: 53pt rows, 20pt names, 14pt tags, an 80pt gauge flanked by ~34pt letters. */
+/* Row sizes follow the prototype at 375pt: 56pt rows, 20pt names, 14pt tags, 36x40 tiles. */
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 16 },
@@ -381,55 +643,30 @@ const styles = StyleSheet.create({
   finalText: { fontFamily: fonts.bold, fontSize: 18, flexShrink: 1 },
   row: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     paddingLeft: 13,
-    paddingRight: 12,
-    paddingVertical: 13,
+    paddingRight: 8,
+    paddingVertical: 7,
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
     gap: 8,
-    minHeight: 53,
+    minHeight: 56,
   },
-  rowCurrent: { borderBottomWidth: 0 },
+  rowCurrent: { borderLeftWidth: 4, borderLeftColor: colors.currentRail, paddingLeft: 9 },
+  rowPeek: { backgroundColor: 'rgba(0, 166, 255, 0.08)' },
+  rowFlashWin: { backgroundColor: 'rgba(119, 211, 83, 0.15)' },
+  rowFlashLoss: { backgroundColor: 'rgba(249, 95, 98, 0.15)' },
   rowPressed: { backgroundColor: colors.pressed },
   num: { fontFamily: fonts.regular, fontSize: 20, color: colors.textMuted, width: 34, lineHeight: 26 },
-  rowBody: { flex: 1, gap: 1 },
+  rowBody: { flex: 1, minWidth: 0, gap: 2 },
   name: { fontFamily: fonts.bold, fontSize: 20, color: colors.text, lineHeight: 26 },
-  outcome: { fontFamily: fonts.bold, fontSize: 13, lineHeight: 16, color: colors.text },
+  line2: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  outcome: { fontFamily: fonts.bold, fontSize: 13, lineHeight: 16, color: colors.text, flexShrink: 1 },
+  tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, paddingTop: 2 },
   tag: { fontFamily: fonts.regular, fontSize: 14, color: colors.text, textTransform: 'uppercase', lineHeight: 26, flexShrink: 0 },
-  result: { fontFamily: fonts.bold, fontSize: 36, lineHeight: 40, width: 36, textAlign: 'right', marginTop: -6 },
-  gameLine: { fontSize: 15, lineHeight: 26 },
+  gameLine: { fontSize: 15, lineHeight: 26, marginRight: 8 },
   gameLineEmpty: { fontFamily: fonts.bold, color: colors.textMuted },
-  skipIcon: { lineHeight: 26, marginLeft: -2, opacity: 0.7 },
-  atBat: {
-    paddingBottom: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.divider,
-    gap: 8,
-  },
-  gaugeRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-    gap: 36,
-    paddingHorizontal: 16,
-  },
-  // Sits on the gauge's baseline like the prototype: the letters' feet line up with the arc ends, above the caption.
-  bigLetter: { fontFamily: fonts.bold, fontSize: 34, lineHeight: 38, width: 40, textAlign: 'center', marginBottom: 12 },
-  pitcherPrompt: { alignItems: 'center', gap: 8, paddingHorizontal: 28, paddingBottom: 4 },
-  pitcherPromptText: { fontFamily: fonts.bold, fontSize: 14, lineHeight: 18, color: colors.text, textAlign: 'center' },
-  footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingLeft: 4,
-    paddingRight: 12,
-    paddingVertical: 6,
-    borderTopWidth: 1,
-    borderTopColor: colors.divider,
-    backgroundColor: colors.surface,
-  },
-  footerNote: { flex: 1, fontFamily: fonts.regular, fontSize: 12, lineHeight: 15, color: colors.textMuted },
-  footerNotice: { fontFamily: fonts.bold, color: colors.orange },
-  endButton: { borderColor: colors.orange, paddingHorizontal: 14 },
+  skip: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  skipPressed: { backgroundColor: colors.chip },
+  skipIcon: { opacity: 0.7 },
 });

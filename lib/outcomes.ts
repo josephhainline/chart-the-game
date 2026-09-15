@@ -1,3 +1,18 @@
+/**
+ * The at-bat outcome catalog.
+ *
+ * Twelve typed outcomes (the grid) plus two "plain" ones (`plain_w`, `plain_l`)
+ * for a W or L charted with the big buttons and no play type. The plain pair
+ * is NOT part of OUTCOMES / LOSS_OUTCOMES / WIN_OUTCOMES, so the grid and the
+ * spec's list of twelve are untouched; `getOutcome` resolves all fourteen.
+ *
+ * Renderer rule: the letter always comes from `ab.result` (or
+ * `pitcherResult(ab)` / `displayResult(ab)` on the pitching side), never
+ * re-derived from the outcome. The outcome only supplies `label` and `short`,
+ * both '' for a plain at-bat. Use `outcomeShort` / `outcomeLabel` in views:
+ * they never throw, so a document written by a newer build cannot crash a
+ * screen.
+ */
 import type { OutcomeId, Result } from './types';
 
 export type Outcome = {
@@ -31,15 +46,44 @@ export const WIN_OUTCOMES: Outcome[] = [
 
 export const OUTCOMES: Outcome[] = [...LOSS_OUTCOMES, ...WIN_OUTCOMES];
 
-const BY_ID = new Map(OUTCOMES.map((o) => [o.id, o]));
+/** A W with no play type: the big W button. */
+export const PLAIN_W: Outcome = { id: 'plain_w', label: 'Win', short: '', result: 'W' };
+/** An L with no play type: the big L button. */
+export const PLAIN_L: Outcome = { id: 'plain_l', label: 'Loss', short: '', result: 'L' };
+/** The plain pair. Not part of OUTCOMES: the grid never shows them. */
+export const GENERIC_OUTCOMES: Outcome[] = [PLAIN_L, PLAIN_W];
 
+const BY_ID = new Map([...OUTCOMES, ...GENERIC_OUTCOMES].map((o) => [o.id, o]));
+
+/** true for the two plain ids (a W or L with no play type). */
+export function isPlain(id: OutcomeId): boolean {
+  return id === 'plain_w' || id === 'plain_l';
+}
+
+/** The plain outcome id carrying the given (batter-perspective) result. */
+export function plainFor(result: Result): OutcomeId {
+  return result === 'W' ? 'plain_w' : 'plain_l';
+}
+
+/** Resolves the twelve typed outcomes and the two plain ones; unknown ids throw. */
 export function getOutcome(id: OutcomeId): Outcome {
   const o = BY_ID.get(id);
   if (!o) throw new Error(`Unknown outcome ${id}`);
   return o;
 }
 
-/** Single-line version of the label, used under a batter's name after the at-bat. */
+/** Scorebook code ("K", "BB", "H", …). '' for a plain at-bat or an unknown id; never throws. */
+export function outcomeShort(id: OutcomeId): string {
+  return BY_ID.get(id)?.short ?? '';
+}
+
+/**
+ * Single-line version of the label, used under a batter's name after the at-bat.
+ * '' for a plain at-bat (the letter alone tells the story); the raw id for an
+ * unknown one so a newer document still renders something; never throws.
+ */
 export function outcomeLabel(id: OutcomeId): string {
-  return getOutcome(id).label.replace('\n', ' ');
+  if (isPlain(id)) return '';
+  const o = BY_ID.get(id);
+  return o ? o.label.replace('\n', ' ') : String(id);
 }

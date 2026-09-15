@@ -1,7 +1,19 @@
 import { addDays, setHours, setMinutes, setSeconds, addMinutes } from 'date-fns';
 
 import type { AppData, AtBat, Game, Id, LineupSlot, OpponentBatter, OutcomeId, Player, Team } from './types';
-import { LOSS_OUTCOMES, WIN_OUTCOMES } from './outcomes';
+import { LOSS_OUTCOMES, WIN_OUTCOMES, plainFor } from './outcomes';
+
+/**
+ * Every Nth at-bat in the demo is charted with the big W/L button and no play
+ * type, so plain tiles, blank scorebook codes and the "add type" readout are
+ * all exercised by the seed.
+ */
+export const PLAIN_EVERY = 7;
+
+/** true for the at-bats the demo leaves untyped (the 7th, 14th, … of the whole dataset). */
+function isPlainSlot(atBatIndex: number): boolean {
+  return atBatIndex % PLAIN_EVERY === PLAIN_EVERY - 1;
+}
 
 /** Deterministic PRNG so the demo looks the same on every reset. */
 function mulberry32(seed: number) {
@@ -310,6 +322,9 @@ export function buildDemoData(now: Date = new Date()): AppData {
               ourIdx++;
               const sp = ROSTER.find((r) => r.id === slot.playerId)!;
               const won = rand() < sp.hit;
+              // The typed outcome is always drawn so the PRNG sequence (and
+              // every result) is the same whether or not this slot stays plain.
+              const typed = outcomeFor(rand, won);
               atBats.push({
                 id: `${sg.id}_ab${atBats.length}`,
                 gameId: sg.id,
@@ -317,7 +332,7 @@ export function buildDemoData(now: Date = new Date()): AppData {
                 batterId: sp.id,
                 inning,
                 half,
-                outcomeId: outcomeFor(rand, won),
+                outcomeId: isPlainSlot(atBats.length) ? plainFor(won ? 'W' : 'L') : typed,
                 result: won ? 'W' : 'L',
                 recordedAt: clock.toISOString(),
               });
@@ -326,6 +341,7 @@ export function buildDemoData(now: Date = new Date()): AppData {
               theirIdx++;
               const pitcher = ROSTER.find((r) => r.id === pitcherId)!;
               const pitcherWon = rand() < pitcher.pitch;
+              const typed = outcomeFor(rand, !pitcherWon);
               atBats.push({
                 id: `${sg.id}_ab${atBats.length}`,
                 gameId: sg.id,
@@ -334,7 +350,7 @@ export function buildDemoData(now: Date = new Date()): AppData {
                 pitcherId,
                 inning,
                 half,
-                outcomeId: outcomeFor(rand, !pitcherWon),
+                outcomeId: isPlainSlot(atBats.length) ? plainFor(pitcherWon ? 'L' : 'W') : typed,
                 result: pitcherWon ? 'L' : 'W',
                 recordedAt: clock.toISOString(),
               });

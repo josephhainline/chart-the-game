@@ -1,5 +1,6 @@
+import { compareAtBats } from './atbats';
 import { byLastName } from './format';
-import type { AtBat, Game, Id, Player, Team } from './types';
+import type { AtBat, Game, Id, Player, Side, Team } from './types';
 
 export type WL = { w: number; l: number };
 
@@ -170,6 +171,23 @@ export function scorebook<T extends { id: Id }>(
     row.wl = addResult(row.wl, side === 'us' ? batterWon : !batterWon);
   }
   return { innings, rows };
+}
+
+/**
+ * Batters who have at-bats in this game on this side but are no longer in
+ * `orderIds` (removed from the order mid-game), in the order their first
+ * at-bat happened. Callers append them to `scorebook()`'s batter list as
+ * "LEFT GAME" rows so the grid reconciles with the totals.
+ */
+export function leftGameBatterIds(atBats: AtBat[], gameId: Id, side: Side, orderIds: Id[]): Id[] {
+  const inOrder = new Set(orderIds);
+  const relevant = atBats.filter((ab) => ab.gameId === gameId && ab.side === side && !inOrder.has(ab.batterId));
+  relevant.sort(compareAtBats);
+  const seen: Id[] = [];
+  for (const ab of relevant) {
+    if (!seen.includes(ab.batterId)) seen.push(ab.batterId);
+  }
+  return seen;
 }
 
 /** Rank player ids by season hitting score, best first. Ties keep the given order. */

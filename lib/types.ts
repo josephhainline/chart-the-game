@@ -72,7 +72,13 @@ export type Game = {
 
 export type Result = 'W' | 'L';
 
+/**
+ * The twelve typed outcomes from the prototype plus the two "plain" ids: a
+ * W or L recorded with the big buttons and no play type (see lib/outcomes).
+ */
 export type OutcomeId =
+  | 'plain_w'
+  | 'plain_l'
   | 'k_swinging'
   | 'walk_2_looking'
   | 'error_weak'

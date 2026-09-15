@@ -9,6 +9,9 @@ import { useDismiss } from '@/lib/navigation';
 
 const webCursor = Platform.OS === 'web' ? ({ cursor: 'pointer' } as any) : null;
 
+/** Titles longer than this (the at-bat editor's "Batter 3 · ▼ 2nd · Weedon H. (#10) pitching") drop to 17pt and may wrap to two lines. */
+const LONG_TITLE = 22;
+
 type Props = {
   title: string;
   /** Label for the right-side action, e.g. "Save". Hidden when omitted. */
@@ -35,13 +38,16 @@ export default function ModalScreen({ title, actionLabel, onAction, actionDisabl
   const insets = useSafeAreaInsets();
   const dismiss = useDismiss(fallbackHref);
   const close = onClose ?? dismiss;
+  const long = title.length > LONG_TITLE;
   return (
     <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={[styles.header, { backgroundColor: color, paddingTop: insets.top + 10 }]}>
         <Pressable onPress={close} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close" style={[styles.side, webCursor]}>
           <FontAwesome6 name="xmark" size={22} color="#fff" />
         </Pressable>
-        <Text style={styles.title} numberOfLines={1}>{title}</Text>
+        <Text style={[styles.title, long && styles.titleLong]} numberOfLines={long ? 2 : 1}>
+          {title}
+        </Text>
         {actionLabel ? (
           <Pressable
             onPress={onAction}
@@ -71,6 +77,7 @@ const styles = StyleSheet.create({
   side: { minWidth: 56, height: 36, justifyContent: 'center' },
   sideRight: { alignItems: 'flex-end' },
   title: { flex: 1, textAlign: 'center', fontFamily: fonts.bold, fontSize: 20, color: '#fff' },
+  titleLong: { fontSize: 17, lineHeight: 21 },
   action: { fontFamily: fonts.bold, fontSize: 17, color: '#fff' },
   body: { padding: 20, paddingBottom: 40 },
 });
