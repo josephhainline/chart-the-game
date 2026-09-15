@@ -36,7 +36,20 @@ type MockAppState = { addEventListener: jest.Mock<(type: string, handler: (state
 const appState = AppState as unknown as MockAppState;
 
 const NOW = new Date('2026-09-14T12:00:00');
-const SCHEDULED = 'g_tigers_2';
+/** The upcoming game: the default order Hamilton, Brady, Cooper, Owen Haynes, Gabe, Lucas, Ben, Knox, Carsyn, Weedon. */
+const SCHEDULED = 'g_next';
+
+/**
+ * The seed as the charting tests below use it. `g_next` is seeded as a home
+ * game with no pitcher (see seed.test.ts); here it is an away game with
+ * Weedon pitching, so we bat first in the top of the 1st and every opponent
+ * at-bat is credited — the shape the pointer, pitcher and undo rules are
+ * exercised against.
+ */
+function demoForCharting(): AppData {
+  const data = buildDemoData(NOW);
+  return { ...data, games: data.games.map((g) => (g.id === SCHEDULED ? { ...g, isAway: true, pitcherId: 'p_weedon' } : g)) };
+}
 
 let latest: Store | undefined;
 let renderer: Renderer | undefined;
@@ -128,7 +141,7 @@ describe('StoreProvider actions', () => {
   beforeEach(() => {
     jest.useFakeTimers();
     latest = undefined;
-    mount(buildDemoData(NOW));
+    mount(demoForCharting());
   });
 
   afterEach(() => {
@@ -139,7 +152,7 @@ describe('StoreProvider actions', () => {
   it('is ready immediately with the given initial data (no storage read)', () => {
     expect(store().ready).toBe(true);
     expect(store().loadIssue).toBeUndefined();
-    expect(store().data.games).toHaveLength(7);
+    expect(store().data.games).toHaveLength(14);
     expect(store().data.onboarded).toBe(false);
   });
 
@@ -154,7 +167,7 @@ describe('StoreProvider actions', () => {
       expect(recorded).toMatchObject({
         gameId: SCHEDULED,
         side: 'us',
-        batterId: 'p_owen',
+        batterId: 'p_hamilton',
         inning: 1,
         half: 'top',
         outcomeId: 'hit',
@@ -173,7 +186,7 @@ describe('StoreProvider actions', () => {
       const last = store().data.atBats[store().data.atBats.length - 1];
       expect(last.result).toBe('L');
       expect(last.outcomeId).toBe('k_looking');
-      expect(last.batterId).toBe('p_owen');
+      expect(last.batterId).toBe('p_hamilton');
     });
 
     it('wraps back to the top of the order after the last batter', () => {
@@ -186,11 +199,11 @@ describe('StoreProvider actions', () => {
       expect(game(SCHEDULED).ourNextBatter).toBe(1);
       const ours = store().data.atBats.filter((x) => x.gameId === SCHEDULED);
       expect(ours).toHaveLength(len + 1);
-      expect(ours[len].batterId).toBe('p_owen');
+      expect(ours[len].batterId).toBe('p_hamilton');
     });
 
     it('when they bat, charges the at-bat to their batter and our pitcher', () => {
-      run((s) => s.nextHalfInning(SCHEDULED)); // bottom 1st: home team (Tigers) bats
+      run((s) => s.nextHalfInning(SCHEDULED)); // bottom 1st: the home team (Bears Ken) bats
       let recorded: ReturnType<Store['recordAtBat']>;
       run((s) => {
         recorded = s.recordAtBat(SCHEDULED, 'k_swinging');
@@ -211,18 +224,18 @@ describe('StoreProvider actions', () => {
     it('uses the game’s current pitcher at the moment of the at-bat', () => {
       run((s) => {
         s.nextHalfInning(SCHEDULED);
-        s.setPitcher(SCHEDULED, 'p_owen');
+        s.setPitcher(SCHEDULED, 'p_hamilton');
       });
       run((s) => s.recordAtBat(SCHEDULED, 'hit'));
       const last = store().data.atBats[store().data.atBats.length - 1];
-      expect(last.pitcherId).toBe('p_owen');
+      expect(last.pitcherId).toBe('p_hamilton');
       expect(last.result).toBe('W');
     });
 
     it('returns undefined for an unknown game or an empty batting order', () => {
       let created: Game | undefined;
       run((s) => {
-        created = s.addGame('t_bears13u', { opponent: 'Nobody', isAway: true, startsAt: NOW.toISOString() });
+        created = s.addGame('t_ken14u', { opponent: 'Nobody', isAway: true, startsAt: NOW.toISOString() });
       });
       expect(created!.lineup).toEqual([]);
       let result: ReturnType<Store['recordAtBat']> = undefined;
@@ -238,8 +251,8 @@ describe('StoreProvider actions', () => {
     });
 
     it('does not change the status of a final game', () => {
-      run((s) => s.recordAtBat('g_bandits', 'hit'));
-      expect(game('g_bandits').status).toBe('final');
+      run((s) => s.recordAtBat('g_0823_3', 'hit'));
+      expect(game('g_0823_3').status).toBe('final');
     });
 
     describe('a plain at-bat (the big W/L, no play type)', () => {
@@ -248,12 +261,12 @@ describe('StoreProvider actions', () => {
         run((s) => {
           recorded = s.recordAtBat(SCHEDULED, 'plain_w');
         });
-        expect(recorded).toMatchObject({ batterId: 'p_owen', outcomeId: 'plain_w', result: 'W', side: 'us' });
+        expect(recorded).toMatchObject({ batterId: 'p_hamilton', outcomeId: 'plain_w', result: 'W', side: 'us' });
         run((s) => s.recordAtBat(SCHEDULED, 'plain_l'));
         const ours = store().data.atBats.filter((x) => x.gameId === SCHEDULED);
         expect(ours.map((x) => [x.batterId, x.outcomeId, x.result])).toEqual([
-          ['p_owen', 'plain_w', 'W'],
-          ['p_ryder', 'plain_l', 'L'],
+          ['p_hamilton', 'plain_w', 'W'],
+          ['p_brady', 'plain_l', 'L'],
         ]);
         expect(game(SCHEDULED)).toMatchObject({ status: 'in_progress', ourNextBatter: 2 });
       });
@@ -265,8 +278,8 @@ describe('StoreProvider actions', () => {
           s.recordAtBat(SCHEDULED, 'hit');
         });
         expect(gameHitting(store().data.atBats, SCHEDULED)).toEqual({ w: 2, l: 1 });
-        expect(hittingFor(store().data.atBats, 'p_owen', SCHEDULED)).toEqual({ w: 1, l: 0 });
-        expect(hittingFor(store().data.atBats, 'p_ryder', SCHEDULED)).toEqual({ w: 0, l: 1 });
+        expect(hittingFor(store().data.atBats, 'p_hamilton', SCHEDULED)).toEqual({ w: 1, l: 0 });
+        expect(hittingFor(store().data.atBats, 'p_brady', SCHEDULED)).toEqual({ w: 0, l: 1 });
         const book = scorebook(store().data.atBats, SCHEDULED, 'us', game(SCHEDULED).lineup.map((x) => ({ id: x.playerId })));
         expect(book.rows[0].innings[0].map((x) => [x.result, x.outcomeId])).toEqual([['W', 'plain_w']]);
         expect(book.rows[1].innings[0].map((x) => [x.result, x.outcomeId])).toEqual([['L', 'plain_l']]);
@@ -274,7 +287,7 @@ describe('StoreProvider actions', () => {
       });
 
       it('on the pitching side the stored result stays the batter’s and the pitcher line inverts it', () => {
-        run((s) => s.nextHalfInning(SCHEDULED)); // Tigers bat, Weedon pitching
+        run((s) => s.nextHalfInning(SCHEDULED)); // Bears Ken bat, Weedon pitching
         run((s) => {
           s.recordAtBat(SCHEDULED, 'plain_l'); // our pitcher won
           s.recordAtBat(SCHEDULED, 'plain_w'); // their batter won
@@ -295,19 +308,19 @@ describe('StoreProvider actions', () => {
     describe('with a target (a backfill)', () => {
       it('stamps the given batter and half-inning and leaves both pointers and the clock alone', () => {
         run((s) => {
-          s.recordAtBat(SCHEDULED, 'hit'); // Owen; Ryder due
+          s.recordAtBat(SCHEDULED, 'hit'); // Hamilton; Brady due
           s.nextHalfInning(SCHEDULED);
           s.nextHalfInning(SCHEDULED); // top 2nd
         });
         expect(game(SCHEDULED)).toMatchObject({ inning: 2, half: 'top', ourNextBatter: 1, theirNextBatter: 0 });
         let recorded: ReturnType<Store['recordAtBat']>;
         run((s) => {
-          recorded = s.recordAtBat(SCHEDULED, 'plain_l', { side: 'us', batterId: 'p_matthew', inning: 1, half: 'top' });
+          recorded = s.recordAtBat(SCHEDULED, 'plain_l', { side: 'us', batterId: 'p_lucas', inning: 1, half: 'top' });
         });
         expect(recorded).toMatchObject({
           gameId: SCHEDULED,
           side: 'us',
-          batterId: 'p_matthew',
+          batterId: 'p_lucas',
           inning: 1,
           half: 'top',
           outcomeId: 'plain_l',
@@ -318,7 +331,7 @@ describe('StoreProvider actions', () => {
         expect(store().data.atBats.some((x) => x.id === recorded!.id)).toBe(true);
         // It sits in its own half-inning in every sorted view, even though it was recorded last.
         const sorted = sortAtBats(store().data.atBats.filter((x) => x.gameId === SCHEDULED));
-        expect(sorted.map((x) => x.batterId)).toEqual(['p_owen', 'p_matthew']);
+        expect(sorted.map((x) => x.batterId)).toEqual(['p_hamilton', 'p_lucas']);
       });
 
       it('credits the current pitcher when the target is their side, and starts a scheduled game', () => {
@@ -345,7 +358,7 @@ describe('StoreProvider actions', () => {
       it('returns undefined for an unknown game', () => {
         let result: ReturnType<Store['recordAtBat']> = undefined;
         run((s) => {
-          result = s.recordAtBat('nope', 'hit', { side: 'us', batterId: 'p_owen', inning: 1, half: 'top' });
+          result = s.recordAtBat('nope', 'hit', { side: 'us', batterId: 'p_hamilton', inning: 1, half: 'top' });
         });
         expect(result).toBeUndefined();
       });
@@ -370,22 +383,22 @@ describe('StoreProvider actions', () => {
 
     it('credits opponent at-bats charted this half-inning before a pitcher was chosen', () => {
       chartWithoutPitcher();
-      run((s) => s.setPitcher(SCHEDULED, 'p_owen'));
-      expect(game(SCHEDULED).pitcherId).toBe('p_owen');
+      run((s) => s.setPitcher(SCHEDULED, 'p_hamilton'));
+      expect(game(SCHEDULED).pitcherId).toBe('p_hamilton');
       const theirs = store().data.atBats.filter((x) => x.gameId === SCHEDULED && x.side === 'them');
-      expect(theirs.map((x) => x.pitcherId)).toEqual(['p_owen', 'p_owen']);
+      expect(theirs.map((x) => x.pitcherId)).toEqual(['p_hamilton', 'p_hamilton']);
       // The pitcher's line now matches the game's pitching line.
-      expect(pitchingFor(store().data.atBats, 'p_owen', SCHEDULED)).toEqual(gamePitching(store().data.atBats, SCHEDULED));
-      expect(pitchingFor(store().data.atBats, 'p_owen', SCHEDULED)).toEqual({ w: 1, l: 1 });
+      expect(pitchingFor(store().data.atBats, 'p_hamilton', SCHEDULED)).toEqual(gamePitching(store().data.atBats, SCHEDULED));
+      expect(pitchingFor(store().data.atBats, 'p_hamilton', SCHEDULED)).toEqual({ w: 1, l: 1 });
     });
 
     it('never re-credits at-bats that already name a pitcher (a mid-inning relief change)', () => {
       run((s) => s.nextHalfInning(SCHEDULED));
       run((s) => s.recordAtBat(SCHEDULED, 'k_swinging')); // credited to Weedon
-      run((s) => s.setPitcher(SCHEDULED, 'p_owen'));
+      run((s) => s.setPitcher(SCHEDULED, 'p_hamilton'));
       run((s) => s.recordAtBat(SCHEDULED, 'hit'));
       const theirs = store().data.atBats.filter((x) => x.gameId === SCHEDULED && x.side === 'them');
-      expect(theirs.map((x) => x.pitcherId)).toEqual(['p_weedon', 'p_owen']);
+      expect(theirs.map((x) => x.pitcherId)).toEqual(['p_weedon', 'p_hamilton']);
     });
 
     it('leaves unassigned at-bats from earlier half-innings and other games alone', () => {
@@ -395,15 +408,15 @@ describe('StoreProvider actions', () => {
         s.nextHalfInning(SCHEDULED); // bottom 2nd (they bat)
       });
       run((s) => s.recordAtBat(SCHEDULED, 'bunt'));
-      const banditsBefore = store().data.atBats.filter((x) => x.gameId === 'g_bandits');
-      run((s) => s.setPitcher(SCHEDULED, 'p_lucas'));
+      const redbirdsBefore = store().data.atBats.filter((x) => x.gameId === 'g_0823_3');
+      run((s) => s.setPitcher(SCHEDULED, 'p_cooper'));
       const theirs = store().data.atBats.filter((x) => x.gameId === SCHEDULED && x.side === 'them');
       expect(theirs.map((x) => [x.inning, x.pitcherId])).toEqual([
         [1, undefined],
         [1, undefined],
-        [2, 'p_lucas'],
+        [2, 'p_cooper'],
       ]);
-      expect(store().data.atBats.filter((x) => x.gameId === 'g_bandits')).toEqual(banditsBefore);
+      expect(store().data.atBats.filter((x) => x.gameId === 'g_0823_3')).toEqual(redbirdsBefore);
     });
 
     it('clearing the pitcher changes nothing about recorded at-bats', () => {
@@ -417,7 +430,7 @@ describe('StoreProvider actions', () => {
 
     it('ignores an unknown game', () => {
       const before = store().data;
-      run((s) => s.setPitcher('nope', 'p_owen'));
+      run((s) => s.setPitcher('nope', 'p_hamilton'));
       expect(store().data).toBe(before);
     });
 
@@ -430,11 +443,11 @@ describe('StoreProvider actions', () => {
         });
         run((s) => s.setPitcher(SCHEDULED, undefined));
         run((s) => s.recordAtBat(SCHEDULED, 'bunt')); // nobody
-        run((s) => s.setPitcher(SCHEDULED, 'p_owen', { recreditHalf: true }));
-        expect(game(SCHEDULED).pitcherId).toBe('p_owen');
+        run((s) => s.setPitcher(SCHEDULED, 'p_hamilton', { recreditHalf: true }));
+        expect(game(SCHEDULED).pitcherId).toBe('p_hamilton');
         const theirs = store().data.atBats.filter((x) => x.gameId === SCHEDULED && x.side === 'them');
-        expect(theirs.map((x) => x.pitcherId)).toEqual(['p_owen', 'p_owen', 'p_owen']);
-        expect(pitchingFor(store().data.atBats, 'p_owen', SCHEDULED)).toEqual(gamePitching(store().data.atBats, SCHEDULED));
+        expect(theirs.map((x) => x.pitcherId)).toEqual(['p_hamilton', 'p_hamilton', 'p_hamilton']);
+        expect(pitchingFor(store().data.atBats, 'p_hamilton', SCHEDULED)).toEqual(gamePitching(store().data.atBats, SCHEDULED));
         expect(pitchingFor(store().data.atBats, 'p_weedon', SCHEDULED)).toEqual({ w: 0, l: 0 });
       });
 
@@ -447,25 +460,25 @@ describe('StoreProvider actions', () => {
           s.nextHalfInning(SCHEDULED); // bottom 2nd
         });
         run((s) => s.recordAtBat(SCHEDULED, 'fc_weak')); // Weedon, 2nd
-        const banditsBefore = store().data.atBats.filter((x) => x.gameId === 'g_bandits');
-        run((s) => s.setPitcher(SCHEDULED, 'p_lucas', { recreditHalf: true }));
+        const redbirdsBefore = store().data.atBats.filter((x) => x.gameId === 'g_0823_3');
+        run((s) => s.setPitcher(SCHEDULED, 'p_cooper', { recreditHalf: true }));
         const mine = store().data.atBats.filter((x) => x.gameId === SCHEDULED);
         expect(mine.map((x) => [x.side, x.inning, x.pitcherId])).toEqual([
           ['them', 1, 'p_weedon'],
           ['us', 2, undefined],
-          ['them', 2, 'p_lucas'],
+          ['them', 2, 'p_cooper'],
         ]);
-        expect(store().data.atBats.filter((x) => x.gameId === 'g_bandits')).toEqual(banditsBefore);
+        expect(store().data.atBats.filter((x) => x.gameId === 'g_0823_3')).toEqual(redbirdsBefore);
       });
 
       it('is the default-off behavior when the option is false or absent', () => {
         run((s) => s.nextHalfInning(SCHEDULED));
         run((s) => s.recordAtBat(SCHEDULED, 'k_swinging')); // Weedon
-        run((s) => s.setPitcher(SCHEDULED, 'p_owen', { recreditHalf: false }));
-        run((s) => s.setPitcher(SCHEDULED, 'p_lucas', {}));
+        run((s) => s.setPitcher(SCHEDULED, 'p_hamilton', { recreditHalf: false }));
+        run((s) => s.setPitcher(SCHEDULED, 'p_cooper', {}));
         const theirs = store().data.atBats.filter((x) => x.gameId === SCHEDULED && x.side === 'them');
         expect(theirs.map((x) => x.pitcherId)).toEqual(['p_weedon']);
-        expect(game(SCHEDULED).pitcherId).toBe('p_lucas');
+        expect(game(SCHEDULED).pitcherId).toBe('p_cooper');
       });
 
       it('clearing the pitcher with recreditHalf changes no at-bat', () => {
@@ -490,7 +503,7 @@ describe('StoreProvider actions', () => {
       run((s) => {
         undone = s.undoLastAtBat(SCHEDULED);
       });
-      expect(undone).toMatchObject({ batterId: 'p_ryder', outcomeId: 'k_swinging' });
+      expect(undone).toMatchObject({ batterId: 'p_brady', outcomeId: 'k_swinging' });
       expect(store().data.atBats).toHaveLength(count - 1);
       expect(store().data.atBats.some((x) => x.id === undone!.id)).toBe(false);
       expect(game(SCHEDULED).ourNextBatter).toBe(1);
@@ -529,43 +542,43 @@ describe('StoreProvider actions', () => {
     });
 
     it('only touches the given game and returns undefined when there is nothing to undo', () => {
-      const banditsBefore = store().data.atBats.filter((x) => x.gameId === 'g_bandits').length;
+      const redbirdsBefore = store().data.atBats.filter((x) => x.gameId === 'g_0823_3').length;
       let result: ReturnType<Store['undoLastAtBat']>;
       run((s) => {
         result = s.undoLastAtBat(SCHEDULED);
       });
       expect(result).toBeUndefined();
-      expect(store().data.atBats.filter((x) => x.gameId === 'g_bandits')).toHaveLength(banditsBefore);
+      expect(store().data.atBats.filter((x) => x.gameId === 'g_0823_3')).toHaveLength(redbirdsBefore);
     });
   });
 
   describe('updateAtBat', () => {
-    /** Owen (hit), Ryder (K); Lucas due. Returns Owen's at-bat. */
+    /** Hamilton (hit), Brady (K); Cooper due. Returns Hamilton's at-bat. */
     const chartTwo = (): AtBat => {
       run((s) => {
         s.recordAtBat(SCHEDULED, 'hit');
         s.recordAtBat(SCHEDULED, 'k_swinging');
       });
-      return store().data.atBats.find((x) => x.gameId === SCHEDULED && x.batterId === 'p_owen')!;
+      return store().data.atBats.find((x) => x.gameId === SCHEDULED && x.batterId === 'p_hamilton')!;
     };
     const find = (id: string) => store().data.atBats.find((x) => x.id === id)!;
 
     it('re-judges the outcome and derives the result from it', () => {
-      const owen = chartTwo();
+      const hamilton = chartTwo();
       let updated: ReturnType<Store['updateAtBat']>;
       run((s) => {
-        updated = s.updateAtBat(owen.id, { outcomeId: 'k_looking' });
+        updated = s.updateAtBat(hamilton.id, { outcomeId: 'k_looking' });
       });
-      expect(updated).toMatchObject({ id: owen.id, outcomeId: 'k_looking', result: 'L', batterId: 'p_owen' });
-      expect(find(owen.id)).toEqual(updated);
-      run((s) => s.updateAtBat(owen.id, { outcomeId: 'plain_w' }));
-      expect(find(owen.id)).toMatchObject({ outcomeId: 'plain_w', result: 'W' });
-      run((s) => s.updateAtBat(owen.id, { outcomeId: 'plain_l' }));
-      expect(find(owen.id)).toMatchObject({ outcomeId: 'plain_l', result: 'L' });
+      expect(updated).toMatchObject({ id: hamilton.id, outcomeId: 'k_looking', result: 'L', batterId: 'p_hamilton' });
+      expect(find(hamilton.id)).toEqual(updated);
+      run((s) => s.updateAtBat(hamilton.id, { outcomeId: 'plain_w' }));
+      expect(find(hamilton.id)).toMatchObject({ outcomeId: 'plain_w', result: 'W' });
+      run((s) => s.updateAtBat(hamilton.id, { outcomeId: 'plain_l' }));
+      expect(find(hamilton.id)).toMatchObject({ outcomeId: 'plain_l', result: 'L' });
     });
 
     it('never moves the pointers or the clock, and never touches the game document at all', () => {
-      const owen = chartTwo();
+      const hamilton = chartTwo();
       run((s) => {
         s.nextHalfInning(SCHEDULED);
         s.nextHalfInning(SCHEDULED);
@@ -573,48 +586,48 @@ describe('StoreProvider actions', () => {
       const gamesBefore = store().data.games;
       const before = game(SCHEDULED);
       expect(before).toMatchObject({ inning: 2, half: 'top', ourNextBatter: 2, theirNextBatter: 0 });
-      run((s) => s.updateAtBat(owen.id, { outcomeId: 'sac_fly', batterId: 'p_cooper', inning: 1, half: 'bottom' }));
+      run((s) => s.updateAtBat(hamilton.id, { outcomeId: 'sac_fly', batterId: 'p_owen_haynes', inning: 1, half: 'bottom' }));
       expect(store().data.games).toBe(gamesBefore);
       expect(game(SCHEDULED)).toBe(before);
-      expect(find(owen.id)).toMatchObject({ outcomeId: 'sac_fly', result: 'W', batterId: 'p_cooper', inning: 1, half: 'bottom' });
+      expect(find(hamilton.id)).toMatchObject({ outcomeId: 'sac_fly', result: 'W', batterId: 'p_owen_haynes', inning: 1, half: 'bottom' });
     });
 
     it('re-assigning the batter keeps the outcome and result', () => {
-      const owen = chartTwo();
-      run((s) => s.updateAtBat(owen.id, { batterId: 'p_lucas' }));
-      expect(find(owen.id)).toMatchObject({ batterId: 'p_lucas', outcomeId: 'hit', result: 'W' });
-      expect(hittingFor(store().data.atBats, 'p_owen', SCHEDULED)).toEqual({ w: 0, l: 0 });
-      expect(hittingFor(store().data.atBats, 'p_lucas', SCHEDULED)).toEqual({ w: 1, l: 0 });
+      const hamilton = chartTwo();
+      run((s) => s.updateAtBat(hamilton.id, { batterId: 'p_cooper' }));
+      expect(find(hamilton.id)).toMatchObject({ batterId: 'p_cooper', outcomeId: 'hit', result: 'W' });
+      expect(hittingFor(store().data.atBats, 'p_hamilton', SCHEDULED)).toEqual({ w: 0, l: 0 });
+      expect(hittingFor(store().data.atBats, 'p_cooper', SCHEDULED)).toEqual({ w: 1, l: 0 });
     });
 
     it('sets or clears the pitcher on an opponent at-bat (explicit undefined clears)', () => {
       run((s) => s.nextHalfInning(SCHEDULED));
       run((s) => s.recordAtBat(SCHEDULED, 'k_swinging')); // Weedon
       const theirs = store().data.atBats.find((x) => x.gameId === SCHEDULED && x.side === 'them')!;
-      run((s) => s.updateAtBat(theirs.id, { pitcherId: 'p_owen' }));
-      expect(find(theirs.id).pitcherId).toBe('p_owen');
-      expect(pitchingFor(store().data.atBats, 'p_owen', SCHEDULED)).toEqual({ w: 1, l: 0 });
+      run((s) => s.updateAtBat(theirs.id, { pitcherId: 'p_hamilton' }));
+      expect(find(theirs.id).pitcherId).toBe('p_hamilton');
+      expect(pitchingFor(store().data.atBats, 'p_hamilton', SCHEDULED)).toEqual({ w: 1, l: 0 });
       run((s) => s.updateAtBat(theirs.id, { pitcherId: undefined }));
       expect(find(theirs.id).pitcherId).toBeUndefined();
       // A patch that does not mention the pitcher leaves it alone.
-      run((s) => s.updateAtBat(theirs.id, { pitcherId: 'p_lucas' }));
+      run((s) => s.updateAtBat(theirs.id, { pitcherId: 'p_cooper' }));
       run((s) => s.updateAtBat(theirs.id, { outcomeId: 'hit' }));
-      expect(find(theirs.id)).toMatchObject({ pitcherId: 'p_lucas', outcomeId: 'hit', result: 'W' });
+      expect(find(theirs.id)).toMatchObject({ pitcherId: 'p_cooper', outcomeId: 'hit', result: 'W' });
     });
 
     it('keeps the inning at 1 or more', () => {
-      const owen = chartTwo();
-      run((s) => s.updateAtBat(owen.id, { inning: 0 }));
-      expect(find(owen.id).inning).toBe(1);
-      run((s) => s.updateAtBat(owen.id, { inning: 4 }));
-      expect(find(owen.id).inning).toBe(4);
+      const hamilton = chartTwo();
+      run((s) => s.updateAtBat(hamilton.id, { inning: 0 }));
+      expect(find(hamilton.id).inning).toBe(1);
+      run((s) => s.updateAtBat(hamilton.id, { inning: 4 }));
+      expect(find(hamilton.id).inning).toBe(4);
     });
 
     it('works on a final game (post-game re-judging) without changing its status', () => {
-      const bandits = store().data.atBats.find((x) => x.gameId === 'g_bandits' && x.side === 'us')!;
-      run((s) => s.updateAtBat(bandits.id, { outcomeId: bandits.result === 'W' ? 'k_swinging' : 'hit' }));
-      expect(find(bandits.id).result).toBe(bandits.result === 'W' ? 'L' : 'W');
-      expect(game('g_bandits').status).toBe('final');
+      const redbirds = store().data.atBats.find((x) => x.gameId === 'g_0823_3' && x.side === 'us')!;
+      run((s) => s.updateAtBat(redbirds.id, { outcomeId: redbirds.result === 'W' ? 'k_swinging' : 'hit' }));
+      expect(find(redbirds.id).result).toBe(redbirds.result === 'W' ? 'L' : 'W');
+      expect(game('g_0823_3').status).toBe('final');
     });
 
     it('returns undefined and changes nothing for an unknown id', () => {
@@ -634,20 +647,20 @@ describe('StoreProvider actions', () => {
     it('record-then-remove is an undo: the batter is due up again', () => {
       run((s) => s.recordAtBat(SCHEDULED, 'hit'));
       expect(game(SCHEDULED).ourNextBatter).toBe(1);
-      const owen = ours()[0];
+      const hamilton = ours()[0];
       let removed: ReturnType<Store['deleteAtBat']>;
       run((s) => {
-        removed = s.deleteAtBat(owen.id);
+        removed = s.deleteAtBat(hamilton.id);
       });
-      expect(removed).toEqual(owen);
+      expect(removed).toEqual(hamilton);
       expect(ours()).toEqual([]);
       expect(game(SCHEDULED)).toMatchObject({ ourNextBatter: 0, inning: 1, half: 'top' });
     });
 
     it('keepPointer: leaves the pointer alone even in the record-then-remove shape (undoing a backfill)', () => {
-      run((s) => s.recordAtBat(SCHEDULED, 'hit')); // Owen; Ryder due
-      // A backfill for Owen while Ryder is due looks exactly like record-then-remove to the pointer rule.
-      run((s) => s.recordAtBat(SCHEDULED, 'plain_w', { side: 'us', batterId: 'p_owen', inning: 1, half: 'top' }));
+      run((s) => s.recordAtBat(SCHEDULED, 'hit')); // Hamilton; Brady due
+      // A backfill for Hamilton while Brady is due looks exactly like record-then-remove to the pointer rule.
+      run((s) => s.recordAtBat(SCHEDULED, 'plain_w', { side: 'us', batterId: 'p_hamilton', inning: 1, half: 'top' }));
       const backfill = ours()[1];
       expect(game(SCHEDULED).ourNextBatter).toBe(1);
       run((s) => s.deleteAtBat(backfill.id, { keepPointer: true }));
@@ -656,8 +669,8 @@ describe('StoreProvider actions', () => {
     });
 
     it('does not roll back after a skip made since (the pointer is not right after the slot)', () => {
-      run((s) => s.recordAtBat(SCHEDULED, 'hit')); // Owen; Ryder due
-      run((s) => s.setNextBatter(SCHEDULED, 'us', 3)); // skip to Cooper
+      run((s) => s.recordAtBat(SCHEDULED, 'hit')); // Hamilton; Brady due
+      run((s) => s.setNextBatter(SCHEDULED, 'us', 3)); // skip to Owen Haynes
       run((s) => s.deleteAtBat(ours()[0].id));
       expect(ours()).toEqual([]);
       expect(game(SCHEDULED).ourNextBatter).toBe(3);
@@ -665,40 +678,40 @@ describe('StoreProvider actions', () => {
 
     it('does not roll back when the at-bat is not the game’s newest', () => {
       run((s) => {
-        s.recordAtBat(SCHEDULED, 'hit'); // Owen
-        s.recordAtBat(SCHEDULED, 'k_swinging'); // Ryder; Lucas due
+        s.recordAtBat(SCHEDULED, 'hit'); // Hamilton
+        s.recordAtBat(SCHEDULED, 'k_swinging'); // Brady; Cooper due
       });
-      const [owen, ryder] = ours();
-      run((s) => s.deleteAtBat(owen.id));
-      expect(ours().map((x) => x.id)).toEqual([ryder.id]);
+      const [hamilton, brady] = ours();
+      run((s) => s.deleteAtBat(hamilton.id));
+      expect(ours().map((x) => x.id)).toEqual([brady.id]);
       expect(game(SCHEDULED).ourNextBatter).toBe(2);
     });
 
     it('never changes the clock, even for the newest at-bat of an earlier half', () => {
-      run((s) => s.recordAtBat(SCHEDULED, 'hit')); // Owen, top 1st; Ryder due
+      run((s) => s.recordAtBat(SCHEDULED, 'hit')); // Hamilton, top 1st; Brady due
       run((s) => {
         s.nextHalfInning(SCHEDULED);
         s.nextHalfInning(SCHEDULED); // top 2nd, nothing charted since
       });
       run((s) => s.deleteAtBat(ours()[0].id));
-      // Still the newest and the pointer still sits right after Owen, so he is due again ...
+      // Still the newest and the pointer still sits right after Hamilton, so he is due again ...
       expect(game(SCHEDULED).ourNextBatter).toBe(0);
       // ... but the clock stays where the coach put it.
       expect(game(SCHEDULED)).toMatchObject({ inning: 2, half: 'top' });
     });
 
     it('newest is judged on the game clock, so a backfill into an earlier inning does not count', () => {
-      run((s) => s.recordAtBat(SCHEDULED, 'hit')); // Owen top 1st; Ryder due
+      run((s) => s.recordAtBat(SCHEDULED, 'hit')); // Hamilton top 1st; Brady due
       run((s) => {
         s.nextHalfInning(SCHEDULED);
         s.nextHalfInning(SCHEDULED);
-        s.recordAtBat(SCHEDULED, 'hit'); // Ryder top 2nd; Lucas due
+        s.recordAtBat(SCHEDULED, 'hit'); // Brady top 2nd; Cooper due
       });
       let backfill: ReturnType<Store['recordAtBat']>;
       run((s) => {
-        backfill = s.recordAtBat(SCHEDULED, 'plain_l', { side: 'us', batterId: 'p_ryder', inning: 1, half: 'top' });
+        backfill = s.recordAtBat(SCHEDULED, 'plain_l', { side: 'us', batterId: 'p_brady', inning: 1, half: 'top' });
       });
-      expect(newestAtBat(ours())!.batterId).toBe('p_ryder');
+      expect(newestAtBat(ours())!.batterId).toBe('p_brady');
       expect(newestAtBat(ours())!.inning).toBe(2);
       run((s) => s.deleteAtBat(backfill!.id));
       expect(game(SCHEDULED).ourNextBatter).toBe(2);
@@ -718,7 +731,7 @@ describe('StoreProvider actions', () => {
 
     it('rolls their pointer back for an opponent at-bat and leaves ours alone', () => {
       run((s) => {
-        s.recordAtBat(SCHEDULED, 'hit'); // Owen; Ryder due
+        s.recordAtBat(SCHEDULED, 'hit'); // Hamilton; Brady due
         s.nextHalfInning(SCHEDULED);
         s.recordAtBat(SCHEDULED, 'k_swinging'); // Batter 1; Batter 2 due
       });
@@ -729,9 +742,9 @@ describe('StoreProvider actions', () => {
     });
 
     it('leaves the pointer alone when the batter has left the order', () => {
-      run((s) => s.recordAtBat(SCHEDULED, 'hit')); // Owen; Ryder due (index 1)
-      run((s) => s.setGameLineup(SCHEDULED, game(SCHEDULED).lineup.filter((x) => x.playerId !== 'p_owen')));
-      expect(game(SCHEDULED).ourNextBatter).toBe(0); // Ryder, now slot 0
+      run((s) => s.recordAtBat(SCHEDULED, 'hit')); // Hamilton; Brady due (index 1)
+      run((s) => s.setGameLineup(SCHEDULED, game(SCHEDULED).lineup.filter((x) => x.playerId !== 'p_hamilton')));
+      expect(game(SCHEDULED).ourNextBatter).toBe(0); // Brady, now slot 0
       run((s) => s.deleteAtBat(ours()[0].id));
       expect(game(SCHEDULED).ourNextBatter).toBe(0);
       expect(ours()).toEqual([]);
@@ -753,48 +766,48 @@ describe('StoreProvider actions', () => {
 
     it('puts a removed at-bat back where it was on the clock, pointers and clock untouched', () => {
       run((s) => {
-        s.recordAtBat(SCHEDULED, 'hit'); // Owen
-        s.recordAtBat(SCHEDULED, 'k_swinging'); // Ryder
-        s.recordAtBat(SCHEDULED, 'bunt'); // Lucas; Cooper due
+        s.recordAtBat(SCHEDULED, 'hit'); // Hamilton
+        s.recordAtBat(SCHEDULED, 'k_swinging'); // Brady
+        s.recordAtBat(SCHEDULED, 'bunt'); // Cooper; Owen Haynes due
       });
-      const [owen, ryder] = ours();
+      const [hamilton, brady] = ours();
       let removed: ReturnType<Store['deleteAtBat']>;
       run((s) => {
-        removed = s.deleteAtBat(ryder.id);
+        removed = s.deleteAtBat(brady.id);
       });
-      expect(ours().map((x) => x.id)).toEqual([owen.id, ours()[1].id]);
+      expect(ours().map((x) => x.id)).toEqual([hamilton.id, ours()[1].id]);
       expect(game(SCHEDULED).ourNextBatter).toBe(3);
       run((s) => s.restoreAtBat(removed!));
-      expect(sortAtBats(ours()).map((x) => x.batterId)).toEqual(['p_owen', 'p_ryder', 'p_lucas']);
-      expect(ours().find((x) => x.id === ryder.id)).toEqual(ryder);
+      expect(sortAtBats(ours()).map((x) => x.batterId)).toEqual(['p_hamilton', 'p_brady', 'p_cooper']);
+      expect(ours().find((x) => x.id === brady.id)).toEqual(brady);
       expect(game(SCHEDULED)).toMatchObject({ ourNextBatter: 3, inning: 1, half: 'top' });
     });
 
     it('leaves the pointer where the removal put it (the undo layer puts the batter who was due back up)', () => {
-      run((s) => s.recordAtBat(SCHEDULED, 'hit')); // Owen; Ryder due
-      const owen = ours()[0];
-      run((s) => s.deleteAtBat(owen.id));
+      run((s) => s.recordAtBat(SCHEDULED, 'hit')); // Hamilton; Brady due
+      const hamilton = ours()[0];
+      run((s) => s.deleteAtBat(hamilton.id));
       expect(game(SCHEDULED).ourNextBatter).toBe(0);
-      run((s) => s.restoreAtBat(owen));
-      expect(ours()).toEqual([owen]);
+      run((s) => s.restoreAtBat(hamilton));
+      expect(ours()).toEqual([hamilton]);
       expect(game(SCHEDULED).ourNextBatter).toBe(0);
     });
 
     it('is a no-op when the id already exists', () => {
       run((s) => s.recordAtBat(SCHEDULED, 'hit'));
-      const owen = ours()[0];
+      const hamilton = ours()[0];
       const before = store().data;
-      run((s) => s.restoreAtBat({ ...owen, outcomeId: 'k_swinging', result: 'L' }));
+      run((s) => s.restoreAtBat({ ...hamilton, outcomeId: 'k_swinging', result: 'L' }));
       expect(store().data).toBe(before);
-      expect(ours()).toEqual([owen]);
+      expect(ours()).toEqual([hamilton]);
     });
 
     it('is a no-op when the game no longer exists', () => {
       run((s) => s.recordAtBat(SCHEDULED, 'hit'));
-      const owen = ours()[0];
+      const hamilton = ours()[0];
       run((s) => s.deleteGame(SCHEDULED));
       const before = store().data;
-      run((s) => s.restoreAtBat(owen));
+      run((s) => s.restoreAtBat(hamilton));
       expect(store().data).toBe(before);
     });
   });
@@ -806,43 +819,43 @@ describe('StoreProvider actions', () => {
     afterEach(() => clearAllUndo());
 
     it('undoing an at-bat charted while reviewing an earlier half puts that batter back up', () => {
-      run((s) => s.recordAtBat(SCHEDULED, 'hit')); // Owen, top 1st; Ryder due
+      run((s) => s.recordAtBat(SCHEDULED, 'hit')); // Hamilton, top 1st; Brady due
       run((s) => s.nextHalfInning(SCHEDULED)); // bottom 1st: they bat
       run((s) => s.recordAtBat(SCHEDULED, 'k_swinging')); // Batter 1; Batter 2 due
       run((s) => s.prevHalfInning(SCHEDULED)); // back to the top 1st for a missed at-bat
-      let ryder: AtBat | undefined;
+      let brady: AtBat | undefined;
       run((s) => {
-        ryder = s.recordAtBat(SCHEDULED, 'plain_w');
+        brady = s.recordAtBat(SCHEDULED, 'plain_w');
       });
-      expect(ryder).toMatchObject({ batterId: 'p_ryder', inning: 1, half: 'top' });
+      expect(brady).toMatchObject({ batterId: 'p_brady', inning: 1, half: 'top' });
       expect(game(SCHEDULED)).toMatchObject({ ourNextBatter: 2, theirNextBatter: 1 });
-      // Not the newest on the clock, so deleteAtBat's own rule would leave Lucas up.
-      expect(newestAtBat(ours())!.id).not.toBe(ryder!.id);
-      run((s) => applyUndo({ kind: 'record', atBat: ryder! }, game(SCHEDULED), s));
-      expect(ids()).not.toContain(ryder!.id);
+      // Not the newest on the clock, so deleteAtBat's own rule would leave Cooper up.
+      expect(newestAtBat(ours())!.id).not.toBe(brady!.id);
+      run((s) => applyUndo({ kind: 'record', atBat: brady! }, game(SCHEDULED), s));
+      expect(ids()).not.toContain(brady!.id);
       expect(ours()).toHaveLength(2);
       expect(game(SCHEDULED)).toMatchObject({ ourNextBatter: 1, theirNextBatter: 1, inning: 1, half: 'top' });
     });
 
     it('undoing a live at-bat after a re-judge moved an earlier one to a later inning puts that batter back up', () => {
-      run((s) => s.recordAtBat(SCHEDULED, 'hit')); // Owen top 1st; Ryder due
-      const owen = ours()[0];
-      run((s) => s.updateAtBat(owen.id, { inning: 2 })); // charted in the wrong inning
-      let ryder: AtBat | undefined;
+      run((s) => s.recordAtBat(SCHEDULED, 'hit')); // Hamilton top 1st; Brady due
+      const hamilton = ours()[0];
+      run((s) => s.updateAtBat(hamilton.id, { inning: 2 })); // charted in the wrong inning
+      let brady: AtBat | undefined;
       run((s) => {
-        ryder = s.recordAtBat(SCHEDULED, 'hit'); // Ryder top 1st; Lucas due
+        brady = s.recordAtBat(SCHEDULED, 'hit'); // Brady top 1st; Cooper due
       });
       expect(game(SCHEDULED).ourNextBatter).toBe(2);
-      run((s) => applyUndo({ kind: 'record', atBat: ryder! }, game(SCHEDULED), s));
-      expect(ids()).toEqual([owen.id]);
+      run((s) => applyUndo({ kind: 'record', atBat: brady! }, game(SCHEDULED), s));
+      expect(ids()).toEqual([hamilton.id]);
       expect(game(SCHEDULED)).toMatchObject({ ourNextBatter: 1, inning: 1, half: 'top' });
     });
 
     it('undoing a backfill deletes it and leaves the pointer alone', () => {
-      run((s) => s.recordAtBat(SCHEDULED, 'hit')); // Owen; Ryder due
+      run((s) => s.recordAtBat(SCHEDULED, 'hit')); // Hamilton; Brady due
       let backfill: AtBat | undefined;
       run((s) => {
-        backfill = s.recordAtBat(SCHEDULED, 'plain_l', { side: 'us', batterId: 'p_owen', inning: 1, half: 'top' });
+        backfill = s.recordAtBat(SCHEDULED, 'plain_l', { side: 'us', batterId: 'p_hamilton', inning: 1, half: 'top' });
       });
       run((s) => applyUndo({ kind: 'record', atBat: backfill!, backfill: true }, game(SCHEDULED), s));
       expect(ours()).toHaveLength(1);
@@ -850,18 +863,18 @@ describe('StoreProvider actions', () => {
     });
 
     it('undoing a remove restores the at-bat and the batter who was due before the remove', () => {
-      run((s) => s.recordAtBat(SCHEDULED, 'hit')); // Owen; Ryder due
-      const owen = ours()[0];
+      run((s) => s.recordAtBat(SCHEDULED, 'hit')); // Hamilton; Brady due
+      const hamilton = ours()[0];
       const g = game(SCHEDULED);
       const dueBatterId = g.lineup[g.ourNextBatter % g.lineup.length].playerId; // what the editor captures
-      expect(dueBatterId).toBe('p_ryder');
+      expect(dueBatterId).toBe('p_brady');
       let removed: AtBat | undefined;
       run((s) => {
-        removed = s.deleteAtBat(owen.id);
+        removed = s.deleteAtBat(hamilton.id);
       });
       expect(game(SCHEDULED).ourNextBatter).toBe(0); // record-then-remove rolled it back
       run((s) => applyUndo({ kind: 'remove', atBat: removed!, dueBatterId }, game(SCHEDULED), s));
-      expect(ours()).toEqual([owen]);
+      expect(ours()).toEqual([hamilton]);
       expect(game(SCHEDULED)).toMatchObject({ ourNextBatter: 1, inning: 1, half: 'top' });
     });
 
@@ -891,18 +904,18 @@ describe('StoreProvider actions', () => {
       });
       let record: Substitution | undefined;
       run((s) => {
-        record = s.substitute(SCHEDULED, 'p_cooper', 'p_mason');
+        record = s.substitute(SCHEDULED, 'p_owen_haynes', 'p_owen_clark');
       });
-      pushUndo(SCHEDULED, { kind: 'sub', substitutionId: record!.id, slot: record!.slot, outId: 'p_cooper', inId: 'p_mason' });
-      expect(game(SCHEDULED).lineup[3].playerId).toBe('p_mason');
+      pushUndo(SCHEDULED, { kind: 'sub', substitutionId: record!.id, slot: record!.slot, outId: 'p_owen_haynes', inId: 'p_owen_clark' });
+      expect(game(SCHEDULED).lineup[3].playerId).toBe('p_owen_clark');
       expect(game(SCHEDULED).ourNextBatter).toBe(3);
 
       const entry = popUndo(SCHEDULED)!;
       run((s) => applyUndo(entry, game(SCHEDULED), s));
-      expect(game(SCHEDULED).lineup[3].playerId).toBe('p_cooper');
-      expect(game(SCHEDULED).lineup.some((x) => x.playerId === 'p_mason')).toBe(false);
+      expect(game(SCHEDULED).lineup[3].playerId).toBe('p_owen_haynes');
+      expect(game(SCHEDULED).lineup.some((x) => x.playerId === 'p_owen_clark')).toBe(false);
       expect(game(SCHEDULED).substitutions).toEqual([]);
-      // Cooper is still due up: the pointer was never touched.
+      // Owen Haynes is still due up: the pointer was never touched.
       expect(game(SCHEDULED).ourNextBatter).toBe(3);
       expect(ids()).toHaveLength(3);
 
@@ -913,18 +926,18 @@ describe('StoreProvider actions', () => {
 
     it('deleteGame empties that game’s undo stack and no other', () => {
       pushUndo(SCHEDULED, { kind: 'half', direction: 'next' });
-      pushUndo('g_bandits', { kind: 'half', direction: 'next' });
-      run((s) => s.deleteGame('g_bandits'));
-      expect(peekUndo('g_bandits')).toBeUndefined();
+      pushUndo('g_0823_3', { kind: 'half', direction: 'next' });
+      run((s) => s.deleteGame('g_0823_3'));
+      expect(peekUndo('g_0823_3')).toBeUndefined();
       expect(peekUndo(SCHEDULED)).toBeDefined();
     });
 
     it('resetDemoData and clearAllData empty every undo stack, so a stale remove cannot resurrect an at-bat', () => {
       run((s) => s.recordAtBat(SCHEDULED, 'hit'));
-      const owen = ours()[0];
+      const hamilton = ours()[0];
       let removed: AtBat | undefined;
       run((s) => {
-        removed = s.deleteAtBat(owen.id);
+        removed = s.deleteAtBat(hamilton.id);
       });
       pushUndo(SCHEDULED, { kind: 'remove', atBat: removed! });
       run((s) => s.resetDemoData());
@@ -932,7 +945,7 @@ describe('StoreProvider actions', () => {
       expect(popUndo(SCHEDULED)).toBeUndefined();
       expect(ours()).toEqual([]);
 
-      pushUndo(SCHEDULED, { kind: 'skip', side: 'us', fromBatterId: 'p_owen', toBatterId: 'p_lucas' });
+      pushUndo(SCHEDULED, { kind: 'skip', side: 'us', fromBatterId: 'p_hamilton', toBatterId: 'p_cooper' });
       run((s) => s.clearAllData());
       expect(peekUndo(SCHEDULED)).toBeUndefined();
     });
@@ -950,7 +963,7 @@ describe('StoreProvider actions', () => {
     it('nextHalfInning starts a scheduled game', () => {
       run((s) => s.nextHalfInning(SCHEDULED));
       expect(game(SCHEDULED).status).toBe('in_progress');
-      expect(game('g_bandits').status).toBe('final');
+      expect(game('g_0823_3').status).toBe('final');
     });
 
     it('prevHalfInning walks back and never goes before the top of the 1st', () => {
@@ -978,11 +991,11 @@ describe('StoreProvider actions', () => {
 
   describe('addGame', () => {
     it('copies the default lineup; no pitcher until one is chosen', () => {
-      const team = store().data.teams.find((t) => t.id === 't_bears12u')!;
+      const team = store().data.teams.find((t) => t.id === 't_floyd14u')!;
       let created: Game | undefined;
       run((s) => {
-        created = s.addGame('t_bears12u', {
-          opponent: '  Rockhounds ',
+        created = s.addGame('t_floyd14u', {
+          opponent: '  Gators ',
           isAway: false,
           startsAt: '2026-09-20T17:00:00.000Z',
           notes: '  Home opener  ',
@@ -995,8 +1008,8 @@ describe('StoreProvider actions', () => {
       expect(g.pitcherId).toBeUndefined();
       expect(g.substitutions).toBeUndefined();
       expect(g).toMatchObject({
-        teamId: 't_bears12u',
-        opponent: 'Rockhounds',
+        teamId: 't_floyd14u',
+        opponent: 'Gators',
         isAway: false,
         startsAt: '2026-09-20T17:00:00.000Z',
         status: 'scheduled',
@@ -1010,51 +1023,51 @@ describe('StoreProvider actions', () => {
       expect(g.opponentLineup.map((b) => b.name)).toEqual(Array.from({ length: 9 }, (_, i) => `Batter ${i + 1}`));
       expect(new Set(g.opponentLineup.map((b) => b.id)).size).toBe(9);
       expect(g.finishedAt).toBeUndefined();
-      expect(store().data.games).toHaveLength(8);
+      expect(store().data.games).toHaveLength(15);
     });
 
     it('is a snapshot: changing the default lineup later does not touch the game', () => {
       let created: Game | undefined;
       run((s) => {
-        created = s.addGame('t_bears12u', { opponent: 'X', isAway: true, startsAt: NOW.toISOString() });
+        created = s.addGame('t_floyd14u', { opponent: 'X', isAway: true, startsAt: NOW.toISOString() });
       });
-      run((s) => s.setDefaultLineup('t_bears12u', [{ playerId: 'p_ben' }]));
+      run((s) => s.setDefaultLineup('t_floyd14u', [{ playerId: 'p_ben' }]));
       expect(game(created!.id).lineup).toHaveLength(10);
-      expect(game(created!.id).lineup[0]).toEqual({ playerId: 'p_owen' });
+      expect(game(created!.id).lineup[0]).toEqual({ playerId: 'p_hamilton' });
     });
 
     it('copies a shorter default lineup as is; blank notes become undefined', () => {
-      run((s) => s.setDefaultLineup('t_bears12u', [{ playerId: 'p_owen' }, { playerId: 'p_ryder' }]));
+      run((s) => s.setDefaultLineup('t_floyd14u', [{ playerId: 'p_hamilton' }, { playerId: 'p_brady' }]));
       let created: Game | undefined;
       run((s) => {
-        created = s.addGame('t_bears12u', { opponent: 'X', isAway: true, startsAt: NOW.toISOString(), notes: '   ' });
+        created = s.addGame('t_floyd14u', { opponent: 'X', isAway: true, startsAt: NOW.toISOString(), notes: '   ' });
       });
       expect(created!.pitcherId).toBeUndefined();
       expect(created!.notes).toBeUndefined();
-      expect(created!.lineup.map((x) => x.playerId)).toEqual(['p_owen', 'p_ryder']);
+      expect(created!.lineup.map((x) => x.playerId)).toEqual(['p_hamilton', 'p_brady']);
     });
   });
 
   describe('substitute', () => {
     it('puts the bench player in the outgoing player’s slot, records the change at the clock and starts the game', () => {
       const before = game(SCHEDULED);
-      expect(before.lineup[3]).toEqual({ playerId: 'p_cooper' });
+      expect(before.lineup[3]).toEqual({ playerId: 'p_owen_haynes' });
       let record: Substitution | undefined;
       run((s) => {
-        record = s.substitute(SCHEDULED, 'p_cooper', 'p_mason');
+        record = s.substitute(SCHEDULED, 'p_owen_haynes', 'p_owen_clark');
       });
       expect(record).toEqual({
         id: expect.any(String),
         slot: 3,
-        outId: 'p_cooper',
-        inId: 'p_mason',
+        outId: 'p_owen_haynes',
+        inId: 'p_owen_clark',
         inning: 1,
         half: 'top',
         at: expect.any(String),
       });
       const g = game(SCHEDULED);
-      expect(g.lineup.map((x) => x.playerId)).toEqual(before.lineup.map((x) => x.playerId).map((id) => (id === 'p_cooper' ? 'p_mason' : id)));
-      expect(g.lineup[3]).toEqual({ playerId: 'p_mason' });
+      expect(g.lineup.map((x) => x.playerId)).toEqual(before.lineup.map((x) => x.playerId).map((id) => (id === 'p_owen_haynes' ? 'p_owen_clark' : id)));
+      expect(g.lineup[3]).toEqual({ playerId: 'p_owen_clark' });
       expect(g.substitutions).toEqual([record]);
       expect(g.status).toBe('in_progress');
       expect(new Date(record!.at).getTime()).not.toBeNaN();
@@ -1072,17 +1085,17 @@ describe('StoreProvider actions', () => {
       expect(before).toMatchObject({ inning: 2, half: 'top', ourNextBatter: 2, theirNextBatter: 4, pitcherId: 'p_weedon' });
       let record: Substitution | undefined;
       run((s) => {
-        record = s.substitute(SCHEDULED, 'p_lucas', 'p_eli');
+        record = s.substitute(SCHEDULED, 'p_cooper', 'p_jd');
       });
       expect(record).toMatchObject({ slot: 2, inning: 2, half: 'top' });
       expect(game(SCHEDULED)).toMatchObject({ inning: 2, half: 'top', ourNextBatter: 2, theirNextBatter: 4, pitcherId: 'p_weedon' });
-      // The slot is the same, so Eli is now the batter due up.
-      expect(game(SCHEDULED).lineup[game(SCHEDULED).ourNextBatter].playerId).toBe('p_eli');
+      // The slot is the same, so JD is now the batter due up.
+      expect(game(SCHEDULED).lineup[game(SCHEDULED).ourNextBatter].playerId).toBe('p_jd');
       expect(store().data.atBats.filter((x) => x.gameId === SCHEDULED)).toHaveLength(2);
     });
 
     it('subbing out the pitcher keeps him as the pitcher (the screen chains to the pitcher picker)', () => {
-      run((s) => s.substitute(SCHEDULED, 'p_weedon', 'p_theo'));
+      run((s) => s.substitute(SCHEDULED, 'p_weedon', 'p_chase'));
       expect(game(SCHEDULED).pitcherId).toBe('p_weedon');
       expect(game(SCHEDULED).lineup.some((x) => x.playerId === 'p_weedon')).toBe(false);
     });
@@ -1090,22 +1103,22 @@ describe('StoreProvider actions', () => {
     it('records every change in order and allows re-entry', () => {
       const records: (Substitution | undefined)[] = [];
       run((s) => {
-        records.push(s.substitute(SCHEDULED, 'p_cooper', 'p_mason'));
+        records.push(s.substitute(SCHEDULED, 'p_owen_haynes', 'p_owen_clark'));
         s.nextHalfInning(SCHEDULED);
-        records.push(s.substitute(SCHEDULED, 'p_mason', 'p_cooper'));
+        records.push(s.substitute(SCHEDULED, 'p_owen_clark', 'p_owen_haynes'));
       });
-      expect(records[0]).toMatchObject({ slot: 3, outId: 'p_cooper', inId: 'p_mason', inning: 1, half: 'top' });
-      expect(records[1]).toMatchObject({ slot: 3, outId: 'p_mason', inId: 'p_cooper', inning: 1, half: 'bottom' });
+      expect(records[0]).toMatchObject({ slot: 3, outId: 'p_owen_haynes', inId: 'p_owen_clark', inning: 1, half: 'top' });
+      expect(records[1]).toMatchObject({ slot: 3, outId: 'p_owen_clark', inId: 'p_owen_haynes', inning: 1, half: 'bottom' });
       expect(records[0]!.id).not.toBe(records[1]!.id);
       expect(game(SCHEDULED).substitutions).toEqual(records);
-      expect(game(SCHEDULED).lineup[3]).toEqual({ playerId: 'p_cooper' });
+      expect(game(SCHEDULED).lineup[3]).toEqual({ playerId: 'p_owen_haynes' });
     });
 
     it('returns undefined and changes nothing for an outgoing player not in the order', () => {
       const before = game(SCHEDULED);
       let record: Substitution | undefined;
       run((s) => {
-        record = s.substitute(SCHEDULED, 'p_mason', 'p_eli');
+        record = s.substitute(SCHEDULED, 'p_owen_clark', 'p_jd');
       });
       expect(record).toBeUndefined();
       expect(game(SCHEDULED)).toBe(before);
@@ -1114,25 +1127,25 @@ describe('StoreProvider actions', () => {
     it('returns undefined and changes nothing for an incoming player already in the order, on another team or unknown', () => {
       let other: string | undefined;
       run((s) => {
-        other = s.addPlayer('t_bears13u', { firstName: 'Other', lastName: 'Team' }).id;
+        other = s.addPlayer('t_ken14u', { firstName: 'Other', lastName: 'Team' }).id;
       });
       const before = game(SCHEDULED);
       const results: (Substitution | undefined)[] = [];
       run((s) => {
-        results.push(s.substitute(SCHEDULED, 'p_cooper', 'p_owen'));
-        results.push(s.substitute(SCHEDULED, 'p_cooper', 'p_cooper'));
-        results.push(s.substitute(SCHEDULED, 'p_cooper', other!));
-        results.push(s.substitute(SCHEDULED, 'p_cooper', 'nobody'));
-        results.push(s.substitute('no_such_game', 'p_cooper', 'p_mason'));
+        results.push(s.substitute(SCHEDULED, 'p_owen_haynes', 'p_hamilton'));
+        results.push(s.substitute(SCHEDULED, 'p_owen_haynes', 'p_owen_haynes'));
+        results.push(s.substitute(SCHEDULED, 'p_owen_haynes', other!));
+        results.push(s.substitute(SCHEDULED, 'p_owen_haynes', 'nobody'));
+        results.push(s.substitute('no_such_game', 'p_owen_haynes', 'p_owen_clark'));
       });
       expect(results).toEqual([undefined, undefined, undefined, undefined, undefined]);
       expect(game(SCHEDULED)).toBe(before);
     });
 
     it('does not change the status of a final game', () => {
-      run((s) => s.substitute('g_wolves', 'p_owen', 'p_theo'));
-      expect(game('g_wolves').status).toBe('final');
-      expect(game('g_wolves').lineup[0]).toEqual({ playerId: 'p_theo' });
+      run((s) => s.substitute('g_0815_1', 'p_brady', 'p_chase'));
+      expect(game('g_0815_1').status).toBe('final');
+      expect(game('g_0815_1').lineup[0]).toEqual({ playerId: 'p_chase' });
     });
   });
 
@@ -1140,7 +1153,7 @@ describe('StoreProvider actions', () => {
     const subIn = () => {
       let record: Substitution | undefined;
       run((s) => {
-        record = s.substitute(SCHEDULED, 'p_cooper', 'p_mason');
+        record = s.substitute(SCHEDULED, 'p_owen_haynes', 'p_owen_clark');
       });
       return record!;
     };
@@ -1158,8 +1171,8 @@ describe('StoreProvider actions', () => {
       });
       expect(ok).toBe(true);
       const g = game(SCHEDULED);
-      expect(g.lineup[3]).toEqual({ playerId: 'p_cooper' });
-      expect(g.lineup.some((x) => x.playerId === 'p_mason')).toBe(false);
+      expect(g.lineup[3]).toEqual({ playerId: 'p_owen_haynes' });
+      expect(g.lineup.some((x) => x.playerId === 'p_owen_clark')).toBe(false);
       expect(g.substitutions).toEqual([]);
       expect(g).toMatchObject({ inning: 1, half: 'bottom', ourNextBatter: before.ourNextBatter, theirNextBatter: before.theirNextBatter, status: 'in_progress' });
     });
@@ -1168,20 +1181,20 @@ describe('StoreProvider actions', () => {
       const first = subIn();
       let second: Substitution | undefined;
       run((s) => {
-        second = s.substitute(SCHEDULED, 'p_mason', 'p_eli');
+        second = s.substitute(SCHEDULED, 'p_owen_clark', 'p_jd');
       });
       let ok: boolean | undefined;
       run((s) => {
         ok = s.undoSubstitution(SCHEDULED, second!.id);
       });
       expect(ok).toBe(true);
-      expect(game(SCHEDULED).lineup[3]).toEqual({ playerId: 'p_mason' });
+      expect(game(SCHEDULED).lineup[3]).toEqual({ playerId: 'p_owen_clark' });
       expect(game(SCHEDULED).substitutions).toEqual([first]);
     });
 
     it('refuses once the slot no longer holds the sub (a later change made with the lineup editor)', () => {
       const record = subIn();
-      run((s) => s.setGameLineup(SCHEDULED, game(SCHEDULED).lineup.filter((x) => x.playerId !== 'p_mason')));
+      run((s) => s.setGameLineup(SCHEDULED, game(SCHEDULED).lineup.filter((x) => x.playerId !== 'p_owen_clark')));
       const before = game(SCHEDULED);
       let ok: boolean | undefined;
       run((s) => {
@@ -1197,7 +1210,7 @@ describe('StoreProvider actions', () => {
       const moved = [...game(SCHEDULED).lineup];
       [moved[3], moved[4]] = [moved[4], moved[3]];
       run((s) => s.setGameLineup(SCHEDULED, moved));
-      expect(game(SCHEDULED).lineup[4].playerId).toBe('p_mason');
+      expect(game(SCHEDULED).lineup[4].playerId).toBe('p_owen_clark');
       const before = game(SCHEDULED);
       let ok: boolean | undefined;
       run((s) => {
@@ -1210,10 +1223,10 @@ describe('StoreProvider actions', () => {
 
     it('refuses once the outgoing player was added back elsewhere while the sub still holds the slot', () => {
       const record = subIn();
-      // Cooper appended with the lineup editor; Mason is still in slot 3, so
-      // only the "added back elsewhere" guard can stop Cooper ending up twice.
-      run((s) => s.setGameLineup(SCHEDULED, [...game(SCHEDULED).lineup, { playerId: 'p_cooper' }]));
-      expect(game(SCHEDULED).lineup[3].playerId).toBe('p_mason');
+      // Owen Haynes appended with the lineup editor; Owen Clark is still in slot 3, so
+      // only the "added back elsewhere" guard can stop Owen Haynes ending up twice.
+      run((s) => s.setGameLineup(SCHEDULED, [...game(SCHEDULED).lineup, { playerId: 'p_owen_haynes' }]));
+      expect(game(SCHEDULED).lineup[3].playerId).toBe('p_owen_clark');
       const before = game(SCHEDULED);
       let ok: boolean | undefined;
       run((s) => {
@@ -1222,8 +1235,8 @@ describe('StoreProvider actions', () => {
       expect(ok).toBe(false);
       expect(game(SCHEDULED)).toBe(before);
       expect(before.substitutions).toEqual([record]);
-      expect(before.lineup.filter((x) => x.playerId === 'p_cooper')).toHaveLength(1);
-      expect(before.lineup.filter((x) => x.playerId === 'p_mason')).toHaveLength(1);
+      expect(before.lineup.filter((x) => x.playerId === 'p_owen_haynes')).toHaveLength(1);
+      expect(before.lineup.filter((x) => x.playerId === 'p_owen_clark')).toHaveLength(1);
     });
 
     it('returns false for an unknown record, an already undone one, or an unknown game', () => {
@@ -1236,7 +1249,7 @@ describe('StoreProvider actions', () => {
         results.push(s.undoSubstitution(SCHEDULED, record.id));
       });
       expect(results).toEqual([false, false, true, false]);
-      expect(game(SCHEDULED).lineup[3]).toEqual({ playerId: 'p_cooper' });
+      expect(game(SCHEDULED).lineup[3]).toEqual({ playerId: 'p_owen_haynes' });
     });
   });
 
@@ -1244,7 +1257,7 @@ describe('StoreProvider actions', () => {
     it('drops the player from the roster, the default lineup and scheduled game lineups', () => {
       run((s) => s.removePlayer('p_knox'));
       expect(store().data.players.some((p) => p.id === 'p_knox')).toBe(false);
-      const team = store().data.teams.find((t) => t.id === 't_bears12u')!;
+      const team = store().data.teams.find((t) => t.id === 't_floyd14u')!;
       expect(team.defaultLineup.some((x) => x.playerId === 'p_knox')).toBe(false);
       expect(team.defaultLineup).toHaveLength(9);
       expect(game(SCHEDULED).lineup.some((x) => x.playerId === 'p_knox')).toBe(false);
@@ -1258,20 +1271,20 @@ describe('StoreProvider actions', () => {
       run((s) => s.removePlayer('p_knox'));
       expect(store().data.atBats).toHaveLength(before);
       expect(store().data.atBats.filter((x) => x.batterId === 'p_knox')).toHaveLength(knoxAtBats);
-      expect(game('g_bandits').lineup.some((x) => x.playerId === 'p_knox')).toBe(true);
-      expect(game('g_redbirds').lineup.some((x) => x.playerId === 'p_knox')).toBe(true);
+      expect(game('g_0912_1').lineup.some((x) => x.playerId === 'p_knox')).toBe(true);
+      expect(game('g_0912_2').lineup.some((x) => x.playerId === 'p_knox')).toBe(true);
     });
 
     it('clears the pitcher on scheduled games when the pitcher is removed, but not on final games', () => {
       expect(game(SCHEDULED).pitcherId).toBe('p_weedon');
-      expect(game('g_fury').pitcherId).toBe('p_weedon');
+      expect(game('g_0913_2').pitcherId).toBe('p_weedon');
       run((s) => s.removePlayer('p_weedon'));
       expect(game(SCHEDULED).pitcherId).toBeUndefined();
-      expect(game('g_fury').pitcherId).toBe('p_weedon');
+      expect(game('g_0913_2').pitcherId).toBe('p_weedon');
     });
 
     it('clears the pitcher on an in-progress game too, so later at-bats are not credited to a ghost', () => {
-      run((s) => s.nextHalfInning(SCHEDULED)); // Tigers batting, Weedon pitching
+      run((s) => s.nextHalfInning(SCHEDULED)); // Bears Ken batting, Weedon pitching
       run((s) => s.removePlayer('p_weedon'));
       expect(game(SCHEDULED).status).toBe('in_progress');
       expect(game(SCHEDULED).pitcherId).toBeUndefined();
@@ -1281,7 +1294,7 @@ describe('StoreProvider actions', () => {
       });
       expect(recorded!.side).toBe('them');
       expect(recorded!.pitcherId).toBeUndefined();
-      expect(game('g_fury').pitcherId).toBe('p_weedon');
+      expect(game('g_0913_2').pitcherId).toBe('p_weedon');
     });
 
     it('does not prune an in-progress game’s lineup', () => {
@@ -1294,45 +1307,45 @@ describe('StoreProvider actions', () => {
       /** Every action that moves the due batter also starts the game, so seed the index directly. */
       const mountScheduledWithDue = (index: number) => {
         unmount();
-        const data = buildDemoData(NOW);
+        const data = demoForCharting();
         data.games = data.games.map((g) => (g.id === SCHEDULED ? { ...g, ourNextBatter: index } : g));
         mount(data);
       };
 
       it('the same batter stays due when someone ahead of them is removed', () => {
-        mountScheduledWithDue(5); // Matthew
-        run((s) => s.removePlayer('p_owen'));
+        mountScheduledWithDue(5); // Lucas
+        run((s) => s.removePlayer('p_hamilton'));
         const g = game(SCHEDULED);
         expect(g.status).toBe('scheduled');
         expect(g.ourNextBatter).toBe(4);
-        expect(g.lineup[g.ourNextBatter].playerId).toBe('p_matthew');
+        expect(g.lineup[g.ourNextBatter].playerId).toBe('p_lucas');
       });
 
       it('the index stays in range when the last batter in the order is due and gets removed', () => {
-        mountScheduledWithDue(9); // Ben, last slot
-        run((s) => s.removePlayer('p_ben'));
+        mountScheduledWithDue(9); // Weedon, last slot
+        run((s) => s.removePlayer('p_weedon'));
         const g = game(SCHEDULED);
         expect(g.lineup).toHaveLength(9);
         expect(g.ourNextBatter).toBeLessThan(g.lineup.length);
-        expect(g.lineup[g.ourNextBatter].playerId).toBe('p_owen'); // wraps to the top
+        expect(g.lineup[g.ourNextBatter].playerId).toBe('p_hamilton'); // wraps to the top
       });
 
       it('the next batter in the old order is due when the due batter is removed', () => {
-        mountScheduledWithDue(1); // Ryder
-        run((s) => s.removePlayer('p_ryder'));
+        mountScheduledWithDue(1); // Brady
+        run((s) => s.removePlayer('p_brady'));
         const g = game(SCHEDULED);
         expect(g.ourNextBatter).toBe(1);
-        expect(g.lineup[g.ourNextBatter].playerId).toBe('p_lucas');
+        expect(g.lineup[g.ourNextBatter].playerId).toBe('p_cooper');
       });
     });
 
     it('keeps the due batter of an in-progress game (order untouched)', () => {
-      run((s) => s.setNextBatter(SCHEDULED, 'us', 5)); // Matthew; game now in progress
-      run((s) => s.removePlayer('p_owen'));
+      run((s) => s.setNextBatter(SCHEDULED, 'us', 5)); // Lucas; game now in progress
+      run((s) => s.removePlayer('p_hamilton'));
       const g = game(SCHEDULED);
       expect(g.lineup).toHaveLength(10);
       expect(g.ourNextBatter).toBe(5);
-      expect(g.lineup[g.ourNextBatter].playerId).toBe('p_matthew');
+      expect(g.lineup[g.ourNextBatter].playerId).toBe('p_lucas');
     });
   });
 
@@ -1340,17 +1353,35 @@ describe('StoreProvider actions', () => {
     it('resetDemoData restores the demo document but keeps onboarded', () => {
       run((s) => {
         s.setOnboarded(true);
-        s.deleteGame('g_bandits');
+        s.deleteGame('g_0823_3');
         s.removePlayer('p_knox');
       });
-      expect(store().data.games).toHaveLength(6);
-      expect(store().data.players).toHaveLength(12);
+      expect(store().data.games).toHaveLength(13);
+      expect(store().data.players).toHaveLength(14);
       run((s) => s.resetDemoData());
       expect(store().data.onboarded).toBe(true);
-      expect(store().data.games).toHaveLength(7);
-      expect(store().data.players).toHaveLength(13);
-      expect(store().data.teams).toHaveLength(3);
-      expect(store().data.games.some((g) => g.id === 'g_bandits')).toBe(true);
+      expect(store().data.games).toHaveLength(14);
+      expect(store().data.players).toHaveLength(15);
+      expect(store().data.teams).toHaveLength(4);
+      expect(store().data.games.some((g) => g.id === 'g_0823_3')).toBe(true);
+    });
+
+    it('resetDemoData round-trips the seed through the store: the document is exactly buildDemoData() again', () => {
+      jest.setSystemTime(NOW);
+      run((s) => {
+        s.recordAtBat(SCHEDULED, 'hit');
+        s.substitute(SCHEDULED, 'p_owen_haynes', 'p_owen_clark');
+        s.deleteGame('g_0823_3');
+        s.updateTeam('t_ken14u', { name: 'Renamed' });
+      });
+      run((s) => s.resetDemoData());
+      const seed = buildDemoData(NOW);
+      expect(store().data).toEqual(seed);
+      expect(normalizeLoaded(store().data)).toBe(store().data);
+      // The seeded upcoming game is a home game with no pitcher; the charting fixture above is the only thing that changes that.
+      expect(game(SCHEDULED)).toMatchObject({ isAway: false, status: 'scheduled', ourNextBatter: 0 });
+      expect(game(SCHEDULED).pitcherId).toBeUndefined();
+      expect(store().data.atBats).toHaveLength(314 + 265);
     });
 
     it('clearAllData empties everything but keeps onboarded', () => {
@@ -1380,13 +1411,13 @@ describe('StoreProvider actions', () => {
     });
 
     it('updateTeam patches name and season', () => {
-      run((s) => s.updateTeam('t_bears13u', { name: 'Renamed', season: '2027' }));
-      expect(store().data.teams.find((t) => t.id === 't_bears13u')).toMatchObject({ name: 'Renamed', season: '2027' });
+      run((s) => s.updateTeam('t_ken14u', { name: 'Renamed', season: '2027' }));
+      expect(store().data.teams.find((t) => t.id === 't_ken14u')).toMatchObject({ name: 'Renamed', season: '2027' });
     });
 
     it('deleteTeam cascades to players, games and at-bats', () => {
-      run((s) => s.deleteTeam('t_bears12u'));
-      expect(store().data.teams.map((t) => t.id)).toEqual(['t_bears13u', 't_bears15u']);
+      run((s) => s.deleteTeam('t_floyd14u'));
+      expect(store().data.teams.map((t) => t.id)).toEqual(['t_ken14u', 't_engelken14u', 't_floyd17u']);
       expect(store().data.players).toEqual([]);
       expect(store().data.games).toEqual([]);
       expect(store().data.atBats).toEqual([]);
@@ -1395,33 +1426,33 @@ describe('StoreProvider actions', () => {
     it('addPlayer trims, normalises a blank number and appends to the default lineup', () => {
       let p: ReturnType<Store['addPlayer']> | undefined;
       run((s) => {
-        p = s.addPlayer('t_bears12u', { firstName: ' Sam ', lastName: ' Jones ', number: '  ' });
+        p = s.addPlayer('t_floyd14u', { firstName: ' Sam ', lastName: ' Jones ', number: '  ' });
       });
-      expect(p).toMatchObject({ teamId: 't_bears12u', firstName: 'Sam', lastName: 'Jones' });
+      expect(p).toMatchObject({ teamId: 't_floyd14u', firstName: 'Sam', lastName: 'Jones' });
       expect(p!.number).toBeUndefined();
-      const team = store().data.teams.find((t) => t.id === 't_bears12u')!;
+      const team = store().data.teams.find((t) => t.id === 't_floyd14u')!;
       expect(team.defaultLineup[team.defaultLineup.length - 1]).toEqual({ playerId: p!.id });
-      expect(store().data.players).toHaveLength(14);
+      expect(store().data.players).toHaveLength(16);
     });
 
     it('updatePlayer trims fields and clears a blanked number', () => {
-      run((s) => s.updatePlayer('p_owen', { firstName: ' Owen ', number: '' }));
-      expect(store().data.players.find((p) => p.id === 'p_owen')).toMatchObject({ firstName: 'Owen', lastName: 'Haynes' });
-      expect(store().data.players.find((p) => p.id === 'p_owen')!.number).toBeUndefined();
-      run((s) => s.updatePlayer('p_owen', { number: ' 77 ' }));
-      expect(store().data.players.find((p) => p.id === 'p_owen')!.number).toBe('77');
+      run((s) => s.updatePlayer('p_owen_haynes', { firstName: ' Owen ', number: '' }));
+      expect(store().data.players.find((p) => p.id === 'p_owen_haynes')).toMatchObject({ firstName: 'Owen', lastName: 'Haynes' });
+      expect(store().data.players.find((p) => p.id === 'p_owen_haynes')!.number).toBeUndefined();
+      run((s) => s.updatePlayer('p_owen_haynes', { number: ' 77 ' }));
+      expect(store().data.players.find((p) => p.id === 'p_owen_haynes')!.number).toBe('77');
     });
   });
 
   describe('game editing', () => {
     it('updateGame patches fields and deleteGame drops the game with its at-bats', () => {
-      run((s) => s.updateGame('g_bandits', { opponent: 'Bandits', notes: 'edited' }));
-      expect(game('g_bandits')).toMatchObject({ opponent: 'Bandits', notes: 'edited', teamId: 't_bears12u' });
-      expect(store().data.atBats.some((x) => x.gameId === 'g_bandits')).toBe(true);
-      run((s) => s.deleteGame('g_bandits'));
-      expect(store().data.games.some((g) => g.id === 'g_bandits')).toBe(false);
-      expect(store().data.atBats.some((x) => x.gameId === 'g_bandits')).toBe(false);
-      expect(store().data.atBats.some((x) => x.gameId === 'g_redbirds')).toBe(true);
+      run((s) => s.updateGame('g_0823_3', { opponent: 'Redbirds', notes: 'edited' }));
+      expect(game('g_0823_3')).toMatchObject({ opponent: 'Redbirds', notes: 'edited', teamId: 't_floyd14u' });
+      expect(store().data.atBats.some((x) => x.gameId === 'g_0823_3')).toBe(true);
+      run((s) => s.deleteGame('g_0823_3'));
+      expect(store().data.games.some((g) => g.id === 'g_0823_3')).toBe(false);
+      expect(store().data.atBats.some((x) => x.gameId === 'g_0823_3')).toBe(false);
+      expect(store().data.atBats.some((x) => x.gameId === 'g_0823_1')).toBe(true);
     });
 
     it('updateGame only accepts the game details, never the order, status or progress', () => {
@@ -1438,36 +1469,36 @@ describe('StoreProvider actions', () => {
 
     describe('setGameLineup keeps the same batter due', () => {
       it('after a reorder', () => {
-        run((s) => s.recordAtBat(SCHEDULED, 'hit')); // Owen batted; Ryder due
+        run((s) => s.recordAtBat(SCHEDULED, 'hit')); // Hamilton batted; Brady due
         const order = game(SCHEDULED).lineup;
-        const [owen, ryder, lucas, ...rest] = order;
-        run((s) => s.setGameLineup(SCHEDULED, [lucas, ryder, owen, ...rest]));
+        const [hamilton, brady, cooper, ...rest] = order;
+        run((s) => s.setGameLineup(SCHEDULED, [cooper, brady, hamilton, ...rest]));
         const g = game(SCHEDULED);
         expect(g.ourNextBatter).toBe(1);
-        expect(g.lineup[g.ourNextBatter].playerId).toBe('p_ryder');
+        expect(g.lineup[g.ourNextBatter].playerId).toBe('p_brady');
       });
 
       it('after removing someone ahead of them', () => {
-        run((s) => s.recordAtBat(SCHEDULED, 'hit')); // Ryder due
-        run((s) => s.setGameLineup(SCHEDULED, game(SCHEDULED).lineup.filter((x) => x.playerId !== 'p_owen')));
+        run((s) => s.recordAtBat(SCHEDULED, 'hit')); // Brady due
+        run((s) => s.setGameLineup(SCHEDULED, game(SCHEDULED).lineup.filter((x) => x.playerId !== 'p_hamilton')));
         const g = game(SCHEDULED);
         expect(g.ourNextBatter).toBe(0);
-        expect(g.lineup[g.ourNextBatter].playerId).toBe('p_ryder');
+        expect(g.lineup[g.ourNextBatter].playerId).toBe('p_brady');
       });
 
       it('and moves to the next surviving batter (in the old order) when the due batter is removed', () => {
-        run((s) => s.recordAtBat(SCHEDULED, 'hit')); // Ryder due
-        run((s) => s.setGameLineup(SCHEDULED, game(SCHEDULED).lineup.filter((x) => x.playerId !== 'p_ryder')));
+        run((s) => s.recordAtBat(SCHEDULED, 'hit')); // Brady due
+        run((s) => s.setGameLineup(SCHEDULED, game(SCHEDULED).lineup.filter((x) => x.playerId !== 'p_brady')));
         const g = game(SCHEDULED);
         expect(g.ourNextBatter).toBe(1);
-        expect(g.lineup[g.ourNextBatter].playerId).toBe('p_lucas');
+        expect(g.lineup[g.ourNextBatter].playerId).toBe('p_cooper');
       });
 
       it('and stays in range when the order shrinks or empties', () => {
-        run((s) => s.setNextBatter(SCHEDULED, 'us', 8)); // Landyn due
-        run((s) => s.setGameLineup(SCHEDULED, [{ playerId: 'p_owen' }, { playerId: 'p_ben' }]));
-        expect(game(SCHEDULED).ourNextBatter).toBe(1); // Landyn gone -> Ben, who is now slot 2
-        run((s) => s.setGameLineup(SCHEDULED, [{ playerId: 'p_lucas' }]));
+        run((s) => s.setNextBatter(SCHEDULED, 'us', 8)); // Carsyn due
+        run((s) => s.setGameLineup(SCHEDULED, [{ playerId: 'p_hamilton' }, { playerId: 'p_weedon' }]));
+        expect(game(SCHEDULED).ourNextBatter).toBe(1); // Carsyn gone -> Weedon, who is now slot 2
+        run((s) => s.setGameLineup(SCHEDULED, [{ playerId: 'p_cooper' }]));
         expect(game(SCHEDULED).ourNextBatter).toBe(0); // nobody carried over -> top of the order
         run((s) => s.setGameLineup(SCHEDULED, []));
         expect(game(SCHEDULED).ourNextBatter).toBe(0);
@@ -1513,15 +1544,15 @@ describe('StoreProvider actions', () => {
       expect(game(SCHEDULED).status).toBe('scheduled');
       run((s) => s.setScore(SCHEDULED, { us: 0, them: 1 }));
       expect(game(SCHEDULED).status).toBe('in_progress');
-      run((s) => s.setScore('g_bandits', { us: 20, them: 5 }));
-      expect(game('g_bandits').status).toBe('final');
+      run((s) => s.setScore('g_0823_3', { us: 20, them: 5 }));
+      expect(game('g_0823_3').status).toBe('final');
     });
 
     it('setNextBatter starts a scheduled game and never touches a final one', () => {
       run((s) => s.setNextBatter(SCHEDULED, 'us', 3));
       expect(game(SCHEDULED)).toMatchObject({ status: 'in_progress', ourNextBatter: 3 });
-      run((s) => s.setNextBatter('g_bandits', 'them', 2));
-      expect(game('g_bandits')).toMatchObject({ status: 'final', theirNextBatter: 2 });
+      run((s) => s.setNextBatter('g_0823_3', 'them', 2));
+      expect(game('g_0823_3')).toMatchObject({ status: 'final', theirNextBatter: 2 });
     });
 
     it('finishGame marks the game final with score, notes and finishedAt; reopenGame reverts', () => {
@@ -1556,21 +1587,21 @@ describe('StoreProvider actions', () => {
 
     it('coalesces a burst of edits into one write', () => {
       run((s) => {
-        s.updatePlayer('p_owen', { firstName: 'O' });
-        s.updatePlayer('p_owen', { firstName: 'Ow' });
+        s.updatePlayer('p_hamilton', { firstName: 'O' });
+        s.updatePlayer('p_hamilton', { firstName: 'Ow' });
       });
-      run((s) => s.updatePlayer('p_owen', { firstName: 'Owe' }));
+      run((s) => s.updatePlayer('p_hamilton', { firstName: 'Owe' }));
       act(() => {
         jest.advanceTimersByTime(200);
       });
       expect(storage.setItem).toHaveBeenCalledTimes(1);
-      expect(lastWritten()!.players.find((p) => p.id === 'p_owen')!.firstName).toBe('Owe');
+      expect(lastWritten()!.players.find((p) => p.id === 'p_hamilton')!.firstName).toBe('Owe');
     });
 
     it('writes an at-bat, an undo and a finished game immediately, without waiting for the debounce', () => {
       run((s) => s.recordAtBat(SCHEDULED, 'hit'));
       expect(storage.setItem).toHaveBeenCalledTimes(1);
-      expect(lastWritten()!.atBats.some((x) => x.gameId === SCHEDULED && x.batterId === 'p_owen')).toBe(true);
+      expect(lastWritten()!.atBats.some((x) => x.gameId === SCHEDULED && x.batterId === 'p_hamilton')).toBe(true);
 
       run((s) => s.undoLastAtBat(SCHEDULED));
       expect(storage.setItem).toHaveBeenCalledTimes(2);
@@ -1590,7 +1621,7 @@ describe('StoreProvider actions', () => {
     it('writes a backfill, a re-judge, a removal and a restore immediately too', () => {
       let backfill: ReturnType<Store['recordAtBat']>;
       run((s) => {
-        backfill = s.recordAtBat(SCHEDULED, 'plain_w', { side: 'us', batterId: 'p_owen', inning: 1, half: 'top' });
+        backfill = s.recordAtBat(SCHEDULED, 'plain_w', { side: 'us', batterId: 'p_hamilton', inning: 1, half: 'top' });
       });
       expect(storage.setItem).toHaveBeenCalledTimes(1);
       expect(lastWritten()!.atBats.find((x) => x.id === backfill!.id)).toMatchObject({ outcomeId: 'plain_w' });
@@ -1619,16 +1650,16 @@ describe('StoreProvider actions', () => {
     it('writes a substitution and its undo immediately', () => {
       let record: Substitution | undefined;
       run((s) => {
-        record = s.substitute(SCHEDULED, 'p_cooper', 'p_mason');
+        record = s.substitute(SCHEDULED, 'p_owen_haynes', 'p_owen_clark');
       });
       expect(storage.setItem).toHaveBeenCalledTimes(1);
       expect(lastWritten()!.games.find((g) => g.id === SCHEDULED)!.substitutions).toEqual([record]);
-      expect(lastWritten()!.games.find((g) => g.id === SCHEDULED)!.lineup[3]).toEqual({ playerId: 'p_mason' });
+      expect(lastWritten()!.games.find((g) => g.id === SCHEDULED)!.lineup[3]).toEqual({ playerId: 'p_owen_clark' });
 
       run((s) => s.undoSubstitution(SCHEDULED, record!.id));
       expect(storage.setItem).toHaveBeenCalledTimes(2);
       expect(lastWritten()!.games.find((g) => g.id === SCHEDULED)!.substitutions).toEqual([]);
-      expect(lastWritten()!.games.find((g) => g.id === SCHEDULED)!.lineup[3]).toEqual({ playerId: 'p_cooper' });
+      expect(lastWritten()!.games.find((g) => g.id === SCHEDULED)!.lineup[3]).toEqual({ playerId: 'p_owen_haynes' });
 
       act(() => {
         jest.advanceTimersByTime(500);
@@ -1637,20 +1668,20 @@ describe('StoreProvider actions', () => {
     });
 
     it('flushes a pending write when the provider unmounts before the debounce fires', () => {
-      run((s) => s.updateTeam('t_bears13u', { name: 'Flushed' }));
+      run((s) => s.updateTeam('t_ken14u', { name: 'Flushed' }));
       expect(storage.setItem).not.toHaveBeenCalled();
       unmount();
       expect(storage.setItem).toHaveBeenCalledTimes(1);
-      expect(lastWritten()!.teams.find((t) => t.id === 't_bears13u')!.name).toBe('Flushed');
+      expect(lastWritten()!.teams.find((t) => t.id === 't_ken14u')!.name).toBe('Flushed');
     });
 
     it('flushes a pending write when the app goes to the background', () => {
       const handler = appState.addEventListener.mock.calls[appState.addEventListener.mock.calls.length - 1][1];
-      run((s) => s.updateTeam('t_bears13u', { name: 'Backgrounded' }));
+      run((s) => s.updateTeam('t_ken14u', { name: 'Backgrounded' }));
       expect(storage.setItem).not.toHaveBeenCalled();
       act(() => handler('background'));
       expect(storage.setItem).toHaveBeenCalledTimes(1);
-      expect(lastWritten()!.teams.find((t) => t.id === 't_bears13u')!.name).toBe('Backgrounded');
+      expect(lastWritten()!.teams.find((t) => t.id === 't_ken14u')!.name).toBe('Backgrounded');
       // A flush with nothing pending writes nothing.
       act(() => handler('background'));
       act(() => {
@@ -1662,7 +1693,7 @@ describe('StoreProvider actions', () => {
 });
 
 describe('StoreProvider loading', () => {
-  const demo = buildDemoData(NOW);
+  const demo = demoForCharting();
   let warn: ReturnType<typeof jest.spyOn> | undefined;
 
   beforeEach(() => {
@@ -1759,13 +1790,13 @@ describe('StoreProvider loading', () => {
       run((s) => s.recordAtBat(SCHEDULED, 'hit'));
       const after = store().data.games.find((g) => g.id === SCHEDULED)!;
       expect(after.ourNextBatter).toBe(1);
-      expect(store().data.atBats.some((x) => x.gameId === SCHEDULED && x.batterId === 'p_owen')).toBe(true);
+      expect(store().data.atBats.some((x) => x.gameId === SCHEDULED && x.batterId === 'p_hamilton')).toBe(true);
       let record: Substitution | undefined;
       run((s) => {
-        record = s.substitute(SCHEDULED, 'p_cooper', 'p_mason');
+        record = s.substitute(SCHEDULED, 'p_owen_haynes', 'p_owen_clark');
       });
       expect(record).toBeDefined();
-      expect(store().data.games.find((g) => g.id === SCHEDULED)!.lineup[3]).toEqual({ playerId: 'p_mason' });
+      expect(store().data.games.find((g) => g.id === SCHEDULED)!.lineup[3]).toEqual({ playerId: 'p_owen_clark' });
     });
   });
 
@@ -1774,9 +1805,9 @@ describe('StoreProvider loading', () => {
     await settle();
     expect(store().ready).toBe(true);
     expect(store().loadIssue).toBeUndefined();
-    expect(store().data.games).toHaveLength(7);
+    expect(store().data.games).toHaveLength(14);
     await waitForSave();
-    expect(lastWritten()!.games).toHaveLength(7);
+    expect(lastWritten()!.games).toHaveLength(14);
     expect(storage.__INTERNAL_MOCK_STORAGE__[BACKUP_KEY]).toBeUndefined();
     expect(warn).not.toHaveBeenCalled();
   });
@@ -1788,7 +1819,7 @@ describe('StoreProvider loading', () => {
     await settle();
     expect(store().ready).toBe(true);
     expect(store().loadIssue).toBe('backed_up');
-    expect(store().data.games).toHaveLength(7);
+    expect(store().data.games).toHaveLength(14);
     expect(storage.__INTERNAL_MOCK_STORAGE__[BACKUP_KEY]).toBe(raw);
     expect(warn).toHaveBeenCalled();
     // The backup lands before anything is written over the original key.

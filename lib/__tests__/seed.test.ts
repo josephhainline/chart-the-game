@@ -2,11 +2,16 @@ import { describe, expect, it } from '@jest/globals';
 import { differenceInCalendarDays } from 'date-fns';
 
 import { compareClock } from '../atbats';
+import dataset from '../demo/bears-floyd-14u.json';
 import { getOutcome, isPlain } from '../outcomes';
-import { DEMO_TEAM_ID, PLAIN_EVERY, buildDemoData } from '../seed';
-import { FORM_WINDOW, formRating, formScore, hittingFor, recentForm } from '../stats';
+import { DEMO_SEASON, DEMO_TEAM_ID, NEXT_GAME_ID, buildDemoData, saturdayOffset } from '../seed';
+import type { DemoDataset, DemoGame } from '../seed';
+import { hittingFor, pitchingFor, score } from '../stats';
 import type { Game, Half, Id, Side } from '../types';
 
+const SOURCE = dataset as DemoDataset;
+
+/** A Monday: the most recent weekend is two days (Saturday) and one day (Sunday) back. */
 const NOW = new Date('2026-09-14T12:00:00');
 const data = buildDemoData(NOW);
 const demoTeam = data.teams.find((t) => t.id === DEMO_TEAM_ID)!;
@@ -14,11 +19,60 @@ const gameById = new Map(data.games.map((g) => [g.id, g]));
 const finalGames = data.games.filter((g) => g.status === 'final');
 const scheduledGames = data.games.filter((g) => g.status === 'scheduled');
 const playerIds = new Set(data.players.map((p) => p.id));
+const nextGame = gameById.get(NEXT_GAME_ID)!;
 
 const whoBats = (g: Pick<Game, 'isAway'>, half: Half): Side => ((g.isAway ? half === 'top' : half === 'bottom') ? 'us' : 'them');
 
-const BENCH = ['p_mason', 'p_eli', 'p_theo'];
-const STARTERS = ['p_owen', 'p_ryder', 'p_lucas', 'p_cooper', 'p_carsyn', 'p_matthew', 'p_knox', 'p_weedon', 'p_landyn', 'p_ben'];
+const PLAYER_IDS = [
+  'p_hamilton',
+  'p_brady',
+  'p_cooper',
+  'p_owen_haynes',
+  'p_gabe',
+  'p_lucas',
+  'p_ben',
+  'p_knox',
+  'p_carsyn',
+  'p_weedon',
+  'p_owen_clark',
+  'p_jd',
+  'p_chase',
+  'p_rhett',
+  'p_angel',
+];
+const STARTERS = ['p_hamilton', 'p_brady', 'p_cooper', 'p_owen_haynes', 'p_gabe', 'p_lucas', 'p_ben', 'p_knox', 'p_carsyn', 'p_weedon'];
+const BENCH = ['p_owen_clark', 'p_jd', 'p_chase', 'p_rhett', 'p_angel'];
+
+/**
+ * Every real game: its id, the source key, where its weekend sits relative to
+ * `now` (0 = the most recent weekend that is over), the day of that weekend and
+ * the local (America/Chicago) time of first pitch.
+ */
+const REAL_GAMES: { id: Id; key: string; weekOffset: number; day: 'sat' | 'sun'; hour: number; minute: number }[] = [
+  { id: 'g_0815_1', key: 'aug-15-game-1', weekOffset: -4, day: 'sat', hour: 16, minute: 0 },
+  { id: 'g_0815_2', key: 'aug-15-game-2', weekOffset: -4, day: 'sat', hour: 17, minute: 45 },
+  { id: 'g_0816_1', key: 'aug-16-game-1', weekOffset: -4, day: 'sun', hour: 10, minute: 45 },
+  { id: 'g_0816_2', key: 'aug-16-game-2', weekOffset: -4, day: 'sun', hour: 14, minute: 15 },
+  { id: 'g_0822_1', key: 'aug-22-game-1', weekOffset: -3, day: 'sat', hour: 14, minute: 15 },
+  { id: 'g_0822_2', key: 'aug-22-game-2', weekOffset: -3, day: 'sat', hour: 17, minute: 45 },
+  { id: 'g_0823_1', key: 'aug-23-game-1', weekOffset: -3, day: 'sun', hour: 9, minute: 0 },
+  { id: 'g_0823_2', key: 'aug-23-game-2', weekOffset: -3, day: 'sun', hour: 12, minute: 30 },
+  { id: 'g_0823_3', key: 'aug-23-game-3', weekOffset: -3, day: 'sun', hour: 16, minute: 0 },
+  { id: 'g_0912_1', key: 'sep-12-game-1', weekOffset: 0, day: 'sat', hour: 8, minute: 0 },
+  { id: 'g_0912_2', key: 'sep-12-game-2', weekOffset: 0, day: 'sat', hour: 12, minute: 0 },
+  { id: 'g_0913_1', key: 'sep-13-game-1', weekOffset: 0, day: 'sun', hour: 12, minute: 0 },
+  { id: 'g_0913_2', key: 'sep-13-game-2', weekOffset: 0, day: 'sun', hour: 16, minute: 0 },
+];
+
+const sourceByKey = new Map(SOURCE.games.map((g) => [g.key, g]));
+const sourceOf = (id: Id): DemoGame => sourceByKey.get(REAL_GAMES.find((r) => r.id === id)!.key)!;
+
+/** The starting order with every substitution applied in the order it was made. */
+function withSubsApplied(source: DemoGame): Id[] {
+  const ids = [...source.lineup];
+  for (const sub of source.subs) ids[ids.indexOf(sub.outId)] = sub.inId;
+  return ids;
+}
 
 /** The order the game started with: the current one with every recorded substitution reversed. */
 function startingOrder(g: Game): Id[] {
@@ -27,14 +81,7 @@ function startingOrder(g: Game): Id[] {
   return ids;
 }
 
-/** Who held the slot in that half-inning: the starter until a substitution at or before it. */
-function occupantAt(g: Game, slot: number, inning: number, half: Half): Id {
-  let id = startingOrder(g)[slot];
-  for (const sub of g.substitutions ?? []) {
-    if (sub.slot === slot && compareClock(sub, { inning, half }) <= 0) id = sub.inId;
-  }
-  return id;
-}
+const at = (iso: string) => new Date(iso).getTime();
 
 describe('buildDemoData: determinism', () => {
   it('produces an identical document on every call for the same date', () => {
@@ -42,13 +89,17 @@ describe('buildDemoData: determinism', () => {
     expect(JSON.stringify(buildDemoData(NOW))).toBe(JSON.stringify(data));
   });
 
-  it('keeps the same ids and at-bat sequence when built for a different date', () => {
+  it('keeps every id, batter, result and outcome when built for a different date: only the calendar moves', () => {
     const other = buildDemoData(new Date('2027-03-01T08:00:00'));
     expect(other.games.map((g) => g.id)).toEqual(data.games.map((g) => g.id));
-    expect(other.atBats.map((x) => [x.id, x.batterId, x.result, x.outcomeId])).toEqual(
-      data.atBats.map((x) => [x.id, x.batterId, x.result, x.outcomeId]),
+    expect(other.games.map((g) => [g.lineup, g.substitutions?.map(({ at: _at, ...rest }) => rest), g.score, g.pitcherId])).toEqual(
+      data.games.map((g) => [g.lineup, g.substitutions?.map(({ at: _at, ...rest }) => rest), g.score, g.pitcherId]),
     );
-    expect(other.teams[0].season).toBe('2027');
+    expect(other.atBats.map((x) => [x.id, x.batterId, x.pitcherId, x.result, x.outcomeId, x.inning, x.half])).toEqual(
+      data.atBats.map((x) => [x.id, x.batterId, x.pitcherId, x.result, x.outcomeId, x.inning, x.half]),
+    );
+    expect(other.games.map((g) => g.startsAt)).not.toEqual(data.games.map((g) => g.startsAt));
+    expect(other.teams.map((t) => t.season)).toEqual(data.teams.map((t) => t.season));
   });
 
   it('starts un-onboarded with schema version 1', () => {
@@ -58,436 +109,459 @@ describe('buildDemoData: determinism', () => {
 });
 
 describe('buildDemoData: teams', () => {
-  it('has the three prototype teams, season taken from the given date', () => {
-    expect(data.teams.map((t) => t.name)).toEqual([
-      'STL Bears 12U Floyd 2026',
-      'STL Bears 13U Bernstein',
-      'STL Bears 15U Floyd 2026',
+  it('has the four Bears teams, all in the Fall 2026 season, the demo team first', () => {
+    expect(data.teams.map((t) => [t.id, t.name])).toEqual([
+      ['t_floyd14u', 'Bears Floyd 14U'],
+      ['t_ken14u', 'Bears Ken 14U'],
+      ['t_engelken14u', 'Bears Engelken 14U'],
+      ['t_floyd17u', 'Bears Floyd 17U'],
     ]);
-    expect(data.teams.every((t) => t.season === '2026')).toBe(true);
-    expect(new Set(data.teams.map((t) => t.id)).size).toBe(3);
+    expect(DEMO_SEASON).toBe('Fall 2026');
+    expect(data.teams.every((t) => t.season === DEMO_SEASON)).toBe(true);
+    expect(DEMO_TEAM_ID).toBe('t_floyd14u');
   });
 
-  it('only the demo team has a roster and default lineup', () => {
+  it('lists the teams in creation order (My Teams sorts by createdAt), all created before the first game', () => {
+    const created = data.teams.map((t) => at(t.createdAt));
+    for (let i = 1; i < created.length; i++) expect(created[i]).toBeGreaterThan(created[i - 1]);
+    expect(created[created.length - 1]).toBeLessThan(at(data.games[0].startsAt));
+  });
+
+  it('only the demo team has a roster, games and a default lineup', () => {
     expect(demoTeam.defaultLineup).toHaveLength(10);
     for (const t of data.teams.filter((x) => x.id !== DEMO_TEAM_ID)) {
       expect(t.defaultLineup).toEqual([]);
       expect(data.players.filter((p) => p.teamId === t.id)).toEqual([]);
+      expect(data.games.filter((g) => g.teamId === t.id)).toEqual([]);
     }
+    expect(data.games.every((g) => g.teamId === DEMO_TEAM_ID)).toBe(true);
   });
 
-  it('default lineup matches the spec order, one bare playerId per slot (no positions)', () => {
+  it('default lineup is the starting order of the first Sep 12 game, one bare playerId per slot', () => {
     expect(demoTeam.defaultLineup).toEqual(STARTERS.map((playerId) => ({ playerId })));
+    expect(demoTeam.defaultLineup.map((s) => s.playerId)).toEqual(sourceByKey.get('sep-12-game-1')!.lineup);
     for (const slot of demoTeam.defaultLineup) expect(Object.keys(slot)).toEqual(['playerId']);
   });
 });
 
 describe('buildDemoData: players', () => {
-  it('has the ten starters plus the three bench players, all on the demo team', () => {
-    expect(data.players).toHaveLength(13);
+  it('has the fifteen players of the dataset with their stable ids, all on the demo team', () => {
+    expect(data.players).toHaveLength(15);
     expect(data.players.every((p) => p.teamId === DEMO_TEAM_ID)).toBe(true);
-    expect(data.players.map((p) => p.id)).toEqual([...STARTERS, ...BENCH]);
+    expect(data.players.map((p) => p.id)).toEqual(PLAYER_IDS);
+    expect(data.players.map((p) => p.id)).toEqual(SOURCE.players.map((p) => p[0]));
   });
 
-  it('has the ten roster players with the spec jersey numbers', () => {
+  it('carries the names and jersey numbers as captured (a leading zero stays)', () => {
+    expect(data.players.map((p) => [p.id, p.firstName, p.lastName, p.number])).toEqual(SOURCE.players);
     const byId = Object.fromEntries(data.players.map((p) => [p.id, p]));
-    expect(byId.p_owen).toMatchObject({ firstName: 'Owen', lastName: 'Haynes', number: '7' });
-    expect(byId.p_ryder).toMatchObject({ firstName: 'Ryder', lastName: 'Braddy', number: '42' });
-    expect(byId.p_lucas).toMatchObject({ firstName: 'Lucas', lastName: 'Kloster', number: '13' });
+    expect(byId.p_hamilton).toMatchObject({ firstName: 'Hamilton', lastName: 'Case', number: '18' });
     expect(byId.p_cooper).toMatchObject({ firstName: 'Cooper', lastName: 'Woollen', number: '50' });
-    expect(byId.p_carsyn).toMatchObject({ firstName: 'Carsyn', lastName: 'Griffith', number: '26' });
-    expect(byId.p_matthew).toMatchObject({ firstName: 'Matthew', lastName: 'Hume', number: '76' });
-    expect(byId.p_knox).toMatchObject({ firstName: 'Knox', lastName: 'Kennedy', number: '8' });
-    expect(byId.p_weedon).toMatchObject({ firstName: 'Weedon', lastName: 'Hainline', number: '10' });
-    expect(byId.p_landyn).toMatchObject({ firstName: 'Landyn', lastName: 'Durbin' });
-    expect(byId.p_landyn.number).toBeUndefined();
-    expect(byId.p_ben).toMatchObject({ firstName: 'Ben', lastName: 'Boncek', number: '99' });
+    expect(byId.p_owen_haynes).toMatchObject({ firstName: 'Owen', lastName: 'Haynes', number: '7' });
+    expect(byId.p_owen_clark).toMatchObject({ firstName: 'Owen', lastName: 'Clark', number: '24' });
+    expect(byId.p_weedon).toMatchObject({ firstName: 'Weedon', lastName: 'Hainline', number: '04' });
+    expect(byId.p_jd).toMatchObject({ firstName: 'JD', lastName: 'Etter', number: '6' });
   });
 
-  describe('the bench', () => {
-    const byId = Object.fromEntries(data.players.map((p) => [p.id, p]));
-
-    it('is three fictional players with jersey numbers', () => {
-      expect(byId.p_mason).toMatchObject({ firstName: 'Mason', lastName: 'Reed', number: '4' });
-      expect(byId.p_eli).toMatchObject({ firstName: 'Eli', lastName: 'Park', number: '21' });
-      expect(byId.p_theo).toMatchObject({ firstName: 'Theo', lastName: 'Alvarez', number: '15' });
-    });
-
-    it('is not in the default lineup nor in the upcoming game’s order', () => {
-      for (const id of BENCH) {
-        expect(demoTeam.defaultLineup.some((s) => s.playerId === id)).toBe(false);
-        expect(scheduledGames[0].lineup.some((s) => s.playerId === id)).toBe(false);
-      }
-    });
-
-    it('never started a game: a bench player only enters through a recorded substitution', () => {
-      for (const g of data.games) {
-        for (const id of BENCH) expect(startingOrder(g)).not.toContain(id);
-      }
-    });
+  it('the bench (not in the default lineup nor in the upcoming game) is Owen Clark, JD, Chase, Rhett and Angel', () => {
+    const inDefault = new Set(demoTeam.defaultLineup.map((s) => s.playerId));
+    expect(data.players.filter((p) => !inDefault.has(p.id)).map((p) => p.id)).toEqual(BENCH);
+    for (const id of BENCH) expect(nextGame.lineup.some((s) => s.playerId === id)).toBe(false);
   });
 });
 
 describe('buildDemoData: games', () => {
-  it('has seven games: six final and one scheduled, all for the demo team', () => {
-    expect(data.games).toHaveLength(7);
-    expect(finalGames).toHaveLength(6);
+  it('has the thirteen real games (final) and one scheduled, in chronological order', () => {
+    expect(data.games).toHaveLength(14);
+    expect(finalGames).toHaveLength(13);
     expect(scheduledGames).toHaveLength(1);
-    expect(data.games.every((g) => g.teamId === DEMO_TEAM_ID)).toBe(true);
-    expect(data.games.map((g) => g.id)).toEqual([
-      'g_wolves',
-      'g_tigers_1',
-      'g_rockhounds',
-      'g_fury',
-      'g_redbirds',
-      'g_bandits',
-      'g_tigers_2',
-    ]);
-  });
-
-  it('lists games in chronological order', () => {
-    const times = data.games.map((g) => new Date(g.startsAt).getTime());
+    expect(data.games.map((g) => g.id)).toEqual([...REAL_GAMES.map((r) => r.id), NEXT_GAME_ID]);
+    const times = data.games.map((g) => at(g.startsAt));
     for (let i = 1; i < times.length; i++) expect(times[i]).toBeGreaterThan(times[i - 1]);
   });
 
-  it('the scheduled game is @ Tigers on the next Saturday at 2:30pm', () => {
-    const g = scheduledGames[0];
-    expect(g.id).toBe('g_tigers_2');
-    expect(g.opponent).toBe('Tigers');
-    expect(g.isAway).toBe(true);
-    const start = new Date(g.startsAt);
-    // NOW is a Monday, so next Saturday is 5 days out.
-    expect(start.getDay()).toBe(6);
-    expect(differenceInCalendarDays(start, NOW)).toBe(5);
-    expect(start.getHours()).toBe(14);
-    expect(start.getMinutes()).toBe(30);
-    expect(start.getSeconds()).toBe(0);
-    expect(g.notes).toBe('On a three game winning streak against the Tigers since April.');
-  });
-
-  it('the scheduled game is untouched: 1st inning top, nobody up yet, 0-0, full default lineup', () => {
-    const g = scheduledGames[0];
-    expect(g.inning).toBe(1);
-    expect(g.half).toBe('top');
-    expect(g.ourNextBatter).toBe(0);
-    expect(g.theirNextBatter).toBe(0);
-    expect(g.score).toEqual({ us: 0, them: 0 });
-    expect(g.finishedAt).toBeUndefined();
-    expect(g.lineup).toEqual(demoTeam.defaultLineup);
-    expect(g.pitcherId).toBe('p_weedon');
-    expect(data.atBats.some((x) => x.gameId === g.id)).toBe(false);
-  });
-
-  it('the two most recent final games are on the most recent past Saturday', () => {
-    const redbirds = gameById.get('g_redbirds')!;
-    const bandits = gameById.get('g_bandits')!;
-    for (const g of [redbirds, bandits]) {
-      expect(g.isAway).toBe(true);
-      expect(new Date(g.startsAt).getDay()).toBe(6);
-      // NOW is a Monday, so the most recent Saturday is 2 days back.
-      expect(differenceInCalendarDays(new Date(g.startsAt), NOW)).toBe(-2);
+  it('every real game carries its opponent, home/away, score and innings from the dataset', () => {
+    for (const r of REAL_GAMES) {
+      const g = gameById.get(r.id)!;
+      const s = sourceOf(r.id);
+      expect(g).toMatchObject({ opponent: s.opponent, isAway: s.isAway, score: s.score, inning: s.innings, half: 'bottom', status: 'final' });
+      expect(g.ourNextBatter).toBe(0);
+      expect(g.theirNextBatter).toBe(0);
+      expect(g.notes).toBeUndefined();
     }
-    expect(new Date(redbirds.startsAt).getHours()).toBe(9);
-    expect(new Date(redbirds.startsAt).getMinutes()).toBe(0);
-    expect(redbirds).toMatchObject({
-      opponent: 'Redbirds Red',
-      score: { us: 6, them: 7 },
-      notes: '4 inning game, lost the lead in the 3rd inning, 1 HR.',
-      inning: 4,
+    expect(gameById.get('g_0823_1')).toMatchObject({ opponent: 'Bears Ken 14U', isAway: false, score: { us: 20, them: 0 }, inning: 2 });
+    expect(gameById.get('g_0913_2')).toMatchObject({ opponent: 'Missouri Gators Carmi 14U', isAway: false, score: { us: 3, them: 7 }, inning: 4 });
+  });
+
+  describe('the calendar', () => {
+    it.each(REAL_GAMES)('$id is on the $day of weekend $weekOffset at $hour:$minute local time', (r) => {
+      const start = new Date(gameById.get(r.id)!.startsAt);
+      const expectedDay = saturdayOffset(NOW, r.weekOffset) + (r.day === 'sun' ? 1 : 0);
+      expect(differenceInCalendarDays(start, NOW)).toBe(expectedDay);
+      expect(start.getDay()).toBe(r.day === 'sat' ? 6 : 0);
+      expect(start.getHours()).toBe(r.hour);
+      expect(start.getMinutes()).toBe(r.minute);
+      expect(start.getSeconds()).toBe(0);
     });
-    expect(new Date(bandits.startsAt).getHours()).toBe(12);
-    expect(new Date(bandits.startsAt).getMinutes()).toBe(30);
-    expect(bandits).toMatchObject({
-      opponent: 'Midland Bandits',
-      score: { us: 19, them: 5 },
-      notes: '3 inning game, took the lead in the 1st inning, 1 HR.',
-      inning: 3,
+
+    it('for a Monday the weekends are 2/1, 23/22 and 30/29 days back', () => {
+      const back = (id: Id) => differenceInCalendarDays(new Date(gameById.get(id)!.startsAt), NOW);
+      expect([back('g_0912_1'), back('g_0913_1')]).toEqual([-2, -1]);
+      expect([back('g_0822_1'), back('g_0823_1')]).toEqual([-23, -22]);
+      expect([back('g_0815_1'), back('g_0816_1')]).toEqual([-30, -29]);
+    });
+
+    it('the scheduled game is vs Bears Ken 14U next Saturday at 10:00am', () => {
+      expect(nextGame).toMatchObject({ id: 'g_next', opponent: 'Bears Ken 14U', isAway: false, status: 'scheduled' });
+      const start = new Date(nextGame.startsAt);
+      expect(start.getDay()).toBe(6);
+      expect(differenceInCalendarDays(start, NOW)).toBe(5);
+      expect(start.getHours()).toBe(10);
+      expect(start.getMinutes()).toBe(0);
+      expect(start.getSeconds()).toBe(0);
+    });
+
+    describe('relative to other days of the week', () => {
+      const finalsOf = (d: ReturnType<typeof buildDemoData>) => d.games.filter((g) => g.status === 'final');
+      const nextOf = (d: ReturnType<typeof buildDemoData>) => d.games.find((g) => g.status === 'scheduled')!;
+
+      it.each([
+        ['Saturday morning', '2026-09-19T08:00:00', -7, 7],
+        ['Saturday evening', '2026-09-19T20:00:00', -7, 7],
+        ['Sunday morning', '2026-09-20T10:00:00', -8, 6],
+        ['Sunday night', '2026-09-20T23:00:00', -8, 6],
+        ['Monday', '2026-09-21T00:30:00', -2, 5],
+        ['Wednesday', '2026-09-16T10:00:00', -4, 3],
+        ['Friday', '2026-09-18T23:00:00', -6, 1],
+      ])('on a %s the last weekend is fully over and the next game is on the coming Saturday', (_day, iso, saturdayBack, ahead) => {
+        const now = new Date(iso);
+        const d = buildDemoData(now);
+        const finals = finalsOf(d);
+        const saturday = new Date(finals.find((g) => g.id === 'g_0912_1')!.startsAt);
+        const sunday = new Date(finals.find((g) => g.id === 'g_0913_2')!.startsAt);
+        expect(saturday.getDay()).toBe(6);
+        expect(sunday.getDay()).toBe(0);
+        expect(differenceInCalendarDays(saturday, now)).toBe(saturdayBack);
+        expect(differenceInCalendarDays(sunday, now)).toBe(saturdayBack + 1);
+        for (const g of finals) expect(at(g.finishedAt!)).toBeLessThan(now.getTime());
+        const next = new Date(nextOf(d).startsAt);
+        expect(next.getDay()).toBe(6);
+        expect(differenceInCalendarDays(next, now)).toBe(ahead);
+        expect(next.getTime()).toBeGreaterThan(now.getTime());
+      });
+
+      it('does not move during a weekend: Saturday morning, Saturday night and Sunday give the same calendar', () => {
+        const saturday = buildDemoData(new Date('2026-09-19T08:00:00'));
+        const night = buildDemoData(new Date('2026-09-19T23:30:00'));
+        const sunday = buildDemoData(new Date('2026-09-20T15:00:00'));
+        expect(night.games.map((g) => g.startsAt)).toEqual(saturday.games.map((g) => g.startsAt));
+        expect(sunday.games.map((g) => g.startsAt)).toEqual(saturday.games.map((g) => g.startsAt));
+      });
     });
   });
 
-  describe('relative dates', () => {
-    const finalsOf = (d: ReturnType<typeof buildDemoData>) => d.games.filter((g) => g.status === 'final');
-    const nextOf = (d: ReturnType<typeof buildDemoData>) => d.games.find((g) => g.status === 'scheduled')!;
-
-    it('on a Saturday morning every final game is already over and the next game is a week out', () => {
-      const sat = new Date('2026-09-19T08:00:00');
-      const d = buildDemoData(sat);
-      for (const g of finalsOf(d)) {
-        expect(new Date(g.finishedAt!).getTime()).toBeLessThan(sat.getTime());
-      }
-      const latest = finalsOf(d).map((g) => new Date(g.startsAt))[finalsOf(d).length - 1];
-      expect(differenceInCalendarDays(latest, sat)).toBe(-7);
-      expect(latest.getDay()).toBe(6);
-      expect(differenceInCalendarDays(new Date(nextOf(d).startsAt), sat)).toBe(7);
-    });
-
-    it('on a Saturday evening the finals still sit on last Saturday, so the seed does not move during the day', () => {
-      const morning = buildDemoData(new Date('2026-09-19T08:00:00'));
-      const evening = buildDemoData(new Date('2026-09-19T20:00:00'));
-      expect(evening.games.map((g) => g.startsAt)).toEqual(morning.games.map((g) => g.startsAt));
-    });
-
-    it.each([
-      ['Sunday', '2026-09-20T10:00:00', -1, 6],
-      ['Wednesday', '2026-09-16T10:00:00', -4, 3],
-      ['Friday', '2026-09-18T23:00:00', -6, 1],
-    ])('on a %s the finals are on the previous Saturday and the next game on the coming one', (_day, iso, back, ahead) => {
-      const now = new Date(iso);
-      const d = buildDemoData(now);
-      const finals = finalsOf(d);
-      const latest = new Date(finals[finals.length - 1].startsAt);
-      expect(latest.getDay()).toBe(6);
-      expect(differenceInCalendarDays(latest, now)).toBe(back);
-      for (const g of finals) expect(new Date(g.finishedAt!).getTime()).toBeLessThan(now.getTime());
-      expect(differenceInCalendarDays(new Date(nextOf(d).startsAt), now)).toBe(ahead);
-    });
+  it('the scheduled game is untouched: top of the 1st, nobody up, 0-0, the default lineup, no pitcher, no at-bats', () => {
+    expect(nextGame.inning).toBe(1);
+    expect(nextGame.half).toBe('top');
+    expect(nextGame.ourNextBatter).toBe(0);
+    expect(nextGame.theirNextBatter).toBe(0);
+    expect(nextGame.score).toEqual({ us: 0, them: 0 });
+    expect(nextGame.finishedAt).toBeUndefined();
+    expect(nextGame.notes).toBeUndefined();
+    expect(nextGame.substitutions).toBeUndefined();
+    expect(nextGame.lineup).toEqual(demoTeam.defaultLineup);
+    expect(nextGame.lineup).not.toBe(demoTeam.defaultLineup);
+    expect(nextGame.pitcherId).toBeUndefined();
+    expect(nextGame.opponentLineup).toEqual(Array.from({ length: 9 }, (_, i) => ({ id: `g_next_ob${i}`, name: `Batter ${i + 1}` })));
+    expect(data.atBats.some((x) => x.gameId === nextGame.id)).toBe(false);
+    expect(at(nextGame.createdAt)).toBeLessThan(at(nextGame.startsAt));
   });
 
-  it('final games have finishedAt after first pitch and end in the bottom of the last inning', () => {
+  it('final games were created the day before, finish two hours after first pitch and end in the bottom of the last inning', () => {
     for (const g of finalGames) {
-      expect(g.finishedAt).toBeDefined();
-      expect(new Date(g.finishedAt!).getTime()).toBeGreaterThan(new Date(g.startsAt).getTime());
-      expect(new Date(g.createdAt).getTime()).toBeLessThan(new Date(g.startsAt).getTime());
+      expect(at(g.createdAt)).toBe(at(g.startsAt) - 24 * 60 * 60 * 1000);
+      expect(at(g.finishedAt!)).toBe(at(g.startsAt) + 2 * 60 * 60 * 1000);
       expect(g.half).toBe('bottom');
-      expect(g.inning).toBeGreaterThanOrEqual(3);
-      expect(g.ourNextBatter).toBeLessThan(g.lineup.length);
-      expect(g.theirNextBatter).toBeLessThan(g.opponentLineup.length);
+      expect(g.inning).toBeGreaterThanOrEqual(2);
     }
   });
 
-  it('every game has a nine-batter opponent order with ids scoped to the game', () => {
-    for (const g of data.games) {
-      expect(g.opponentLineup.map((b) => b.name)).toEqual(Array.from({ length: 9 }, (_, i) => `Batter ${i + 1}`));
-      for (const b of g.opponentLineup) expect(b.id.startsWith(`${g.id}_`)).toBe(true);
-    }
-    const allOpponentIds = data.games.flatMap((g) => g.opponentLineup.map((b) => b.id));
-    expect(new Set(allOpponentIds).size).toBe(allOpponentIds.length);
-  });
-
-  it('Knox Kennedy appears only in the last two final games (and the upcoming one)', () => {
-    const withKnox = data.games.filter((g) => g.lineup.some((s) => s.playerId === 'p_knox')).map((g) => g.id);
-    expect(withKnox).toEqual(['g_redbirds', 'g_bandits', 'g_tigers_2']);
-    for (const g of finalGames.slice(0, 4)) {
-      expect(g.lineup).toHaveLength(9);
-      expect(startingOrder(g)).toEqual(demoTeam.defaultLineup.map((s) => s.playerId).filter((id) => id !== 'p_knox'));
-    }
-    const knoxGames = new Set(data.atBats.filter((x) => x.batterId === 'p_knox').map((x) => x.gameId));
-    expect([...knoxGames].sort()).toEqual(['g_bandits', 'g_redbirds']);
-  });
-
-  it('every game started with the default lineup in order (minus Knox before he joined), slots without positions', () => {
-    for (const g of data.games) {
-      const ids = startingOrder(g);
-      const expected = demoTeam.defaultLineup.map((s) => s.playerId).filter((id) => ids.includes(id));
-      expect(ids).toEqual(expected);
+  it('every game started with the starting order of the dataset and now shows it with the subs applied', () => {
+    for (const r of REAL_GAMES) {
+      const g = gameById.get(r.id)!;
+      const s = sourceOf(r.id);
+      expect(startingOrder(g)).toEqual(s.lineup);
+      expect(g.lineup.map((x) => x.playerId)).toEqual(withSubsApplied(s));
+      expect(g.lineup).toHaveLength(10);
+      expect(new Set(g.lineup.map((x) => x.playerId)).size).toBe(10);
       for (const slot of g.lineup) expect(Object.keys(slot)).toEqual(['playerId']);
     }
   });
 
-  describe('seeded substitutions', () => {
-    const withSubs = data.games.filter((g) => (g.substitutions ?? []).length > 0);
+  it('the opponent order is one batter per jersey seen, in order of first appearance, unknown jerseys without a number', () => {
+    for (const r of REAL_GAMES) {
+      const g = gameById.get(r.id)!;
+      const s = sourceOf(r.id);
+      expect(g.opponentLineup).toHaveLength(s.opponentJerseys.length);
+      g.opponentLineup.forEach((b, i) => {
+        expect(b.id).toBe(`${g.id}_ob${i}`);
+        expect(b.name).toBe(`Batter ${i + 1}`);
+        if (s.opponentJerseys[i] === '?') expect(b.number).toBeUndefined();
+        else expect(b.number).toBe(s.opponentJerseys[i]);
+      });
+    }
+    expect(gameById.get('g_0913_2')!.opponentLineup.map((b) => b.number)).toEqual(['0', '10', '1', '9', '43', '11', '21', '19', '6', '18']);
+    expect(gameById.get('g_0816_1')!.opponentLineup[4].number).toBeUndefined();
+    const allOpponentIds = data.games.flatMap((g) => g.opponentLineup.map((b) => b.id));
+    expect(new Set(allOpponentIds).size).toBe(allOpponentIds.length);
+  });
 
-    it('Mason comes in for Cooper in the top of the 4th against the Rockhounds', () => {
-      const g = gameById.get('g_rockhounds')!;
-      expect(g.substitutions).toEqual([
-        { id: 'g_rockhounds_sub1', slot: 3, outId: 'p_cooper', inId: 'p_mason', inning: 4, half: 'top', at: expect.any(String) },
+  it('ends each final game with the last pitcher who faced a batter on the mound', () => {
+    for (const g of finalGames) {
+      const theirs = data.atBats.filter((x) => x.gameId === g.id && x.side === 'them');
+      expect(g.pitcherId).toBe(theirs[theirs.length - 1].pitcherId);
+    }
+    // Sep 13 game 2: Carsyn started, Lucas and Chase pitched the 3rd, Weedon finished.
+    const g = gameById.get('g_0913_2')!;
+    const seen: Id[] = [];
+    for (const x of data.atBats.filter((y) => y.gameId === g.id && y.side === 'them')) {
+      if (seen[seen.length - 1] !== x.pitcherId) seen.push(x.pitcherId!);
+    }
+    expect(seen).toEqual(['p_carsyn', 'p_lucas', 'p_chase', 'p_weedon']);
+    expect(g.pitcherId).toBe('p_weedon');
+  });
+
+  describe('substitutions', () => {
+    const withSubs = finalGames.filter((g) => (g.substitutions ?? []).length > 0);
+
+    it('match the dataset record for record: slot at the time, half-inning, ids scoped to the game', () => {
+      for (const r of REAL_GAMES) {
+        const g = gameById.get(r.id)!;
+        const s = sourceOf(r.id);
+        if (s.subs.length === 0) {
+          expect(g.substitutions).toBeUndefined();
+          continue;
+        }
+        const ids = [...s.lineup];
+        const expected = s.subs.map((sub, i) => {
+          const slot = ids.indexOf(sub.outId);
+          ids[slot] = sub.inId;
+          return { id: `${g.id}_sub${i + 1}`, slot, outId: sub.outId, inId: sub.inId, inning: sub.at.inning, half: sub.at.half, at: expect.any(String) };
+        });
+        expect(g.substitutions).toEqual(expected);
+      }
+      expect(withSubs.map((g) => g.id)).toEqual([
+        'g_0815_2',
+        'g_0816_1',
+        'g_0816_2',
+        'g_0822_1',
+        'g_0822_2',
+        'g_0823_1',
+        'g_0823_2',
+        'g_0823_3',
+        'g_0912_1',
+        'g_0912_2',
+        'g_0913_1',
+        'g_0913_2',
       ]);
-      expect(g.lineup[3]).toEqual({ playerId: 'p_mason' });
-      expect(g.lineup.some((s) => s.playerId === 'p_cooper')).toBe(false);
     });
 
-    it('Eli comes in for Landyn in the top of the 2nd against the Redbirds', () => {
-      const g = gameById.get('g_redbirds')!;
+    it('three subs at once against Bears Ken: Knox for Carsyn, Hamilton for Brady, Weedon for Cooper in the bottom of the 2nd', () => {
+      const g = gameById.get('g_0823_1')!;
       expect(g.substitutions).toEqual([
-        { id: 'g_redbirds_sub1', slot: 8, outId: 'p_landyn', inId: 'p_eli', inning: 2, half: 'top', at: expect.any(String) },
+        { id: 'g_0823_1_sub1', slot: 8, outId: 'p_carsyn', inId: 'p_knox', inning: 2, half: 'bottom', at: expect.any(String) },
+        { id: 'g_0823_1_sub2', slot: 0, outId: 'p_brady', inId: 'p_hamilton', inning: 2, half: 'bottom', at: expect.any(String) },
+        { id: 'g_0823_1_sub3', slot: 2, outId: 'p_cooper', inId: 'p_weedon', inning: 2, half: 'bottom', at: expect.any(String) },
       ]);
-      expect(g.lineup[8]).toEqual({ playerId: 'p_eli' });
-      expect(g.lineup.some((s) => s.playerId === 'p_landyn')).toBe(false);
+      expect(g.lineup.map((s) => s.playerId)).toEqual([
+        'p_hamilton',
+        'p_ben',
+        'p_weedon',
+        'p_owen_haynes',
+        'p_owen_clark',
+        'p_gabe',
+        'p_jd',
+        'p_lucas',
+        'p_knox',
+        'p_chase',
+      ]);
     });
 
-    it('Mason also comes in against the Fury and the Bandits; Eli only against the Redbirds; nobody else is ever subbed in', () => {
-      expect(withSubs.map((g) => g.id)).toEqual(['g_rockhounds', 'g_fury', 'g_redbirds', 'g_bandits']);
-      const inIds = withSubs.flatMap((g) => g.substitutions!.map((sub) => `${g.id}:${sub.inId}`));
-      expect(inIds).toEqual(['g_rockhounds:p_mason', 'g_fury:p_mason', 'g_redbirds:p_eli', 'g_bandits:p_mason']);
-      expect(scheduledGames[0].substitutions).toBeUndefined();
+    it('a re-entry: JD for Chase and then Chase back for JD in the same half against PSA Chiesa', () => {
+      const g = gameById.get('g_0913_1')!;
+      expect(g.substitutions!.map((s) => [s.slot, s.outId, s.inId])).toEqual([
+        [8, 'p_carsyn', 'p_weedon'],
+        [9, 'p_chase', 'p_jd'],
+        [9, 'p_jd', 'p_chase'],
+      ]);
+      expect(g.lineup[9]).toEqual({ playerId: 'p_chase' });
+      expect(g.lineup.some((s) => s.playerId === 'p_jd')).toBe(false);
     });
 
-    it('every record names the slot the sub now holds, a clock inside the game and a timestamp during it', () => {
+    it('every record is timestamped during the game, in the order the changes were made, and the slot ends with its last sub', () => {
       const ids = withSubs.flatMap((g) => g.substitutions!.map((sub) => sub.id));
       expect(new Set(ids).size).toBe(ids.length);
       for (const g of withSubs) {
+        let previous = at(g.startsAt);
+        const lastOnSlot = new Map(g.substitutions!.map((sub) => [sub.slot, sub.inId]));
+        for (const [slot, inId] of lastOnSlot) expect(g.lineup[slot].playerId).toBe(inId);
         for (const sub of g.substitutions!) {
-          expect(g.lineup[sub.slot].playerId).toBe(sub.inId);
-          expect(g.lineup.some((s) => s.playerId === sub.outId)).toBe(false);
           expect(sub.inning).toBeGreaterThanOrEqual(1);
           expect(sub.inning).toBeLessThanOrEqual(g.inning);
-          expect(new Date(sub.at).getTime()).toBeGreaterThan(new Date(g.startsAt).getTime());
-          expect(new Date(sub.at).getTime()).toBeLessThan(new Date(g.finishedAt!).getTime());
-          // The change is made between half-innings: no at-bat of that half comes before it.
-          const halfAtBats = data.atBats.filter((x) => x.gameId === g.id && x.inning === sub.inning && x.half === sub.half);
-          for (const x of halfAtBats) expect(x.recordedAt > sub.at).toBe(true);
+          expect(at(sub.at)).toBeGreaterThan(previous);
+          expect(at(sub.at)).toBeLessThan(at(g.finishedAt!));
+          previous = at(sub.at);
         }
       }
     });
 
-    it('the sub bats in the slot from the change on, never before it; the outgoing player never after it', () => {
+    it('is stamped at the incoming player’s first at-bat from that half on, else the first play after the outgoing player’s last', () => {
       for (const g of withSubs) {
+        const plays = data.atBats.filter((x) => x.gameId === g.id);
+        let previous = -Infinity;
         for (const sub of g.substitutions!) {
-          const ours = data.atBats.filter((x) => x.gameId === g.id && x.side === 'us');
-          const before = ours.filter((x) => compareClock(x, sub) < 0);
-          const after = ours.filter((x) => compareClock(x, sub) >= 0);
-          expect(before.some((x) => x.batterId === sub.inId)).toBe(false);
-          expect(after.some((x) => x.batterId === sub.inId)).toBe(true);
+          const later = plays.filter((x) => at(x.recordedAt) > previous && compareClock(x, sub) >= 0);
+          const own = later.find((x) => x.side === 'us' && x.batterId === sub.inId);
+          const outLast = later.filter((x) => x.side === 'us' && x.batterId === sub.outId).pop();
+          const next = later.find((x) => at(x.recordedAt) > (outLast ? at(outLast.recordedAt) : -Infinity));
+          expect(sub.at).toBe((own ?? next)!.recordedAt);
+          previous = at(sub.at);
+        }
+      }
+      // Chase re-entered for JD without batting again: stamped at the next play after JD's at-bat.
+      const psa = gameById.get('g_0913_1')!;
+      const [, jdIn, chaseBack] = psa.substitutions!;
+      const jd = data.atBats.find((x) => x.gameId === psa.id && x.batterId === 'p_jd')!;
+      expect(jdIn.at).toBe(jd.recordedAt);
+      expect(at(chaseBack.at)).toBeGreaterThan(at(jd.recordedAt));
+    });
+
+    it('a player who was subbed out and stayed out never bats after the change', () => {
+      for (const g of withSubs) {
+        const ours = data.atBats.filter((x) => x.gameId === g.id && x.side === 'us');
+        for (const sub of g.substitutions!) {
+          const stayedOut = !g.lineup.some((s) => s.playerId === sub.outId);
+          if (!stayedOut) continue;
+          const after = ours.filter((x) => compareClock(x, sub) > 0);
           expect(after.some((x) => x.batterId === sub.outId)).toBe(false);
         }
       }
-      // Cooper had batted before Mason took his slot, so the Rockhounds scorebook shows an OUT row with at-bats.
-      const rockhounds = gameById.get('g_rockhounds')!;
-      const sub = rockhounds.substitutions![0];
-      const cooper = data.atBats.filter((x) => x.gameId === rockhounds.id && x.batterId === 'p_cooper');
-      expect(cooper.length).toBeGreaterThan(0);
-      for (const x of cooper) expect(compareClock(x, sub)).toBeLessThan(0);
-    });
-
-    it('Mason has a full form window of at-bats and reads HOT; Eli is about even; Theo has never batted', () => {
-      const mason = recentForm(data.atBats, data.games, 'p_mason');
-      expect(mason).toHaveLength(FORM_WINDOW);
-      expect(formScore(mason)).toBeGreaterThanOrEqual(3);
-      expect(formRating(mason)).toBe('hot');
-      const masonAll = hittingFor(data.atBats, 'p_mason');
-      expect(masonAll.w + masonAll.l).toBeGreaterThanOrEqual(FORM_WINDOW);
-
-      const eli = recentForm(data.atBats, data.games, 'p_eli');
-      expect(eli.length).toBeGreaterThanOrEqual(1);
-      expect(Math.abs(formScore(eli))).toBeLessThanOrEqual(1);
-      expect(formRating(eli)).toBeUndefined();
-
-      expect(data.atBats.some((x) => x.batterId === 'p_theo')).toBe(false);
-      expect(recentForm(data.atBats, data.games, 'p_theo')).toEqual([]);
     });
   });
 });
 
 describe('buildDemoData: at-bats', () => {
-  it('exist for every final game and none for the scheduled game', () => {
-    expect(data.atBats.length).toBeGreaterThan(100);
+  it('has 314 of ours and 265 of theirs, every final game with both sides, none for the scheduled game', () => {
+    expect(data.atBats.filter((x) => x.side === 'us')).toHaveLength(314);
+    expect(data.atBats.filter((x) => x.side === 'them')).toHaveLength(265);
     for (const g of finalGames) {
+      const s = sourceOf(g.id);
+      expect(data.atBats.filter((x) => x.gameId === g.id)).toHaveLength(s.atBats.length);
       expect(data.atBats.filter((x) => x.gameId === g.id && x.side === 'us').length).toBeGreaterThan(0);
       expect(data.atBats.filter((x) => x.gameId === g.id && x.side === 'them').length).toBeGreaterThan(0);
     }
   });
 
-  it('have unique ids', () => {
+  it('have ids indexed in dataset order, unique across the document', () => {
     expect(new Set(data.atBats.map((x) => x.id)).size).toBe(data.atBats.length);
+    for (const g of finalGames) {
+      const mine = data.atBats.filter((x) => x.gameId === g.id);
+      mine.forEach((x, i) => expect(x.id).toBe(`${g.id}_ab${i}`));
+    }
   });
 
-  it('reference a valid game, a batter in that game’s order and a valid inning/half', () => {
+  it('reference their game, a batter of that game (ours: on the roster; theirs: in the opponent order) and a valid half-inning', () => {
     for (const x of data.atBats) {
       const g = gameById.get(x.gameId);
       expect(g).toBeDefined();
       expect(x.inning).toBeGreaterThanOrEqual(1);
       expect(x.inning).toBeLessThanOrEqual(g!.inning);
       expect(['top', 'bottom']).toContain(x.half);
-      expect(whoBats(g!, x.half)).toBe(x.side);
+      // Aug 22 game 2 is "@ Bears Ken 14U" on the schedule but was scored with us batting in the bottom: kept as captured.
+      if (g!.id !== 'g_0822_2') expect(whoBats(g!, x.half)).toBe(x.side);
       if (x.side === 'us') {
-        // In the order now, or in it before a recorded substitution took him out.
-        const held = g!.lineup.some((s) => s.playerId === x.batterId) || (g!.substitutions ?? []).some((sub) => sub.outId === x.batterId);
-        expect(held).toBe(true);
         expect(playerIds.has(x.batterId)).toBe(true);
         expect(x.pitcherId).toBeUndefined();
       } else {
         expect(g!.opponentLineup.some((b) => b.id === x.batterId)).toBe(true);
+        expect(x.pitcherId).toBeDefined();
+        expect(playerIds.has(x.pitcherId!)).toBe(true);
       }
     }
   });
 
-  it('"them" at-bats always name one of our roster players as the pitcher', () => {
-    const theirs = data.atBats.filter((x) => x.side === 'them');
-    expect(theirs.length).toBeGreaterThan(0);
-    for (const x of theirs) {
-      expect(x.pitcherId).toBeDefined();
-      expect(playerIds.has(x.pitcherId!)).toBe(true);
-    }
-  });
-
-  it('each final game ends with its last pitcher on the mound', () => {
+  it('every at-bat falls in the half its side bats in (home/away comes from the halves, not the scorer\'s flag)', () => {
     for (const g of finalGames) {
-      const theirs = data.atBats.filter((x) => x.gameId === g.id && x.side === 'them');
-      expect(g.pitcherId).toBe(theirs[theirs.length - 1].pitcherId);
-      const pitchers = new Set(theirs.map((x) => x.pitcherId));
-      expect(pitchers.size).toBe(2);
+      const mine = data.atBats.filter((x) => x.gameId === g.id);
+      expect(mine.filter((x) => whoBats(g, x.half) !== x.side)).toEqual([]);
+    }
+    // The scorer flagged this one as away, but we batted in the bottom: it is a home game.
+    expect(gameById.get('g_0822_2')).toMatchObject({ opponent: 'Bears Ken 14U', isAway: false });
+  });
+
+  it('every one of our batters is in the order or was subbed out of it: nobody batted from outside the order', () => {
+    for (const g of finalGames) {
+      const held = new Set([...g.lineup.map((s) => s.playerId), ...(g.substitutions ?? []).map((sub) => sub.outId)]);
+      const outside = data.atBats.filter((x) => x.gameId === g.id && x.side === 'us' && !held.has(x.batterId));
+      expect(outside).toEqual([]);
     }
   });
 
-  it('result always agrees with the outcome, and W/L is from the batter’s perspective', () => {
-    for (const x of data.atBats) {
-      expect(x.result).toBe(getOutcome(x.outcomeId).result);
+  it('carry the dataset’s batters, outcomes and pitchers one for one', () => {
+    for (const g of finalGames) {
+      const s = sourceOf(g.id);
+      const mine = data.atBats.filter((x) => x.gameId === g.id);
+      mine.forEach((x, i) => {
+        const src = s.atBats[i];
+        expect([x.side, x.inning, x.half, x.outcomeId]).toEqual([src.side, src.inning, src.half, src.outcomeId]);
+        if (src.side === 'us') expect(x.batterId).toBe(src.batterId);
+        else {
+          expect(x.batterId).toBe(g.opponentLineup[src.batter].id);
+          expect(x.pitcherId).toBe(src.pitcherId);
+        }
+      });
     }
+  });
+
+  it('result always derives from the outcome, from the batter’s perspective on both sides', () => {
+    for (const x of data.atBats) expect(x.result).toBe(getOutcome(x.outcomeId).result);
     expect(data.atBats.some((x) => x.side === 'them' && x.result === 'W')).toBe(true);
     expect(data.atBats.some((x) => x.side === 'them' && x.result === 'L')).toBe(true);
+    // The real season mixes typed outcomes and plain ones (a walk without pitch data, an out in play).
+    expect(data.atBats.some((x) => isPlain(x.outcomeId) && x.result === 'W')).toBe(true);
+    expect(data.atBats.some((x) => isPlain(x.outcomeId) && x.result === 'L')).toBe(true);
+    expect(data.atBats.some((x) => x.outcomeId === 'hit')).toBe(true);
+    expect(data.atBats.some((x) => x.outcomeId === 'k_looking')).toBe(true);
   });
 
-  it('are recorded in order, between first pitch and finishedAt', () => {
+  it('are recorded at first pitch plus the dataset offset, in order, before the game finished', () => {
     for (const g of finalGames) {
-      const times = data.atBats.filter((x) => x.gameId === g.id).map((x) => new Date(x.recordedAt).getTime());
-      expect(times[0]).toBeGreaterThan(new Date(g.startsAt).getTime());
-      expect(times[times.length - 1]).toBeLessThan(new Date(g.finishedAt!).getTime());
-      for (let i = 1; i < times.length; i++) expect(times[i]).toBeGreaterThan(times[i - 1]);
+      const s = sourceOf(g.id);
+      const mine = data.atBats.filter((x) => x.gameId === g.id);
+      mine.forEach((x, i) => expect(at(x.recordedAt)).toBe(at(g.startsAt) + s.atBats[i].offsetS * 1000));
+      const times = mine.map((x) => at(x.recordedAt));
+      expect(times[0]).toBeGreaterThan(at(g.startsAt));
+      expect(times[times.length - 1]).toBeLessThan(at(g.finishedAt!));
+      for (let i = 1; i < times.length; i++) expect(times[i]).toBeGreaterThanOrEqual(times[i - 1]);
+      // The clock never runs backwards either.
+      for (let i = 1; i < mine.length; i++) expect(compareClock(mine[i], mine[i - 1])).toBeGreaterThanOrEqual(0);
     }
   });
 
-  it('walk the batting order in sequence within a game, each slot batted by whoever held it at the time', () => {
-    for (const g of finalGames) {
-      const ours = data.atBats.filter((x) => x.gameId === g.id && x.side === 'us');
-      ours.forEach((x, i) => expect(x.batterId).toBe(occupantAt(g, i % g.lineup.length, x.inning, x.half)));
-      expect(g.ourNextBatter).toBe(ours.length % g.lineup.length);
-      const theirs = data.atBats.filter((x) => x.gameId === g.id && x.side === 'them');
-      theirs.forEach((x, i) => expect(x.batterId).toBe(g.opponentLineup[i % g.opponentLineup.length].id));
-      expect(g.theirNextBatter).toBe(theirs.length % g.opponentLineup.length);
-    }
+  it('give Cooper a season hitting score of +19 and Owen Haynes +17', () => {
+    expect(hittingFor(data.atBats, 'p_cooper')).toEqual({ w: 25, l: 6 });
+    expect(score(hittingFor(data.atBats, 'p_cooper'))).toBe(19);
+    expect(hittingFor(data.atBats, 'p_owen_haynes')).toEqual({ w: 24, l: 7 });
+    expect(score(hittingFor(data.atBats, 'p_owen_haynes'))).toBe(17);
   });
 
-  it('every half inning has at least three plate appearances', () => {
-    for (const g of finalGames) {
-      for (let inning = 1; inning <= g.inning; inning++) {
-        for (const half of ['top', 'bottom'] as const) {
-          const n = data.atBats.filter((x) => x.gameId === g.id && x.inning === inning && x.half === half).length;
-          expect(n).toBeGreaterThanOrEqual(3);
-        }
-      }
+  it('give every player at least one at-bat and the season its real pitching lines', () => {
+    for (const p of data.players) {
+      const wl = hittingFor(data.atBats, p.id);
+      expect(wl.w + wl.l).toBeGreaterThan(0);
     }
-  });
-
-  describe('plain at-bats (charted with the big W/L and no play type)', () => {
-    const plain = data.atBats.filter((x) => isPlain(x.outcomeId));
-
-    it('every 7th at-bat of the dataset is plain and every other one is typed', () => {
-      expect(PLAIN_EVERY).toBe(7);
-      data.atBats.forEach((x, i) => expect(isPlain(x.outcomeId)).toBe(i % PLAIN_EVERY === PLAIN_EVERY - 1));
-      expect(plain).toHaveLength(Math.floor(data.atBats.length / PLAIN_EVERY));
-      expect(plain.length).toBeGreaterThanOrEqual(30);
-    });
-
-    it('carry the batter’s result in the plain id, for both letters and both sides', () => {
-      for (const x of plain) expect(x.outcomeId).toBe(x.result === 'W' ? 'plain_w' : 'plain_l');
-      expect(plain.some((x) => x.outcomeId === 'plain_w')).toBe(true);
-      expect(plain.some((x) => x.outcomeId === 'plain_l')).toBe(true);
-      expect(plain.some((x) => x.side === 'us')).toBe(true);
-      expect(plain.some((x) => x.side === 'them')).toBe(true);
-    });
-
-    it('appear in every final game so plain tiles and blank codes show on every scorebook', () => {
-      for (const g of finalGames) {
-        expect(plain.filter((x) => x.gameId === g.id).length).toBeGreaterThanOrEqual(3);
-      }
-    });
-
-    it('resolve through getOutcome with a blank scorebook code', () => {
-      for (const x of plain) {
-        const o = getOutcome(x.outcomeId);
-        expect(o.result).toBe(x.result);
-        expect(o.short).toBe('');
-      }
-    });
+    expect(pitchingFor(data.atBats, 'p_carsyn')).toEqual({ w: 34, l: 23 });
+    expect(pitchingFor(data.atBats, 'p_cooper')).toEqual({ w: 39, l: 33 });
+    expect(pitchingFor(data.atBats, 'p_hamilton')).toEqual({ w: 0, l: 0 });
   });
 });

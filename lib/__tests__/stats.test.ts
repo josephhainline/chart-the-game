@@ -1,5 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
+import { compareAtBats } from '../atbats';
 import { isPlain, outcomeShort } from '../outcomes';
 import { buildDemoData } from '../seed';
 import {
@@ -523,30 +524,44 @@ describe('with the demo data', () => {
   const data = buildDemoData(new Date('2026-09-14T12:00:00'));
   const team = data.teams[0];
   const weBat = (g: Game, half: Half): Side => ((g.isAway ? half === 'top' : half === 'bottom') ? 'us' : 'them');
-
+  const sumOf = (wls: { w: number; l: number }[]) => wls.reduce((a, b) => ({ w: a.w + b.w, l: a.l + b.l }), ZERO);
+  // Aug 22 game 2 was scored with the halves the other way round from its home/away flag (kept as captured).
+  const FLIPPED_HALVES = 'g_0822_2';
+  /** Players who batted without ever being put in the order (the GameChanger stream never recorded them entering). */
+  
   it('season hitting totals equal the sum of every game’s hitting line', () => {
     const rows = seasonTable(team, data.players, data.games, data.atBats, 'hitting');
-    const sum = data.games.map((g) => gameHitting(data.atBats, g.id)).reduce((a, b) => ({ w: a.w + b.w, l: a.l + b.l }), ZERO);
+    const sum = sumOf(data.games.map((g) => gameHitting(data.atBats, g.id)));
     expect(totals(rows)).toEqual(sum);
     expect(sum.w + sum.l).toBe(data.atBats.filter((x) => x.side === 'us').length);
+    expect(sum.w + sum.l).toBe(314);
   });
 
   it('season pitching totals equal the sum of every game’s pitching line', () => {
     const rows = seasonTable(team, data.players, data.games, data.atBats, 'pitching');
-    const sum = data.games.map((g) => gamePitching(data.atBats, g.id)).reduce((a, b) => ({ w: a.w + b.w, l: a.l + b.l }), ZERO);
+    const sum = sumOf(data.games.map((g) => gamePitching(data.atBats, g.id)));
     expect(totals(rows)).toEqual(sum);
     expect(sum.w + sum.l).toBe(data.atBats.filter((x) => x.side === 'them').length);
+    expect(sum.w + sum.l).toBe(265);
   });
 
-  it('table rows follow the default lineup order, then the bench by last name', () => {
+  it('table rows follow the default lineup order, then the bench by last name; everyone has batted', () => {
     const rows = seasonTable(team, data.players, data.games, data.atBats, 'hitting');
-    expect(rows.map((r) => r.player.id)).toEqual([...team.defaultLineup.map((s) => s.playerId), 'p_theo', 'p_eli', 'p_mason']);
-    expect(rows.find((r) => r.player.id === 'p_theo')!.score).toBeNull();
-    expect(rows.find((r) => r.player.id === 'p_mason')!.score).toBeGreaterThan(0);
+    expect(rows.map((r) => r.player.id)).toEqual([...team.defaultLineup.map((s) => s.playerId), 'p_chase', 'p_owen_clark', 'p_jd', 'p_rhett', 'p_angel']);
+    expect(rows.every((r) => r.score !== null)).toBe(true);
+    expect(rows.find((r) => r.player.id === 'p_cooper')!.score).toBe(19);
+    expect(rows.find((r) => r.player.id === 'p_owen_haynes')!.score).toBe(17);
+    expect(rows.some((r) => r.removed)).toBe(false);
+  });
+
+  it('the pitching table shows a dash for everyone who never pitched', () => {
+    const rows = seasonTable(team, data.players, data.games, data.atBats, 'pitching');
+    const never = rows.filter((r) => r.score === null).map((r) => r.player.id);
+    expect(never).toEqual(['p_hamilton', 'p_brady', 'p_ben', 'p_owen_clark', 'p_jd', 'p_angel']);
+    expect(rows.find((r) => r.player.id === 'p_carsyn')!.wl).toEqual({ w: 34, l: 23 });
   });
 
   describe('after a player with at-bats is removed from the roster', () => {
-    const sumOf = (wls: { w: number; l: number }[]) => wls.reduce((a, b) => ({ w: a.w + b.w, l: a.l + b.l }), ZERO);
     /** Mimic the store's removePlayer: gone from the roster and the default lineup, at-bats kept. */
     const without = (id: string) => ({
       players: data.players.filter((p) => p.id !== id),
@@ -554,14 +569,14 @@ describe('with the demo data', () => {
     });
 
     it('season hitting totals still equal the sum of every game’s hitting line', () => {
-      const { players, team: t } = without('p_owen');
+      const { players, team: t } = without('p_owen_haynes');
       const rows = seasonTable(t, players, data.games, data.atBats, 'hitting');
       expect(totals(rows)).toEqual(sumOf(data.games.map((g) => gameHitting(data.atBats, g.id))));
       const last = rows[rows.length - 1];
       expect(last.removed).toBe(true);
-      expect(last.wl).toEqual(hittingFor(data.atBats, 'p_owen'));
+      expect(last.wl).toEqual(hittingFor(data.atBats, 'p_owen_haynes'));
       expect(rows.filter((r) => r.removed)).toHaveLength(1);
-      expect(rows.some((r) => r.player.id === 'p_owen')).toBe(false);
+      expect(rows.some((r) => r.player.id === 'p_owen_haynes')).toBe(false);
     });
 
     it('season pitching totals still equal the sum of every game’s pitching line', () => {
@@ -571,13 +586,14 @@ describe('with the demo data', () => {
       const last = rows[rows.length - 1];
       expect(last.removed).toBe(true);
       expect(last.wl).toEqual(pitchingFor(data.atBats, 'p_weedon'));
+      expect(last.wl.w + last.wl.l).toBeGreaterThan(0);
     });
 
     it('two removed players share the one synthetic row', () => {
-      const players = data.players.filter((p) => p.id !== 'p_owen' && p.id !== 'p_knox');
+      const players = data.players.filter((p) => p.id !== 'p_owen_haynes' && p.id !== 'p_knox');
       const rows = seasonTable(team, players, data.games, data.atBats, 'hitting');
       expect(rows.filter((r) => r.removed)).toHaveLength(1);
-      const expected = sumOf([hittingFor(data.atBats, 'p_owen'), hittingFor(data.atBats, 'p_knox')]);
+      const expected = sumOf([hittingFor(data.atBats, 'p_owen_haynes'), hittingFor(data.atBats, 'p_knox')]);
       expect(rows[rows.length - 1].wl).toEqual(expected);
       expect(totals(rows)).toEqual(sumOf(data.games.map((g) => gameHitting(data.atBats, g.id))));
     });
@@ -585,13 +601,14 @@ describe('with the demo data', () => {
 
   it('the scorebook for a final game covers every inning and every at-bat', () => {
     for (const g of data.games.filter((x) => x.status === 'final')) {
-      // The rows come from orderWithLeavers so a player subbed out keeps his at-bats on the grid.
+      // The rows come from orderWithLeavers so a player subbed out (or never put in) keeps his at-bats on the grid.
       const ours = scorebook(data.atBats, g.id, 'us', orderWithLeavers(g, data.atBats, 'us'));
       const theirs = scorebook(data.atBats, g.id, 'them', g.opponentLineup);
       const cells = (rows: { innings: AtBat[][] }[]) => rows.flatMap((r) => r.innings.flat());
       expect(cells(ours.rows)).toHaveLength(data.atBats.filter((x) => x.gameId === g.id && x.side === 'us').length);
       expect(cells(theirs.rows)).toHaveLength(data.atBats.filter((x) => x.gameId === g.id && x.side === 'them').length);
       expect(Math.max(ours.innings.length, theirs.innings.length)).toBe(g.inning);
+      if (g.id === FLIPPED_HALVES) continue;
       for (const x of cells(ours.rows)) expect(weBat(g, x.half)).toBe('us');
       for (const x of cells(theirs.rows)) expect(weBat(g, x.half)).toBe('them');
     }
@@ -604,6 +621,7 @@ describe('with the demo data', () => {
     const scores = ranked.map((id) => score(hittingFor(data.atBats, id)));
     for (let i = 1; i < scores.length; i++) expect(scores[i - 1]).toBeGreaterThanOrEqual(scores[i]);
     expect(ranked).toHaveLength(ids.length);
+    expect(ranked.slice(0, 2)).toEqual(['p_cooper', 'p_owen_haynes']);
   });
 
   it('the demo’s plain at-bats are counted in the game lines exactly like the typed ones', () => {
@@ -618,41 +636,55 @@ describe('with the demo data', () => {
     }
   });
 
-  it('nobody has left the order in the demo games except through a recorded substitution, so no LEFT GAME rows are needed', () => {
+  it('the scorebook rows are the order with OUT rows for every recorded sub who stayed out, and no LEFT GAME rows', () => {
     for (const g of data.games) {
-      const subbedOut = (g.substitutions ?? []).map((sub) => sub.outId);
-      const batted = subbedOut.filter((id) => data.atBats.some((x) => x.gameId === g.id && x.batterId === id));
-      expect(leftGameBatterIds(data.atBats, g.id, 'us', g.lineup.map((s) => s.playerId))).toEqual(batted);
-      expect(leftGameBatterIds(data.atBats, g.id, 'them', g.opponentLineup.map((b) => b.id))).toEqual([]);
+      const inOrder = new Set(g.lineup.map((s) => s.playerId));
+      const stayedOut = [...new Set((g.substitutions ?? []).map((sub) => sub.outId))].filter((id) => !inOrder.has(id));
       const rows = orderWithLeavers(g, data.atBats, 'us');
+      expect([...rows.filter((r) => r.status === 'out').map((r) => r.id)].sort()).toEqual([...stayedOut].sort());
       expect(rows.filter((r) => r.status === 'left')).toEqual([]);
-      expect(rows.filter((r) => r.status === 'out').map((r) => r.id)).toEqual(subbedOut);
+      expect(leftGameBatterIds(data.atBats, g.id, 'us', g.lineup.map((s) => s.playerId))).toEqual([...stayedOut].sort((a, b) => firstAtBat(g, a) - firstAtBat(g, b)));
+      expect(leftGameBatterIds(data.atBats, g.id, 'them', g.opponentLineup.map((b) => b.id))).toEqual([]);
       expect(orderWithLeavers(g, data.atBats, 'them').every((r) => r.status === 'in')).toBe(true);
+    }
+    function firstAtBat(g: Game, id: string): number {
+      const mine = data.atBats.filter((x) => x.gameId === g.id && x.side === 'us' && x.batterId === id).sort(compareAtBats);
+      return mine.length ? new Date(mine[0].recordedAt).getTime() : Infinity;
     }
   });
 
-  it('the Rockhounds scorebook lists Cooper OUT in the 4th right before Mason, both in slot 4', () => {
-    const g = data.games.find((x) => x.id === 'g_rockhounds')!;
+  it('the Bears Ken scorebook lists Brady, Cooper and Carsyn OUT in the 2nd, each right before the player who took his slot', () => {
+    const g = data.games.find((x) => x.id === 'g_0823_1')!;
     const rows = orderWithLeavers(g, data.atBats, 'us');
-    expect(rows).toHaveLength(g.lineup.length + 1);
-    const cooper = rows.findIndex((r) => r.id === 'p_cooper');
-    expect(rows[cooper]).toEqual({ id: 'p_cooper', slot: 3, status: 'out', at: { inning: 4, half: 'top' } });
-    expect(rows[cooper + 1]).toEqual({ id: 'p_mason', slot: 3, status: 'in', at: { inning: 4, half: 'top' } });
-    expect(rows.filter((r) => r.at)).toHaveLength(2);
+    expect(rows).toHaveLength(g.lineup.length + 3);
+    const at = { inning: 2, half: 'bottom' as const };
+    for (const [outId, inId, slot] of [
+      ['p_brady', 'p_hamilton', 0],
+      ['p_cooper', 'p_weedon', 2],
+      ['p_carsyn', 'p_knox', 8],
+    ] as const) {
+      const i = rows.findIndex((r) => r.id === outId);
+      expect(rows[i]).toEqual({ id: outId, slot, status: 'out', at });
+      expect(rows[i + 1]).toEqual({ id: inId, slot, status: 'in', at });
+    }
+    expect(rows.filter((r) => r.at)).toHaveLength(6);
     // Every at-bat of the game lands in a row, so the grid reconciles with the totals.
     const book = scorebook(data.atBats, g.id, 'us', rows.map((r) => ({ id: r.id })));
     expect(book.rows.flatMap((r) => r.innings.flat())).toHaveLength(data.atBats.filter((x) => x.gameId === g.id && x.side === 'us').length);
   });
 
-  it('the bench of the upcoming game is Mason (hot), then Eli, then Theo who has never batted', () => {
-    const g = data.games.find((x) => x.id === 'g_tigers_2')!;
+  it('the bench of the upcoming game is Owen Clark (hot), Angel, JD, Rhett and Chase, in that order', () => {
+    const g = data.games.find((x) => x.id === 'g_next')!;
     const bench = benchFor(data.players, g.lineup);
-    expect(bench.map((p) => p.id)).toEqual(['p_mason', 'p_eli', 'p_theo']);
-    expect(benchOrder(bench, data.atBats, data.games).map((p) => p.id)).toEqual(['p_mason', 'p_eli', 'p_theo']);
-    expect(formRating(recentForm(data.atBats, data.games, 'p_mason'))).toBe('hot');
-    expect(lastGameLine(data.atBats, data.games, 'p_mason')).toEqual({ gameId: 'g_bandits', wl: hittingFor(data.atBats, 'p_mason', 'g_bandits') });
-    expect(lastGameLine(data.atBats, data.games, 'p_eli')).toEqual({ gameId: 'g_redbirds', wl: hittingFor(data.atBats, 'p_eli', 'g_redbirds') });
-    expect(lastGameLine(data.atBats, data.games, 'p_theo')).toBeUndefined();
+    expect(bench.map((p) => p.id)).toEqual(['p_owen_clark', 'p_jd', 'p_chase', 'p_rhett', 'p_angel']);
+    expect(benchOrder(bench, data.atBats, data.games).map((p) => p.id)).toEqual(['p_owen_clark', 'p_angel', 'p_jd', 'p_rhett', 'p_chase']);
+    expect(recentForm(data.atBats, data.games, 'p_owen_clark')).toEqual(['W', 'W', 'W', 'W', 'W', 'L']);
+    expect(formRating(recentForm(data.atBats, data.games, 'p_owen_clark'))).toBe('hot');
+    expect(recentForm(data.atBats, data.games, 'p_angel')).toEqual(['W', 'W']);
+    expect(formRating(recentForm(data.atBats, data.games, 'p_angel'))).toBeUndefined();
+    expect(lastGameLine(data.atBats, data.games, 'p_owen_clark')).toEqual({ gameId: 'g_0913_2', wl: { w: 1, l: 1 } });
+    expect(lastGameLine(data.atBats, data.games, 'p_angel')).toEqual({ gameId: 'g_0815_2', wl: { w: 2, l: 0 } });
+    expect(lastGameLine(data.atBats, data.games, 'p_chase')).toEqual({ gameId: 'g_0913_2', wl: hittingFor(data.atBats, 'p_chase', 'g_0913_2') });
   });
 });
 

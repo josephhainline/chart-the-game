@@ -1,4 +1,4 @@
-import { addDays, setHours, setMinutes, setSeconds, addMinutes } from 'date-fns';
+import { addDays, addHours, addMinutes, addSeconds, setHours, setMinutes, setSeconds } from 'date-fns';
 
 import type {
   AppData,
@@ -13,413 +13,292 @@ import type {
   Substitution,
   Team,
 } from './types';
-import { LOSS_OUTCOMES, WIN_OUTCOMES, plainFor } from './outcomes';
+import { compareClock } from './atbats';
+import { getOutcome } from './outcomes';
+import dataset from './demo/bears-floyd-14u.json';
 
 /**
- * Every Nth at-bat in the demo is charted with the big W/L button and no play
- * type, so plain tiles, blank scorebook codes and the "add type" readout are
- * all exercised by the seed.
+ * The demo is a real season: Bears Floyd 14U, Aug 15 – Sep 13 2026, charted
+ * from the coach's GameChanger captures (see scripts/build-demo-dataset.mjs
+ * for where lib/demo/bears-floyd-14u.json comes from). Only the calendar is
+ * synthetic: the three real weekends are re-dated relative to `now` so the
+ * demo always shows a recent past and an upcoming game.
  */
-export const PLAIN_EVERY = 7;
 
-/** true for the at-bats the demo leaves untyped (the 7th, 14th, … of the whole dataset). */
-function isPlainSlot(atBatIndex: number): boolean {
-  return atBatIndex % PLAIN_EVERY === PLAIN_EVERY - 1;
-}
-
-/** Deterministic PRNG so the demo looks the same on every reset. */
-function mulberry32(seed: number) {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-export const DEMO_TEAM_ID = 't_bears12u';
-
-type SeedPlayer = {
-  id: Id;
-  first: string;
-  last: string;
-  number?: string;
-  /** Probability this batter wins an at-bat. */
-  hit: number;
-  /** Probability this pitcher wins an at-bat. */
-  pitch: number;
-  /** Only appears in the last N games (a late roster addition). */
-  lastGamesOnly?: number;
-  /** Not in the default lineup: only bats when a seeded substitution puts him in. */
-  bench?: boolean;
+/** Shape of lib/demo/bears-floyd-14u.json. */
+export type DemoDataset = {
+  source: string;
+  /** `[id, first name, last name, jersey number]`, in roster order. */
+  players: [Id, string, string, string][];
+  games: DemoGame[];
 };
 
-const ROSTER: SeedPlayer[] = [
-  { id: 'p_owen', first: 'Owen', last: 'Haynes', number: '7', hit: 0.62, pitch: 0.7 },
-  { id: 'p_ryder', first: 'Ryder', last: 'Braddy', number: '42', hit: 0.66, pitch: 0.5 },
-  { id: 'p_lucas', first: 'Lucas', last: 'Kloster', number: '13', hit: 0.62, pitch: 0.4 },
-  { id: 'p_cooper', first: 'Cooper', last: 'Woollen', number: '50', hit: 0.64, pitch: 0.63 },
-  { id: 'p_carsyn', first: 'Carsyn', last: 'Griffith', number: '26', hit: 0.53, pitch: 0.55 },
-  { id: 'p_matthew', first: 'Matthew', last: 'Hume', number: '76', hit: 0.72, pitch: 0.2 },
-  { id: 'p_knox', first: 'Knox', last: 'Kennedy', number: '8', hit: 0.42, pitch: 0.5, lastGamesOnly: 2 },
-  { id: 'p_weedon', first: 'Weedon', last: 'Hainline', number: '10', hit: 0.58, pitch: 0.7 },
-  { id: 'p_landyn', first: 'Landyn', last: 'Durbin', hit: 0.54, pitch: 0.52 },
-  { id: 'p_ben', first: 'Ben', last: 'Boncek', number: '99', hit: 0.45, pitch: 0.48 },
-  // The bench (fictional): a hot bat, an even one, and one who has never been in.
-  { id: 'p_mason', first: 'Mason', last: 'Reed', number: '4', hit: 0.75, pitch: 0.5, bench: true },
-  { id: 'p_eli', first: 'Eli', last: 'Park', number: '21', hit: 0.5, pitch: 0.5, bench: true },
-  { id: 'p_theo', first: 'Theo', last: 'Alvarez', number: '15', hit: 0.5, pitch: 0.5, bench: true },
-];
-
-/** A substitution made in a seeded game: `inId` takes `outId`'s slot from this half-inning on. */
-type SeedSub = { outId: Id; inId: Id; inning: number; half: Half };
-
-type SeedGame = {
-  id: Id;
+export type DemoGame = {
+  /** `aug-15-game-1`, `sep-13-game-2`, … */
+  key: string;
+  /** Scheduled first pitch, ISO UTC. */
+  startsAtUtc: string;
   opponent: string;
   isAway: boolean;
-  /**
-   * Saturdays relative to today: 0 = the most recent Saturday whose games are
-   * already over (last week's when today is a Saturday), negative = that many
-   * Saturdays before it, +1 = the next Saturday.
-   */
-  weekOffset: number;
-  hour: number;
-  minute: number;
-  status: Game['status'];
-  score?: { us: number; them: number };
-  notes: string;
-  innings?: number;
-  /** Pitchers in order; the second takes over after `switchAfter` innings. */
-  pitchers?: Id[];
-  switchAfter?: number;
-  /** Plate appearances per half inning for us / them, roughly. */
-  tempo?: { us: number; them: number };
-  /**
-   * Substitutions, in the order they happen. Mason is subbed into three
-   * games so his form (last six at-bats) reads HOT on the bench; Eli into one
-   * so his reads about even; Theo never plays.
-   */
-  subs?: SeedSub[];
+  score: { us: number; them: number };
+  innings: number;
+  /** The STARTING order, before any substitution. */
+  lineup: Id[];
+  /** In the order they were made; each replaces `outId`'s slot at the time. */
+  subs: DemoSub[];
+  /** Opponent batters in order of first appearance, by jersey ('?' when unknown). */
+  opponentJerseys: string[];
+  atBats: DemoAtBat[];
 };
 
-const GAMES: SeedGame[] = [
-  {
-    id: 'g_wolves',
-    opponent: 'Eureka Wolves',
-    isAway: false,
-    weekOffset: -8,
-    hour: 9,
-    minute: 0,
-    status: 'final',
-    score: { us: 7, them: 2 },
-    notes: 'Season opener. Bats woke up in the 3rd.',
-    innings: 5,
-    pitchers: ['p_owen', 'p_cooper'],
-    switchAfter: 3,
-    tempo: { us: 4.5, them: 3.8 },
-  },
-  {
-    id: 'g_tigers_1',
-    opponent: 'Tigers',
-    isAway: true,
-    weekOffset: -6,
-    hour: 11,
-    minute: 0,
-    status: 'final',
-    score: { us: 11, them: 6 },
-    notes: 'Came back from down 4 in the 2nd.',
-    innings: 5,
-    pitchers: ['p_weedon', 'p_lucas'],
-    switchAfter: 3,
-    tempo: { us: 5, them: 4.5 },
-  },
-  {
-    id: 'g_rockhounds',
-    opponent: 'Rockhounds',
-    isAway: false,
-    weekOffset: -3,
-    hour: 13,
-    minute: 0,
-    status: 'final',
-    score: { us: 4, them: 9 },
-    notes: 'Too many strikeouts looking. Work on two-strike approach.',
-    innings: 5,
-    pitchers: ['p_cooper', 'p_carsyn'],
-    switchAfter: 2,
-    tempo: { us: 3.8, them: 5.2 },
-    subs: [{ outId: 'p_cooper', inId: 'p_mason', inning: 4, half: 'top' }],
-  },
-  {
-    id: 'g_fury',
-    opponent: 'Fenton Fury',
-    isAway: false,
-    weekOffset: -2,
-    hour: 10,
-    minute: 0,
-    status: 'final',
-    score: { us: 8, them: 3 },
-    notes: 'Solid pitching from Owen and Weedon.',
-    innings: 6,
-    pitchers: ['p_owen', 'p_weedon'],
-    switchAfter: 3,
-    tempo: { us: 4.5, them: 3.5 },
-    subs: [{ outId: 'p_ben', inId: 'p_mason', inning: 3, half: 'top' }],
-  },
-  {
-    id: 'g_redbirds',
-    opponent: 'Redbirds Red',
-    isAway: true,
-    weekOffset: 0,
-    hour: 9,
-    minute: 0,
-    status: 'final',
-    score: { us: 6, them: 7 },
-    notes: '4 inning game, lost the lead in the 3rd inning, 1 HR.',
-    innings: 4,
-    pitchers: ['p_weedon', 'p_ben'],
-    switchAfter: 2,
-    tempo: { us: 5.5, them: 4 },
-    subs: [{ outId: 'p_landyn', inId: 'p_eli', inning: 2, half: 'top' }],
-  },
-  {
-    id: 'g_bandits',
-    opponent: 'Midland Bandits',
-    isAway: true,
-    weekOffset: 0,
-    hour: 12,
-    minute: 30,
-    status: 'final',
-    score: { us: 19, them: 5 },
-    notes: '3 inning game, took the lead in the 1st inning, 1 HR.',
-    innings: 3,
-    pitchers: ['p_owen', 'p_cooper'],
-    switchAfter: 2,
-    tempo: { us: 11, them: 4 },
-    subs: [{ outId: 'p_lucas', inId: 'p_mason', inning: 2, half: 'top' }],
-  },
-  {
-    id: 'g_tigers_2',
-    opponent: 'Tigers',
-    isAway: true,
-    weekOffset: 1,
-    hour: 14,
-    minute: 30,
-    status: 'scheduled',
-    notes: 'On a three game winning streak against the Tigers since April.',
-  },
+export type DemoSub = { outId: Id; inId: Id; at: { inning: number; half: Half } };
+
+export type DemoAtBat =
+  | { side: 'us'; batterId: Id; inning: number; half: Half; outcomeId: OutcomeId; offsetS: number }
+  | { side: 'them'; batter: number; inning: number; half: Half; outcomeId: OutcomeId; pitcherId: Id; offsetS: number };
+
+const DATASET: DemoDataset = dataset as DemoDataset;
+
+export const DEMO_TEAM_ID = 't_floyd14u';
+export const DEMO_SEASON = 'Fall 2026';
+/** The upcoming game, next Saturday at 10:00am. */
+export const NEXT_GAME_ID = 'g_next';
+export const NEXT_GAME_OPPONENT = 'Bears Ken 14U';
+
+/**
+ * The default lineup is the starting order of the first game of the most
+ * recent weekend (Sep 12, game 1): Hamilton, Brady, Cooper, Owen Haynes, Gabe,
+ * Lucas, Ben, Knox, Carsyn, Weedon. The other five are the bench.
+ */
+const DEFAULT_LINEUP_FROM = 'sep-12-game-1';
+
+/** The three blank teams that share the My Teams list with the demo team. */
+const OTHER_TEAMS: { id: Id; name: string }[] = [
+  { id: 't_ken14u', name: 'Bears Ken 14U' },
+  { id: 't_engelken14u', name: 'Bears Engelken 14U' },
+  { id: 't_floyd17u', name: 'Bears Floyd 17U' },
 ];
+
+/**
+ * Where each real game lands on the demo calendar: the Sep 12/13 weekend is
+ * weekOffset 0 (the most recent weekend that is over), Aug 22/23 three weeks
+ * before it, Aug 15/16 four. Sunday games sit on that Saturday plus one day.
+ */
+type Placement = { id: Id; weekOffset: number; day: 'sat' | 'sun' };
+const PLACEMENT: Record<string, Placement> = {
+  'aug-15-game-1': { id: 'g_0815_1', weekOffset: -4, day: 'sat' },
+  'aug-15-game-2': { id: 'g_0815_2', weekOffset: -4, day: 'sat' },
+  'aug-16-game-1': { id: 'g_0816_1', weekOffset: -4, day: 'sun' },
+  'aug-16-game-2': { id: 'g_0816_2', weekOffset: -4, day: 'sun' },
+  'aug-22-game-1': { id: 'g_0822_1', weekOffset: -3, day: 'sat' },
+  'aug-22-game-2': { id: 'g_0822_2', weekOffset: -3, day: 'sat' },
+  'aug-23-game-1': { id: 'g_0823_1', weekOffset: -3, day: 'sun' },
+  'aug-23-game-2': { id: 'g_0823_2', weekOffset: -3, day: 'sun' },
+  'aug-23-game-3': { id: 'g_0823_3', weekOffset: -3, day: 'sun' },
+  'sep-12-game-1': { id: 'g_0912_1', weekOffset: 0, day: 'sat' },
+  'sep-12-game-2': { id: 'g_0912_2', weekOffset: 0, day: 'sat' },
+  'sep-13-game-1': { id: 'g_0913_1', weekOffset: 0, day: 'sun' },
+  'sep-13-game-2': { id: 'g_0913_2', weekOffset: 0, day: 'sun' },
+};
+
+/**
+ * The games were played in America/Chicago, which is UTC−5 (CDT) for every
+ * date in the dataset, so 21:00Z is a 4:00pm first pitch and 13:00Z 8:00am.
+ * The demo keeps that local time of day whatever zone it is viewed in.
+ */
+const CHICAGO_UTC_OFFSET_HOURS = -5;
+
+function localTimeOfDay(startsAtUtc: string): { hour: number; minute: number } {
+  const d = new Date(startsAtUtc);
+  return { hour: (d.getUTCHours() + CHICAGO_UTC_OFFSET_HOURS + 24) % 24, minute: d.getUTCMinutes() };
+}
 
 function at(now: Date, dayOffset: number, hour: number, minute: number): Date {
   return setSeconds(setMinutes(setHours(addDays(now, dayOffset), hour), minute), 0);
 }
 
 /**
- * Youth ball is played on Saturdays. Past games sit on the most recent Saturday
- * that is fully behind us (weekOffset 0) and earlier ones; the upcoming game is
- * next Saturday. On a Saturday the seeded finals (9:00 to mid-afternoon) may
- * still be ahead of `now`, so that day never counts as "past": weekOffset 0 is
- * last week's Saturday and the result is the same all day long.
+ * Youth ball is played on weekends. Past games sit on the most recent weekend
+ * that is fully behind us (weekOffset 0 = its Saturday; Sunday games are the
+ * day after) and earlier ones; the upcoming game is next Saturday. On a
+ * Saturday or a Sunday the seeded finals of the current weekend could still be
+ * ahead of `now`, so that weekend never counts as played: weekOffset 0 is last
+ * weekend's Saturday and the result is the same all weekend long.
  */
-function saturdayOffset(now: Date, weekOffset: number): number {
+export function saturdayOffset(now: Date, weekOffset: number): number {
   const day = now.getDay(); // 0 = Sunday … 6 = Saturday
   const daysSinceSaturday = (day + 1) % 7; // Sat → 0, Sun → 1, … Fri → 6
   if (weekOffset > 0) {
     const daysUntilNext = 7 - daysSinceSaturday; // always in the future, 1..7
     return daysUntilNext + (weekOffset - 1) * 7;
   }
-  const daysSinceLastPlayed = daysSinceSaturday === 0 ? 7 : daysSinceSaturday; // always in the past, 1..7
+  const daysSinceLastPlayed = daysSinceSaturday <= 1 ? daysSinceSaturday + 7 : daysSinceSaturday; // always in the past, 2..8
   return -daysSinceLastPlayed + weekOffset * 7;
 }
 
-function opponentLineup(prefix: string): OpponentBatter[] {
-  return Array.from({ length: 9 }, (_, i) => ({ id: `${prefix}_ob${i + 1}`, name: `Batter ${i + 1}` }));
+function placementDate(now: Date, placement: Placement, startsAtUtc: string): Date {
+  const { hour, minute } = localTimeOfDay(startsAtUtc);
+  const dayOffset = saturdayOffset(now, placement.weekOffset) + (placement.day === 'sun' ? 1 : 0);
+  return at(now, dayOffset, hour, minute);
 }
 
-function pick<T>(rand: () => number, list: T[]): T {
-  return list[Math.floor(rand() * list.length)];
+function defaultOpponentLineup(gameId: Id): OpponentBatter[] {
+  return Array.from({ length: 9 }, (_, i) => ({ id: `${gameId}_ob${i}`, name: `Batter ${i + 1}` }));
 }
 
-/** Choose an outcome id consistent with the result, weighting the common ones. */
-function outcomeFor(rand: () => number, batterWon: boolean): OutcomeId {
-  if (batterWon) {
-    const r = rand();
-    if (r < 0.5) return 'hit';
-    if (r < 0.65) return 'walk_clean';
-    if (r < 0.8) return 'fly_out_hard';
-    return pick(rand, WIN_OUTCOMES).id;
-  }
-  const r = rand();
-  if (r < 0.3) return 'k_swinging';
-  if (r < 0.5) return 'k_looking';
-  if (r < 0.7) return 'fc_weak';
-  return pick(rand, LOSS_OUTCOMES).id;
+/** One opponent batter per jersey seen in the game, in order of first appearance. */
+function opponentLineupFor(gameId: Id, jerseys: string[]): OpponentBatter[] {
+  return jerseys.map((jersey, i) => {
+    const batter: OpponentBatter = { id: `${gameId}_ob${i}`, name: `Batter ${i + 1}` };
+    if (jersey !== '?') batter.number = jersey;
+    return batter;
+  });
 }
 
 /**
- * Build the demo dataset. `now` is injected so tests are stable and the
- * prototype always shows one game "in 4 days".
+ * Seconds after first pitch a substitution was made: the incoming player's
+ * first plate appearance from that half-inning on or, when he never batted
+ * (subbed out again, or the game ended), the first play after the outgoing
+ * player's last one. Only plays after the previous substitution count, so the
+ * records keep the order they were made in even when a player re-enters in
+ * the same half.
+ */
+function subOffset(game: DemoGame, sub: DemoSub, afterOffset: number): number {
+  const later = game.atBats.filter((x) => x.offsetS > afterOffset && compareClock(x, sub.at) >= 0);
+  const own = later.find((x) => x.side === 'us' && x.batterId === sub.inId);
+  if (own) return own.offsetS;
+  const outLast = later.filter((x) => x.side === 'us' && x.batterId === sub.outId).pop();
+  const next = later.find((x) => x.offsetS > (outLast?.offsetS ?? -1));
+  if (!next) throw new Error(`seed: no play after ${sub.outId} left ${game.key}`);
+  return next.offsetS;
+}
+
+function buildGame(now: Date, source: DemoGame, players: Map<Id, Player>): { game: Game; atBats: AtBat[] } {
+  const placement = PLACEMENT[source.key];
+  if (!placement) throw new Error(`seed: no placement for ${source.key}`);
+  const gameId = placement.id;
+  const startsAt = placementDate(now, placement, source.startsAtUtc);
+  const opponentLineup = opponentLineupFor(gameId, source.opponentJerseys);
+
+  // The starting order with every substitution applied in the order it was made.
+  const lineup: LineupSlot[] = source.lineup.map((playerId) => ({ playerId }));
+  let lastSubOffset = -1;
+  const substitutions: Substitution[] = source.subs.map((sub, i) => {
+    const slot = lineup.findIndex((s) => s.playerId === sub.outId);
+    if (slot < 0) throw new Error(`seed: ${sub.outId} is not in ${source.key}'s order`);
+    if (lineup.some((s) => s.playerId === sub.inId)) throw new Error(`seed: ${sub.inId} is already in ${source.key}'s order`);
+    lineup[slot] = { playerId: sub.inId };
+    lastSubOffset = subOffset(source, sub, lastSubOffset);
+    return {
+      id: `${gameId}_sub${i + 1}`,
+      slot,
+      outId: sub.outId,
+      inId: sub.inId,
+      inning: sub.at.inning,
+      half: sub.at.half,
+      at: addSeconds(startsAt, lastSubOffset).toISOString(),
+    };
+  });
+
+  const atBats: AtBat[] = source.atBats.map((x, i) => {
+    const base = {
+      id: `${gameId}_ab${i}`,
+      gameId,
+      inning: x.inning,
+      half: x.half,
+      outcomeId: x.outcomeId,
+      result: getOutcome(x.outcomeId).result,
+      recordedAt: addSeconds(startsAt, x.offsetS).toISOString(),
+    };
+    if (x.side === 'us') {
+      if (!players.has(x.batterId)) throw new Error(`seed: unknown batter ${x.batterId} in ${source.key}`);
+      return { ...base, side: 'us', batterId: x.batterId };
+    }
+    const batter = opponentLineup[x.batter];
+    if (!batter) throw new Error(`seed: no opponent batter ${x.batter} in ${source.key}`);
+    if (!players.has(x.pitcherId)) throw new Error(`seed: unknown pitcher ${x.pitcherId} in ${source.key}`);
+    return { ...base, side: 'them', batterId: batter.id, pitcherId: x.pitcherId };
+  });
+
+  const lastPitcher = [...atBats].reverse().find((x) => x.side === 'them')?.pitcherId;
+
+  const game: Game = {
+    id: gameId,
+    teamId: DEMO_TEAM_ID,
+    opponent: source.opponent,
+    isAway: source.isAway,
+    startsAt: startsAt.toISOString(),
+    status: 'final',
+    lineup,
+    opponentLineup,
+    pitcherId: lastPitcher,
+    inning: source.innings,
+    half: 'bottom',
+    ourNextBatter: 0,
+    theirNextBatter: 0,
+    score: { us: source.score.us, them: source.score.them },
+    createdAt: addDays(startsAt, -1).toISOString(),
+    finishedAt: addHours(startsAt, 2).toISOString(),
+  };
+  if (substitutions.length > 0) game.substitutions = substitutions;
+  return { game, atBats };
+}
+
+/**
+ * Build the demo document. `now` is injected so tests are stable; the games
+ * keep their real content and only move on the calendar.
  */
 export function buildDemoData(now: Date = new Date()): AppData {
-  const rand = mulberry32(20240908);
-  const season = String(now.getFullYear());
-
-  const players: Player[] = ROSTER.map((r) => ({
-    id: r.id,
+  const players: Player[] = DATASET.players.map(([id, firstName, lastName, number]) => ({
+    id,
     teamId: DEMO_TEAM_ID,
-    firstName: r.first,
-    lastName: r.last,
-    number: r.number,
+    firstName,
+    lastName,
+    number,
   }));
+  const byId = new Map(players.map((p) => [p.id, p]));
 
-  const defaultLineup: LineupSlot[] = ROSTER.filter((r) => !r.bench).map((r) => ({ playerId: r.id }));
+  const lineupSource = DATASET.games.find((g) => g.key === DEFAULT_LINEUP_FROM);
+  if (!lineupSource) throw new Error(`seed: no game ${DEFAULT_LINEUP_FROM}`);
+  const defaultLineup: LineupSlot[] = lineupSource.lineup.map((playerId) => ({ playerId }));
 
+  // Teams were set up the week before the first games, a minute apart so the list order is stable.
+  const teamsCreated = at(now, saturdayOffset(now, -4) - 7, 18, 0);
   const teams: Team[] = [
-    {
-      id: DEMO_TEAM_ID,
-      name: `STL Bears 12U Floyd ${season}`,
-      season,
-      defaultLineup,
-      createdAt: at(now, -90, 18, 0).toISOString(),
-    },
-    {
-      id: 't_bears13u',
-      name: 'STL Bears 13U Bernstein',
-      season,
+    { id: DEMO_TEAM_ID, name: 'Bears Floyd 14U', season: DEMO_SEASON, defaultLineup, createdAt: teamsCreated.toISOString() },
+    ...OTHER_TEAMS.map((t, i) => ({
+      id: t.id,
+      name: t.name,
+      season: DEMO_SEASON,
       defaultLineup: [],
-      createdAt: at(now, -80, 18, 0).toISOString(),
-    },
-    {
-      id: 't_bears15u',
-      name: `STL Bears 15U Floyd ${season}`,
-      season,
-      defaultLineup: [],
-      createdAt: at(now, -70, 18, 0).toISOString(),
-    },
+      createdAt: addMinutes(teamsCreated, i + 1).toISOString(),
+    })),
   ];
 
   const games: Game[] = [];
   const atBats: AtBat[] = [];
-  const pastCount = GAMES.filter((g) => g.status === 'final').length;
+  for (const source of DATASET.games) {
+    const built = buildGame(now, source, byId);
+    games.push(built.game);
+    atBats.push(...built.atBats);
+  }
 
-  GAMES.forEach((sg, gameIndex) => {
-    const startsAt = at(now, saturdayOffset(now, sg.weekOffset), sg.hour, sg.minute);
-    const gamesFromEnd = pastCount - gameIndex; // 1 for the most recent past game
-    const lineup = defaultLineup.filter((slot) => {
-      const sp = ROSTER.find((r) => r.id === slot.playerId)!;
-      if (sg.status !== 'final') return true;
-      return !sp.lastGamesOnly || gamesFromEnd <= sp.lastGamesOnly;
-    });
-    const theirOrder = opponentLineup(sg.id);
-    const pitchers = sg.pitchers ?? ['p_weedon'];
-    const substitutions: Substitution[] = [];
-
-    const game: Game = {
-      id: sg.id,
-      teamId: DEMO_TEAM_ID,
-      opponent: sg.opponent,
-      isAway: sg.isAway,
-      startsAt: startsAt.toISOString(),
-      status: sg.status,
-      lineup,
-      opponentLineup: theirOrder,
-      pitcherId: pitchers[0],
-      inning: 1,
-      half: 'top',
-      ourNextBatter: 0,
-      theirNextBatter: 0,
-      score: sg.score ?? { us: 0, them: 0 },
-      notes: sg.notes,
-      createdAt: addDays(startsAt, -10).toISOString(),
-    };
-
-    if (sg.status === 'final') {
-      const innings = sg.innings ?? 5;
-      let ourIdx = 0;
-      let theirIdx = 0;
-      let clock = startsAt;
-      for (let inning = 1; inning <= innings; inning++) {
-        for (const half of ['top', 'bottom'] as const) {
-          // A substitution is made between half-innings: the slot changes
-          // hands and the sub bats there from now on. The pointer is a slot
-          // index, so nothing else in the order moves.
-          for (const sub of sg.subs ?? []) {
-            if (sub.inning !== inning || sub.half !== half) continue;
-            const slot = lineup.findIndex((x) => x.playerId === sub.outId);
-            if (slot < 0) throw new Error(`seed: ${sub.outId} is not in ${sg.id}'s order`);
-            if (lineup.some((x) => x.playerId === sub.inId)) throw new Error(`seed: ${sub.inId} is already in ${sg.id}'s order`);
-            lineup[slot] = { playerId: sub.inId };
-            clock = addMinutes(clock, 1);
-            substitutions.push({
-              id: `${sg.id}_sub${substitutions.length + 1}`,
-              slot,
-              outId: sub.outId,
-              inId: sub.inId,
-              inning,
-              half,
-              at: clock.toISOString(),
-            });
-          }
-          const weBat = sg.isAway ? half === 'top' : half === 'bottom';
-          const tempo = weBat ? sg.tempo!.us : sg.tempo!.them;
-          const pas = Math.max(3, Math.round(tempo + (rand() - 0.5) * 2));
-          const pitcherId = inning > (sg.switchAfter ?? 99) && pitchers[1] ? pitchers[1] : pitchers[0];
-          for (let k = 0; k < pas; k++) {
-            clock = addMinutes(clock, 2 + Math.floor(rand() * 3));
-            if (weBat) {
-              // Whoever holds the slot now: a sub bats in the outgoing player's place.
-              const slot = lineup[ourIdx % lineup.length];
-              ourIdx++;
-              const sp = ROSTER.find((r) => r.id === slot.playerId)!;
-              const won = rand() < sp.hit;
-              // The typed outcome is always drawn so the PRNG sequence (and
-              // every result) is the same whether or not this slot stays plain.
-              const typed = outcomeFor(rand, won);
-              atBats.push({
-                id: `${sg.id}_ab${atBats.length}`,
-                gameId: sg.id,
-                side: 'us',
-                batterId: sp.id,
-                inning,
-                half,
-                outcomeId: isPlainSlot(atBats.length) ? plainFor(won ? 'W' : 'L') : typed,
-                result: won ? 'W' : 'L',
-                recordedAt: clock.toISOString(),
-              });
-            } else {
-              const batter = theirOrder[theirIdx % theirOrder.length];
-              theirIdx++;
-              const pitcher = ROSTER.find((r) => r.id === pitcherId)!;
-              const pitcherWon = rand() < pitcher.pitch;
-              const typed = outcomeFor(rand, !pitcherWon);
-              atBats.push({
-                id: `${sg.id}_ab${atBats.length}`,
-                gameId: sg.id,
-                side: 'them',
-                batterId: batter.id,
-                pitcherId,
-                inning,
-                half,
-                outcomeId: isPlainSlot(atBats.length) ? plainFor(pitcherWon ? 'L' : 'W') : typed,
-                result: pitcherWon ? 'L' : 'W',
-                recordedAt: clock.toISOString(),
-              });
-            }
-          }
-        }
-      }
-      game.inning = innings;
-      game.half = 'bottom';
-      game.ourNextBatter = ourIdx % lineup.length;
-      game.theirNextBatter = theirIdx % theirOrder.length;
-      game.pitcherId = pitchers[1] ?? pitchers[0];
-      game.finishedAt = addMinutes(clock, 5).toISOString();
-      if (substitutions.length > 0) game.substitutions = substitutions;
-    }
-
-    games.push(game);
+  const nextStartsAt = at(now, saturdayOffset(now, 1), 10, 0);
+  games.push({
+    id: NEXT_GAME_ID,
+    teamId: DEMO_TEAM_ID,
+    opponent: NEXT_GAME_OPPONENT,
+    isAway: false,
+    startsAt: nextStartsAt.toISOString(),
+    status: 'scheduled',
+    lineup: defaultLineup.map((slot) => ({ ...slot })),
+    opponentLineup: defaultOpponentLineup(NEXT_GAME_ID),
+    inning: 1,
+    half: 'top',
+    ourNextBatter: 0,
+    theirNextBatter: 0,
+    score: { us: 0, them: 0 },
+    createdAt: addDays(nextStartsAt, -1).toISOString(),
   });
 
   return { version: 1, onboarded: false, teams, players, games, atBats };

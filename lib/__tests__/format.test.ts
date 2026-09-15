@@ -233,29 +233,39 @@ describe('byLastName', () => {
     expect([c, b, a].sort(byLastName).map((p) => p.id)).toEqual(['a', 'b', 'c']);
   });
 
-  it('orders the demo roster Boncek, Braddy, Durbin, Griffith, Hainline, Haynes, Hume, Kennedy, Kloster, Woollen', () => {
+  it('orders the demo roster Baker, Boncek, Brown, Case, Clark, Etter, Felton, Frausto, Griffith, Hainline, Haynes, Kennedy, Kloster, Ruiz, Woollen', () => {
     const roster: Player[] = [
-      ['Owen', 'Haynes'],
-      ['Ryder', 'Braddy'],
-      ['Lucas', 'Kloster'],
+      ['Hamilton', 'Case'],
+      ['Brady', 'Felton'],
       ['Cooper', 'Woollen'],
-      ['Carsyn', 'Griffith'],
-      ['Matthew', 'Hume'],
-      ['Knox', 'Kennedy'],
-      ['Weedon', 'Hainline'],
-      ['Landyn', 'Durbin'],
+      ['Owen', 'Haynes'],
+      ['Gabe', 'Brown'],
+      ['Lucas', 'Kloster'],
       ['Ben', 'Boncek'],
+      ['Knox', 'Kennedy'],
+      ['Carsyn', 'Griffith'],
+      ['Weedon', 'Hainline'],
+      ['Owen', 'Clark'],
+      ['JD', 'Etter'],
+      ['Chase', 'Baker'],
+      ['Rhett', 'Frausto'],
+      ['Angel', 'Ruiz'],
     ].map(([firstName, lastName], i) => ({ id: String(i), teamId: 't', firstName, lastName }));
     expect(roster.sort(byLastName).map((p) => p.lastName)).toEqual([
+      'Baker',
       'Boncek',
-      'Braddy',
-      'Durbin',
+      'Brown',
+      'Case',
+      'Clark',
+      'Etter',
+      'Felton',
+      'Frausto',
       'Griffith',
       'Hainline',
       'Haynes',
-      'Hume',
       'Kennedy',
       'Kloster',
+      'Ruiz',
       'Woollen',
     ]);
   });

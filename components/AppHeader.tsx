@@ -35,7 +35,7 @@ export default function AppHeader({ subtitle, context, contextColor = colors.pri
   const compact = Boolean(context);
   const dismiss = useDismiss(backHref);
   const goBack = onBack ?? dismiss;
-  // Game titles ("@ Midland Bandits, Sept 12 12:30pm") are long: the orange
+  // Game titles ("@ Rawlings Tigers Meyer 14U, Aug 23 12:30pm") are long: the orange
   // band uses the prototype's 17px and may wrap to a second line.
   const gameLevel = contextColor === colors.orange;
 

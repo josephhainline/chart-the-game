@@ -53,7 +53,7 @@ export default function EditTeamScreen() {
         label="Team name"
         value={name}
         onChangeText={setName}
-        placeholder="STL Bears 12U"
+        placeholder="Bears Floyd 14U"
         autoCapitalize="words"
         autoCorrect={false}
         returnKeyType="next"

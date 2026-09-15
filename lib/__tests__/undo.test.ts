@@ -28,14 +28,15 @@ const { create, act } = require('react-test-renderer') as TestRenderer;
 
 const NOW = new Date('2026-09-14T12:00:00');
 const demo = buildDemoData(NOW);
-const tigers: Game = demo.games.find((g) => g.id === 'g_tigers_2')!;
+/** The upcoming game: the default order (Hamilton, Brady, Cooper, Owen Haynes, Gabe, Lucas, …) and nobody up yet. */
+const upcoming: Game = demo.games.find((g) => g.id === 'g_next')!;
 
 function ab(over: Partial<AtBat> = {}): AtBat {
   return {
     id: 'ab_1',
-    gameId: tigers.id,
+    gameId: upcoming.id,
     side: 'us',
-    batterId: 'p_owen',
+    batterId: 'p_hamilton',
     inning: 1,
     half: 'top',
     outcomeId: 'hit',
@@ -82,55 +83,55 @@ describe('undoLabel', () => {
   });
 
   it('shows the pitcher’s letter for an opponent at-bat', () => {
-    const theirs = record({ side: 'them', batterId: tigers.opponentLineup[0].id, pitcherId: 'p_weedon', result: 'L' });
+    const theirs = record({ side: 'them', batterId: upcoming.opponentLineup[0].id, pitcherId: 'p_weedon', result: 'L' });
     expect(undoLabel(theirs)).toBe('Undo W');
-    const theirW = record({ side: 'them', batterId: tigers.opponentLineup[0].id, pitcherId: 'p_weedon', result: 'W' });
+    const theirW = record({ side: 'them', batterId: upcoming.opponentLineup[0].id, pitcherId: 'p_weedon', result: 'W' });
     expect(undoLabel(theirW)).toBe('Undo L');
   });
 
   it('names the other kinds', () => {
-    expect(undoLabel({ kind: 'skip', side: 'us', fromBatterId: 'p_owen', toBatterId: 'p_lucas' })).toBe('Undo skip');
+    expect(undoLabel({ kind: 'skip', side: 'us', fromBatterId: 'p_hamilton', toBatterId: 'p_lucas' })).toBe('Undo skip');
     expect(undoLabel({ kind: 'half', direction: 'next' })).toBe('Undo Next half');
     expect(undoLabel({ kind: 'half', direction: 'prev' })).toBe('Undo Prev half');
     expect(
       undoLabel({
         kind: 'rejudge',
         atBatId: 'ab_1',
-        previous: { outcomeId: 'hit', result: 'W', batterId: 'p_owen', pitcherId: undefined, inning: 1, half: 'top' },
+        previous: { outcomeId: 'hit', result: 'W', batterId: 'p_hamilton', pitcherId: undefined, inning: 1, half: 'top' },
       }),
     ).toBe('Undo re-judge');
     expect(undoLabel({ kind: 'remove', atBat: ab() })).toBe('Undo remove');
-    expect(undoLabel({ kind: 'sub', substitutionId: 'sub_1', slot: 3, outId: 'p_cooper', inId: 'p_mason' })).toBe('Undo sub');
+    expect(undoLabel({ kind: 'sub', substitutionId: 'sub_1', slot: 2, outId: 'p_cooper', inId: 'p_owen_clark' })).toBe('Undo sub');
   });
 });
 
 describe('applyUndo', () => {
   it('record: deletes that at-bat by id and puts the batter back up at his slot in the CURRENT order', () => {
     const actions = mockActions();
-    applyUndo(record({ id: 'ab_recorded' }), tigers, actions);
+    applyUndo(record({ id: 'ab_recorded' }), upcoming, actions);
     expect(actions.deleteAtBat).toHaveBeenCalledTimes(1);
     // The pointer is set from the entry, never by deleteAtBat's newest-on-the-clock rule.
     expect(actions.deleteAtBat).toHaveBeenCalledWith('ab_recorded', { keepPointer: true });
-    expect(actions.setNextBatter).toHaveBeenCalledWith(tigers.id, 'us', 0);
+    expect(actions.setNextBatter).toHaveBeenCalledWith(upcoming.id, 'us', 0);
     expect(callOrder(actions)).toEqual(['deleteAtBat', 'setNextBatter']);
     // The order changed since: the batter's id is resolved again, not a stale index.
-    const reordered: Game = { ...tigers, lineup: [...tigers.lineup].reverse() };
+    const reordered: Game = { ...upcoming, lineup: [...upcoming.lineup].reverse() };
     const again = mockActions();
     applyUndo(record({ id: 'ab_recorded' }), reordered, again);
-    expect(again.setNextBatter).toHaveBeenCalledWith(tigers.id, 'us', tigers.lineup.length - 1);
+    expect(again.setNextBatter).toHaveBeenCalledWith(upcoming.id, 'us', upcoming.lineup.length - 1);
   });
 
   it('record (them): resolves the opponent order', () => {
     const actions = mockActions();
-    const theirs = record({ id: 'ab_theirs', side: 'them', batterId: tigers.opponentLineup[2].id, pitcherId: 'p_weedon' });
-    applyUndo(theirs, tigers, actions);
+    const theirs = record({ id: 'ab_theirs', side: 'them', batterId: upcoming.opponentLineup[2].id, pitcherId: 'p_weedon' });
+    applyUndo(theirs, upcoming, actions);
     expect(actions.deleteAtBat).toHaveBeenCalledWith('ab_theirs', { keepPointer: true });
-    expect(actions.setNextBatter).toHaveBeenCalledWith(tigers.id, 'them', 2);
+    expect(actions.setNextBatter).toHaveBeenCalledWith(upcoming.id, 'them', 2);
   });
 
   it('record: only deletes when the batter has left the order', () => {
     const actions = mockActions();
-    const without: Game = { ...tigers, lineup: tigers.lineup.filter((s) => s.playerId !== 'p_owen') };
+    const without: Game = { ...upcoming, lineup: upcoming.lineup.filter((s) => s.playerId !== 'p_hamilton') };
     applyUndo(record({ id: 'ab_recorded' }), without, actions);
     expect(actions.deleteAtBat).toHaveBeenCalledWith('ab_recorded', { keepPointer: true });
     expect(calls(actions)).toEqual(['deleteAtBat']);
@@ -138,7 +139,7 @@ describe('applyUndo', () => {
 
   it('record (backfill): deletes the at-bat but keeps the batter pointer where it is', () => {
     const actions = mockActions();
-    applyUndo({ kind: 'record', atBat: ab({ id: 'ab_backfill' }), backfill: true }, tigers, actions);
+    applyUndo({ kind: 'record', atBat: ab({ id: 'ab_backfill' }), backfill: true }, upcoming, actions);
     expect(actions.deleteAtBat).toHaveBeenCalledTimes(1);
     expect(actions.deleteAtBat).toHaveBeenCalledWith('ab_backfill', { keepPointer: true });
     expect(calls(actions)).toEqual(['deleteAtBat']);
@@ -146,38 +147,38 @@ describe('applyUndo', () => {
 
   it('skip (us): puts the skipped-from batter back up at his slot in the CURRENT order', () => {
     const actions = mockActions();
-    applyUndo({ kind: 'skip', side: 'us', fromBatterId: 'p_ryder', toBatterId: 'p_matthew' }, tigers, actions);
-    expect(actions.setNextBatter).toHaveBeenCalledWith(tigers.id, 'us', 1);
+    applyUndo({ kind: 'skip', side: 'us', fromBatterId: 'p_brady', toBatterId: 'p_lucas' }, upcoming, actions);
+    expect(actions.setNextBatter).toHaveBeenCalledWith(upcoming.id, 'us', 1);
     expect(calls(actions)).toEqual(['setNextBatter']);
     // The order changed since the skip: the id is resolved again, not a stale index.
-    const reordered: Game = { ...tigers, lineup: [...tigers.lineup].reverse() };
+    const reordered: Game = { ...upcoming, lineup: [...upcoming.lineup].reverse() };
     const again = mockActions();
-    applyUndo({ kind: 'skip', side: 'us', fromBatterId: 'p_ryder', toBatterId: 'p_matthew' }, reordered, again);
-    expect(again.setNextBatter).toHaveBeenCalledWith(tigers.id, 'us', tigers.lineup.length - 2);
+    applyUndo({ kind: 'skip', side: 'us', fromBatterId: 'p_brady', toBatterId: 'p_lucas' }, reordered, again);
+    expect(again.setNextBatter).toHaveBeenCalledWith(upcoming.id, 'us', upcoming.lineup.length - 2);
   });
 
   it('skip (them): resolves the opponent order', () => {
     const actions = mockActions();
-    const from = tigers.opponentLineup[4].id;
-    applyUndo({ kind: 'skip', side: 'them', fromBatterId: from, toBatterId: tigers.opponentLineup[7].id }, tigers, actions);
-    expect(actions.setNextBatter).toHaveBeenCalledWith(tigers.id, 'them', 4);
+    const from = upcoming.opponentLineup[4].id;
+    applyUndo({ kind: 'skip', side: 'them', fromBatterId: from, toBatterId: upcoming.opponentLineup[7].id }, upcoming, actions);
+    expect(actions.setNextBatter).toHaveBeenCalledWith(upcoming.id, 'them', 4);
   });
 
   it('skip: does nothing when the batter has left the order', () => {
     const actions = mockActions();
-    const without: Game = { ...tigers, lineup: tigers.lineup.filter((s) => s.playerId !== 'p_ryder') };
-    applyUndo({ kind: 'skip', side: 'us', fromBatterId: 'p_ryder', toBatterId: 'p_matthew' }, without, actions);
+    const without: Game = { ...upcoming, lineup: upcoming.lineup.filter((s) => s.playerId !== 'p_brady') };
+    applyUndo({ kind: 'skip', side: 'us', fromBatterId: 'p_brady', toBatterId: 'p_lucas' }, without, actions);
     expect(calls(actions)).toEqual([]);
   });
 
   it('half: Next half is undone by prevHalfInning and Prev half by nextHalfInning', () => {
     const next = mockActions();
-    applyUndo({ kind: 'half', direction: 'next' }, tigers, next);
-    expect(next.prevHalfInning).toHaveBeenCalledWith(tigers.id);
+    applyUndo({ kind: 'half', direction: 'next' }, upcoming, next);
+    expect(next.prevHalfInning).toHaveBeenCalledWith(upcoming.id);
     expect(calls(next)).toEqual(['prevHalfInning']);
     const prev = mockActions();
-    applyUndo({ kind: 'half', direction: 'prev' }, tigers, prev);
-    expect(prev.nextHalfInning).toHaveBeenCalledWith(tigers.id);
+    applyUndo({ kind: 'half', direction: 'prev' }, upcoming, prev);
+    expect(prev.nextHalfInning).toHaveBeenCalledWith(upcoming.id);
     expect(calls(prev)).toEqual(['nextHalfInning']);
   });
 
@@ -189,7 +190,7 @@ describe('applyUndo', () => {
         atBatId: 'ab_7',
         previous: { outcomeId: 'sac_fly', result: 'W', batterId: 'p_cooper', pitcherId: undefined, inning: 2, half: 'top' },
       },
-      tigers,
+      upcoming,
       actions,
     );
     expect(actions.updateAtBat).toHaveBeenCalledTimes(1);
@@ -205,58 +206,58 @@ describe('applyUndo', () => {
   it('remove: puts the removed copy back, then the batter who was due before the remove', () => {
     const actions = mockActions();
     const removed = ab({ id: 'ab_gone', outcomeId: 'k_looking', result: 'L' });
-    // Owen's at-bat was removed while Ryder was due; the remove rolled the pointer back to Owen (0).
-    applyUndo({ kind: 'remove', atBat: removed, dueBatterId: 'p_ryder' }, { ...tigers, ourNextBatter: 0 }, actions);
+    // Hamilton's at-bat was removed while Brady was due; the remove rolled the pointer back to Hamilton (0).
+    applyUndo({ kind: 'remove', atBat: removed, dueBatterId: 'p_brady' }, { ...upcoming, ourNextBatter: 0 }, actions);
     expect(actions.restoreAtBat).toHaveBeenCalledWith(removed);
-    expect(actions.setNextBatter).toHaveBeenCalledWith(tigers.id, 'us', 1);
+    expect(actions.setNextBatter).toHaveBeenCalledWith(upcoming.id, 'us', 1);
     expect(callOrder(actions)).toEqual(['restoreAtBat', 'setNextBatter']);
   });
 
   it('remove (them): resolves the due batter in the opponent order', () => {
     const actions = mockActions();
-    const removed = ab({ id: 'ab_gone', side: 'them', batterId: tigers.opponentLineup[2].id, pitcherId: 'p_weedon' });
-    const due = tigers.opponentLineup[3].id;
-    applyUndo({ kind: 'remove', atBat: removed, dueBatterId: due }, { ...tigers, theirNextBatter: 2 }, actions);
-    expect(actions.setNextBatter).toHaveBeenCalledWith(tigers.id, 'them', 3);
+    const removed = ab({ id: 'ab_gone', side: 'them', batterId: upcoming.opponentLineup[2].id, pitcherId: 'p_weedon' });
+    const due = upcoming.opponentLineup[3].id;
+    applyUndo({ kind: 'remove', atBat: removed, dueBatterId: due }, { ...upcoming, theirNextBatter: 2 }, actions);
+    expect(actions.setNextBatter).toHaveBeenCalledWith(upcoming.id, 'them', 3);
     expect(callOrder(actions)).toEqual(['restoreAtBat', 'setNextBatter']);
   });
 
   it('remove: restores only, when no due batter was captured', () => {
     const actions = mockActions();
     const removed = ab({ id: 'ab_gone' });
-    applyUndo({ kind: 'remove', atBat: removed }, tigers, actions);
+    applyUndo({ kind: 'remove', atBat: removed }, upcoming, actions);
     expect(actions.restoreAtBat).toHaveBeenCalledWith(removed);
     expect(calls(actions)).toEqual(['restoreAtBat']);
   });
 
   it('remove: restores only, when the due batter has left the order', () => {
     const actions = mockActions();
-    const without: Game = { ...tigers, lineup: tigers.lineup.filter((s) => s.playerId !== 'p_ryder') };
-    applyUndo({ kind: 'remove', atBat: ab({ id: 'ab_gone' }), dueBatterId: 'p_ryder' }, without, actions);
+    const without: Game = { ...upcoming, lineup: upcoming.lineup.filter((s) => s.playerId !== 'p_brady') };
+    applyUndo({ kind: 'remove', atBat: ab({ id: 'ab_gone' }), dueBatterId: 'p_brady' }, without, actions);
     expect(calls(actions)).toEqual(['restoreAtBat']);
   });
 
   it('remove: restores only, when the due batter is already up (the remove had not moved the pointer)', () => {
     const actions = mockActions();
-    applyUndo({ kind: 'remove', atBat: ab({ id: 'ab_gone' }), dueBatterId: 'p_ryder' }, { ...tigers, ourNextBatter: 1 }, actions);
+    applyUndo({ kind: 'remove', atBat: ab({ id: 'ab_gone' }), dueBatterId: 'p_brady' }, { ...upcoming, ourNextBatter: 1 }, actions);
     expect(calls(actions)).toEqual(['restoreAtBat']);
   });
 
   it('sub: hands the record id to undoSubstitution and nothing else (the store checks the slot still holds the sub)', () => {
     const actions = mockActions();
-    const entry: UndoEntry = { kind: 'sub', substitutionId: 'sub_1', slot: 3, outId: 'p_cooper', inId: 'p_mason' };
+    const entry: UndoEntry = { kind: 'sub', substitutionId: 'sub_1', slot: 2, outId: 'p_cooper', inId: 'p_owen_clark' };
     const subbed: Game = {
-      ...tigers,
-      lineup: tigers.lineup.map((s) => (s.playerId === 'p_cooper' ? { playerId: 'p_mason' } : s)),
-      substitutions: [{ id: 'sub_1', slot: 3, outId: 'p_cooper', inId: 'p_mason', inning: 1, half: 'top', at: '2026-09-19T14:40:00.000Z' }],
+      ...upcoming,
+      lineup: upcoming.lineup.map((s) => (s.playerId === 'p_cooper' ? { playerId: 'p_owen_clark' } : s)),
+      substitutions: [{ id: 'sub_1', slot: 2, outId: 'p_cooper', inId: 'p_owen_clark', inning: 1, half: 'top', at: '2026-09-19T14:40:00.000Z' }],
     };
     applyUndo(entry, subbed, actions);
     expect(actions.undoSubstitution).toHaveBeenCalledTimes(1);
-    expect(actions.undoSubstitution).toHaveBeenCalledWith(tigers.id, 'sub_1');
+    expect(actions.undoSubstitution).toHaveBeenCalledWith(upcoming.id, 'sub_1');
     expect(calls(actions)).toEqual(['undoSubstitution']);
     // Even when the sub has since left the order: the store's own check decides, the entry never touches the pointer.
     const gone = mockActions();
-    applyUndo(entry, tigers, gone);
+    applyUndo(entry, upcoming, gone);
     expect(calls(gone)).toEqual(['undoSubstitution']);
   });
 });

@@ -28,7 +28,7 @@ export default function NewTeamScreen() {
         label="Team name"
         value={name}
         onChangeText={setName}
-        placeholder="STL Bears 12U"
+        placeholder="Bears Floyd 14U"
         autoFocus
         autoCapitalize="words"
         returnKeyType="next"

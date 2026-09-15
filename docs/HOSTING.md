@@ -73,7 +73,7 @@ bucket, distribution id, nameservers).
 ## How routing works
 
 CloudFront maps S3's 403/404 for any missing key to `/index.html` with a
-200, so a direct hit or refresh on `/team/t_bears12u` loads the app and
+200, so a direct hit or refresh on `/team/t_floyd14u` loads the app and
 expo-router reads the path. The trade-off is that unknown paths also return
 the app instead of a real 404, which is fine for a prototype.
 

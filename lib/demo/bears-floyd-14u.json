@@ -1,0 +1,5736 @@
+{
+ "source": "BearsVideoFiles GameChanger captures, Aug 15 - Sep 13 2026",
+ "players": [
+  [
+   "p_hamilton",
+   "Hamilton",
+   "Case",
+   "18"
+  ],
+  [
+   "p_brady",
+   "Brady",
+   "Felton",
+   "23"
+  ],
+  [
+   "p_cooper",
+   "Cooper",
+   "Woollen",
+   "50"
+  ],
+  [
+   "p_owen_haynes",
+   "Owen",
+   "Haynes",
+   "7"
+  ],
+  [
+   "p_gabe",
+   "Gabe",
+   "Brown",
+   "10"
+  ],
+  [
+   "p_lucas",
+   "Lucas",
+   "Kloster",
+   "13"
+  ],
+  [
+   "p_ben",
+   "Ben",
+   "Boncek",
+   "99"
+  ],
+  [
+   "p_knox",
+   "Knox",
+   "Kennedy",
+   "8"
+  ],
+  [
+   "p_carsyn",
+   "Carsyn",
+   "Griffith",
+   "26"
+  ],
+  [
+   "p_weedon",
+   "Weedon",
+   "Hainline",
+   "04"
+  ],
+  [
+   "p_owen_clark",
+   "Owen",
+   "Clark",
+   "24"
+  ],
+  [
+   "p_jd",
+   "JD",
+   "Etter",
+   "6"
+  ],
+  [
+   "p_chase",
+   "Chase",
+   "Baker",
+   "2"
+  ],
+  [
+   "p_rhett",
+   "Rhett",
+   "Frausto",
+   "3"
+  ],
+  [
+   "p_angel",
+   "Angel",
+   "Ruiz",
+   "12"
+  ]
+ ],
+ "games": [
+  {
+   "key": "aug-15-game-1",
+   "startsAtUtc": "2026-08-15T21:00:00.000Z",
+   "opponent": "Kypher Redbirds 13U",
+   "isAway": true,
+   "score": {
+    "us": 0,
+    "them": 10
+   },
+   "innings": 4,
+   "lineup": [
+    "p_brady",
+    "p_ben",
+    "p_cooper",
+    "p_owen_haynes",
+    "p_gabe",
+    "p_jd",
+    "p_knox",
+    "p_lucas",
+    "p_weedon",
+    "p_carsyn"
+   ],
+   "subs": [],
+   "opponentJerseys": [
+    "23",
+    "48",
+    "16",
+    "6",
+    "14",
+    "17",
+    "31",
+    "46",
+    "4",
+    "12",
+    "2"
+   ],
+   "atBats": [
+    {
+     "side": "us",
+     "batterId": "p_brady",
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "k_swinging",
+     "offsetS": 300
+    },
+    {
+     "side": "us",
+     "batterId": "p_ben",
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "k_looking",
+     "offsetS": 401
+    },
+    {
+     "side": "us",
+     "batterId": "p_cooper",
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "k_looking",
+     "offsetS": 496
+    },
+    {
+     "side": "them",
+     "batter": 0,
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "k_looking",
+     "pitcherId": "p_cooper",
+     "offsetS": 713
+    },
+    {
+     "side": "them",
+     "batter": 1,
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_cooper",
+     "offsetS": 819
+    },
+    {
+     "side": "them",
+     "batter": 2,
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "k_swinging",
+     "pitcherId": "p_cooper",
+     "offsetS": 921
+    },
+    {
+     "side": "them",
+     "batter": 3,
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_cooper",
+     "offsetS": 1071
+    },
+    {
+     "side": "them",
+     "batter": 4,
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_cooper",
+     "offsetS": 1128
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_haynes",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "offsetS": 1318
+    },
+    {
+     "side": "us",
+     "batterId": "p_gabe",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "offsetS": 1389
+    },
+    {
+     "side": "us",
+     "batterId": "p_jd",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 1500
+    },
+    {
+     "side": "us",
+     "batterId": "p_knox",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "offsetS": 1548
+    },
+    {
+     "side": "them",
+     "batter": 5,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "plain_w",
+     "pitcherId": "p_cooper",
+     "offsetS": 1721
+    },
+    {
+     "side": "them",
+     "batter": 6,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_cooper",
+     "offsetS": 1809
+    },
+    {
+     "side": "them",
+     "batter": 7,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_cooper",
+     "offsetS": 1925
+    },
+    {
+     "side": "them",
+     "batter": 8,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_cooper",
+     "offsetS": 1982
+    },
+    {
+     "side": "them",
+     "batter": 9,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_cooper",
+     "offsetS": 2064
+    },
+    {
+     "side": "them",
+     "batter": 10,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_cooper",
+     "offsetS": 2125
+    },
+    {
+     "side": "us",
+     "batterId": "p_lucas",
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "k_looking",
+     "offsetS": 2346
+    },
+    {
+     "side": "us",
+     "batterId": "p_weedon",
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "k_swinging",
+     "offsetS": 2516
+    },
+    {
+     "side": "them",
+     "batter": 0,
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "k_swinging",
+     "pitcherId": "p_cooper",
+     "offsetS": 2882
+    },
+    {
+     "side": "them",
+     "batter": 1,
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_cooper",
+     "offsetS": 2906
+    },
+    {
+     "side": "them",
+     "batter": 2,
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_cooper",
+     "offsetS": 2963
+    },
+    {
+     "side": "them",
+     "batter": 3,
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_cooper",
+     "offsetS": 3073
+    },
+    {
+     "side": "them",
+     "batter": 4,
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_cooper",
+     "offsetS": 3186
+    },
+    {
+     "side": "them",
+     "batter": 5,
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_cooper",
+     "offsetS": 3302
+    },
+    {
+     "side": "them",
+     "batter": 6,
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_cooper",
+     "offsetS": 3367
+    },
+    {
+     "side": "them",
+     "batter": 7,
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_cooper",
+     "offsetS": 3433
+    },
+    {
+     "side": "us",
+     "batterId": "p_brady",
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "k_swinging",
+     "offsetS": 3683
+    },
+    {
+     "side": "us",
+     "batterId": "p_ben",
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "offsetS": 3793
+    },
+    {
+     "side": "us",
+     "batterId": "p_cooper",
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "offsetS": 3886
+    },
+    {
+     "side": "them",
+     "batter": 8,
+     "inning": 4,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_cooper",
+     "offsetS": 4221
+    },
+    {
+     "side": "them",
+     "batter": 9,
+     "inning": 4,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_cooper",
+     "offsetS": 4574
+    },
+    {
+     "side": "them",
+     "batter": 10,
+     "inning": 4,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_rhett",
+     "offsetS": 4744
+    },
+    {
+     "side": "them",
+     "batter": 0,
+     "inning": 4,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_rhett",
+     "offsetS": 4863
+    },
+    {
+     "side": "them",
+     "batter": 1,
+     "inning": 4,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_rhett",
+     "offsetS": 4947
+    }
+   ]
+  },
+  {
+   "key": "aug-15-game-2",
+   "startsAtUtc": "2026-08-15T22:45:00.000Z",
+   "opponent": "Sturgeon Bulldogs 14U",
+   "isAway": true,
+   "score": {
+    "us": 9,
+    "them": 3
+   },
+   "innings": 3,
+   "lineup": [
+    "p_owen_clark",
+    "p_jd",
+    "p_knox",
+    "p_owen_haynes",
+    "p_gabe",
+    "p_rhett",
+    "p_angel",
+    "p_brady",
+    "p_ben",
+    "p_weedon"
+   ],
+   "subs": [
+    {
+     "outId": "p_gabe",
+     "inId": "p_cooper",
+     "at": {
+      "inning": 2,
+      "half": "top"
+     }
+    },
+    {
+     "outId": "p_owen_clark",
+     "inId": "p_carsyn",
+     "at": {
+      "inning": 3,
+      "half": "top"
+     }
+    },
+    {
+     "outId": "p_jd",
+     "inId": "p_lucas",
+     "at": {
+      "inning": 3,
+      "half": "top"
+     }
+    }
+   ],
+   "opponentJerseys": [
+    "17",
+    "13",
+    "24",
+    "3",
+    "25",
+    "14",
+    "6",
+    "12",
+    "5",
+    "28"
+   ],
+   "atBats": [
+    {
+     "side": "us",
+     "batterId": "p_owen_clark",
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "k_looking",
+     "offsetS": 300
+    },
+    {
+     "side": "us",
+     "batterId": "p_jd",
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "walk_2_looking",
+     "offsetS": 453
+    },
+    {
+     "side": "us",
+     "batterId": "p_knox",
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 657
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_haynes",
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 701
+    },
+    {
+     "side": "us",
+     "batterId": "p_gabe",
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "offsetS": 811
+    },
+    {
+     "side": "us",
+     "batterId": "p_rhett",
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "offsetS": 915
+    },
+    {
+     "side": "us",
+     "batterId": "p_angel",
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 1014
+    },
+    {
+     "side": "us",
+     "batterId": "p_brady",
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "k_swinging",
+     "offsetS": 1151
+    },
+    {
+     "side": "them",
+     "batter": 0,
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_weedon",
+     "offsetS": 1464
+    },
+    {
+     "side": "them",
+     "batter": 1,
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_weedon",
+     "offsetS": 1574
+    },
+    {
+     "side": "them",
+     "batter": 2,
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_weedon",
+     "offsetS": 1677
+    },
+    {
+     "side": "them",
+     "batter": 3,
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_weedon",
+     "offsetS": 1712
+    },
+    {
+     "side": "us",
+     "batterId": "p_ben",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "plain_w",
+     "offsetS": 1877
+    },
+    {
+     "side": "us",
+     "batterId": "p_weedon",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "offsetS": 1946
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_clark",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "offsetS": 1996
+    },
+    {
+     "side": "us",
+     "batterId": "p_jd",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "k_swinging",
+     "offsetS": 2121
+    },
+    {
+     "side": "us",
+     "batterId": "p_knox",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "offsetS": 2216
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_haynes",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "offsetS": 2528
+    },
+    {
+     "side": "us",
+     "batterId": "p_cooper",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 2646
+    },
+    {
+     "side": "us",
+     "batterId": "p_rhett",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "k_swinging",
+     "offsetS": 2733
+    },
+    {
+     "side": "them",
+     "batter": 4,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_weedon",
+     "offsetS": 3033
+    },
+    {
+     "side": "them",
+     "batter": 5,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_weedon",
+     "offsetS": 3144
+    },
+    {
+     "side": "them",
+     "batter": 6,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_weedon",
+     "offsetS": 3300
+    },
+    {
+     "side": "them",
+     "batter": 7,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "k_swinging",
+     "pitcherId": "p_weedon",
+     "offsetS": 3523
+    },
+    {
+     "side": "us",
+     "batterId": "p_angel",
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 3811
+    },
+    {
+     "side": "us",
+     "batterId": "p_brady",
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "offsetS": 3895
+    },
+    {
+     "side": "us",
+     "batterId": "p_ben",
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "offsetS": 3999
+    },
+    {
+     "side": "us",
+     "batterId": "p_weedon",
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "offsetS": 4227
+    },
+    {
+     "side": "us",
+     "batterId": "p_carsyn",
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "offsetS": 4376
+    },
+    {
+     "side": "us",
+     "batterId": "p_lucas",
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "k_swinging",
+     "offsetS": 4505
+    },
+    {
+     "side": "us",
+     "batterId": "p_knox",
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "offsetS": 4581
+    },
+    {
+     "side": "them",
+     "batter": 8,
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "k_looking",
+     "pitcherId": "p_weedon",
+     "offsetS": 4826
+    },
+    {
+     "side": "them",
+     "batter": 9,
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "walk_2_looking",
+     "pitcherId": "p_weedon",
+     "offsetS": 4960
+    },
+    {
+     "side": "them",
+     "batter": 0,
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_weedon",
+     "offsetS": 5077
+    },
+    {
+     "side": "them",
+     "batter": 1,
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_weedon",
+     "offsetS": 5121
+    },
+    {
+     "side": "them",
+     "batter": 2,
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_weedon",
+     "offsetS": 5205
+    },
+    {
+     "side": "them",
+     "batter": 3,
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_weedon",
+     "offsetS": 5266
+    }
+   ]
+  },
+  {
+   "key": "aug-16-game-1",
+   "startsAtUtc": "2026-08-16T15:45:00.000Z",
+   "opponent": "Southside Prospects 14U",
+   "isAway": false,
+   "score": {
+    "us": 12,
+    "them": 0
+   },
+   "innings": 3,
+   "lineup": [
+    "p_brady",
+    "p_knox",
+    "p_cooper",
+    "p_owen_haynes",
+    "p_gabe",
+    "p_jd",
+    "p_owen_clark",
+    "p_ben",
+    "p_carsyn",
+    "p_chase"
+   ],
+   "subs": [
+    {
+     "outId": "p_brady",
+     "inId": "p_angel",
+     "at": {
+      "inning": 3,
+      "half": "bottom"
+     }
+    },
+    {
+     "outId": "p_knox",
+     "inId": "p_lucas",
+     "at": {
+      "inning": 3,
+      "half": "bottom"
+     }
+    }
+   ],
+   "opponentJerseys": [
+    "10",
+    "23",
+    "13",
+    "18",
+    "?",
+    "3",
+    "7",
+    "95",
+    "11"
+   ],
+   "atBats": [
+    {
+     "side": "them",
+     "batter": 0,
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "k_looking",
+     "pitcherId": "p_carsyn",
+     "offsetS": 300
+    },
+    {
+     "side": "them",
+     "batter": 1,
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "k_looking",
+     "pitcherId": "p_carsyn",
+     "offsetS": 382
+    },
+    {
+     "side": "them",
+     "batter": 2,
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "hit",
+     "pitcherId": "p_carsyn",
+     "offsetS": 474
+    },
+    {
+     "side": "them",
+     "batter": 0,
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_carsyn",
+     "offsetS": 571
+    },
+    {
+     "side": "us",
+     "batterId": "p_brady",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "k_swinging",
+     "offsetS": 888
+    },
+    {
+     "side": "us",
+     "batterId": "p_knox",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "offsetS": 953
+    },
+    {
+     "side": "us",
+     "batterId": "p_cooper",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 1045
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_haynes",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 1174
+    },
+    {
+     "side": "us",
+     "batterId": "p_gabe",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "offsetS": 1279
+    },
+    {
+     "side": "us",
+     "batterId": "p_jd",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "offsetS": 1609
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_clark",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "plain_w",
+     "offsetS": 1765
+    },
+    {
+     "side": "us",
+     "batterId": "p_ben",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "offsetS": 1823
+    },
+    {
+     "side": "us",
+     "batterId": "p_carsyn",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "offsetS": 1924
+    },
+    {
+     "side": "us",
+     "batterId": "p_chase",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "offsetS": 2040
+    },
+    {
+     "side": "them",
+     "batter": 3,
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_carsyn",
+     "offsetS": 2270
+    },
+    {
+     "side": "them",
+     "batter": 4,
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "k_looking",
+     "pitcherId": "p_carsyn",
+     "offsetS": 2372
+    },
+    {
+     "side": "them",
+     "batter": 5,
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "hit",
+     "pitcherId": "p_carsyn",
+     "offsetS": 2449
+    },
+    {
+     "side": "us",
+     "batterId": "p_brady",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "k_looking",
+     "offsetS": 2824
+    },
+    {
+     "side": "us",
+     "batterId": "p_knox",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 2879
+    },
+    {
+     "side": "us",
+     "batterId": "p_cooper",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "offsetS": 3067
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_haynes",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "offsetS": 3275
+    },
+    {
+     "side": "us",
+     "batterId": "p_gabe",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "offsetS": 3391
+    },
+    {
+     "side": "us",
+     "batterId": "p_jd",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 3438
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_clark",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "offsetS": 3556
+    },
+    {
+     "side": "us",
+     "batterId": "p_ben",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "offsetS": 3589
+    },
+    {
+     "side": "them",
+     "batter": 6,
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "k_swinging",
+     "pitcherId": "p_carsyn",
+     "offsetS": 3824
+    },
+    {
+     "side": "them",
+     "batter": 7,
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "k_swinging",
+     "pitcherId": "p_carsyn",
+     "offsetS": 3876
+    },
+    {
+     "side": "them",
+     "batter": 8,
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "k_looking",
+     "pitcherId": "p_carsyn",
+     "offsetS": 3935
+    },
+    {
+     "side": "us",
+     "batterId": "p_carsyn",
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 4232
+    },
+    {
+     "side": "us",
+     "batterId": "p_chase",
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 4278
+    },
+    {
+     "side": "us",
+     "batterId": "p_brady",
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 4467
+    },
+    {
+     "side": "us",
+     "batterId": "p_knox",
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 4564
+    },
+    {
+     "side": "us",
+     "batterId": "p_cooper",
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 4676
+    }
+   ]
+  },
+  {
+   "key": "aug-16-game-2",
+   "startsAtUtc": "2026-08-16T19:15:00.000Z",
+   "opponent": "Rawlings Tigers Bottorff 14U",
+   "isAway": true,
+   "score": {
+    "us": 4,
+    "them": 12
+   },
+   "innings": 3,
+   "lineup": [
+    "p_brady",
+    "p_owen_clark",
+    "p_cooper",
+    "p_owen_haynes",
+    "p_jd",
+    "p_knox",
+    "p_ben",
+    "p_lucas",
+    "p_weedon",
+    "p_rhett"
+   ],
+   "subs": [
+    {
+     "outId": "p_owen_clark",
+     "inId": "p_chase",
+     "at": {
+      "inning": 3,
+      "half": "top"
+     }
+    }
+   ],
+   "opponentJerseys": [
+    "21",
+    "2",
+    "12",
+    "3",
+    "8",
+    "27",
+    "57",
+    "44",
+    "13",
+    "90",
+    "7",
+    "9",
+    "99"
+   ],
+   "atBats": [
+    {
+     "side": "us",
+     "batterId": "p_brady",
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "offsetS": 300
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_clark",
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "offsetS": 335
+    },
+    {
+     "side": "us",
+     "batterId": "p_cooper",
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 435
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_haynes",
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "offsetS": 572
+    },
+    {
+     "side": "them",
+     "batter": 0,
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_owen_haynes",
+     "offsetS": 814
+    },
+    {
+     "side": "them",
+     "batter": 1,
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_owen_haynes",
+     "offsetS": 919
+    },
+    {
+     "side": "them",
+     "batter": 2,
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_owen_haynes",
+     "offsetS": 967
+    },
+    {
+     "side": "them",
+     "batter": 3,
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_owen_haynes",
+     "offsetS": 1046
+    },
+    {
+     "side": "them",
+     "batter": 4,
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_owen_haynes",
+     "offsetS": 1168
+    },
+    {
+     "side": "them",
+     "batter": 5,
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_owen_haynes",
+     "offsetS": 1240
+    },
+    {
+     "side": "them",
+     "batter": 6,
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "k_looking",
+     "pitcherId": "p_owen_haynes",
+     "offsetS": 1329
+    },
+    {
+     "side": "us",
+     "batterId": "p_jd",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 1509
+    },
+    {
+     "side": "us",
+     "batterId": "p_knox",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 1574
+    },
+    {
+     "side": "us",
+     "batterId": "p_ben",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "offsetS": 1666
+    },
+    {
+     "side": "us",
+     "batterId": "p_lucas",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "offsetS": 1776
+    },
+    {
+     "side": "us",
+     "batterId": "p_weedon",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 1915
+    },
+    {
+     "side": "us",
+     "batterId": "p_rhett",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "offsetS": 1966
+    },
+    {
+     "side": "them",
+     "batter": 7,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_owen_haynes",
+     "offsetS": 2196
+    },
+    {
+     "side": "them",
+     "batter": 8,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "walk_2_looking",
+     "pitcherId": "p_owen_haynes",
+     "offsetS": 2363
+    },
+    {
+     "side": "them",
+     "batter": 9,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_owen_haynes",
+     "offsetS": 2427
+    },
+    {
+     "side": "them",
+     "batter": 10,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_owen_haynes",
+     "offsetS": 2534
+    },
+    {
+     "side": "them",
+     "batter": 11,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_owen_haynes",
+     "offsetS": 2758
+    },
+    {
+     "side": "them",
+     "batter": 0,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_owen_haynes",
+     "offsetS": 2836
+    },
+    {
+     "side": "them",
+     "batter": 1,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_owen_haynes",
+     "offsetS": 2880
+    },
+    {
+     "side": "them",
+     "batter": 2,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "k_swinging",
+     "pitcherId": "p_owen_haynes",
+     "offsetS": 3037
+    },
+    {
+     "side": "us",
+     "batterId": "p_brady",
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "offsetS": 3271
+    },
+    {
+     "side": "us",
+     "batterId": "p_chase",
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "k_swinging",
+     "offsetS": 3414
+    },
+    {
+     "side": "us",
+     "batterId": "p_cooper",
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 3448
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_haynes",
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "offsetS": 3565
+    },
+    {
+     "side": "us",
+     "batterId": "p_jd",
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "offsetS": 3687
+    },
+    {
+     "side": "us",
+     "batterId": "p_knox",
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 3837
+    },
+    {
+     "side": "us",
+     "batterId": "p_ben",
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "offsetS": 3960
+    },
+    {
+     "side": "us",
+     "batterId": "p_lucas",
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "offsetS": 4208
+    },
+    {
+     "side": "them",
+     "batter": 3,
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_owen_haynes",
+     "offsetS": 4435
+    },
+    {
+     "side": "them",
+     "batter": 12,
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "plain_w",
+     "pitcherId": "p_owen_haynes",
+     "offsetS": 4477
+    },
+    {
+     "side": "them",
+     "batter": 5,
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "plain_w",
+     "pitcherId": "p_knox",
+     "offsetS": 4772
+    },
+    {
+     "side": "them",
+     "batter": 6,
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "k_swinging",
+     "pitcherId": "p_knox",
+     "offsetS": 4893
+    },
+    {
+     "side": "them",
+     "batter": 7,
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_knox",
+     "offsetS": 4957
+    },
+    {
+     "side": "them",
+     "batter": 8,
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_knox",
+     "offsetS": 4992
+    },
+    {
+     "side": "them",
+     "batter": 9,
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_knox",
+     "offsetS": 5085
+    },
+    {
+     "side": "them",
+     "batter": 10,
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_knox",
+     "offsetS": 5322
+    },
+    {
+     "side": "them",
+     "batter": 11,
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_knox",
+     "offsetS": 5329
+    }
+   ]
+  },
+  {
+   "key": "aug-22-game-1",
+   "startsAtUtc": "2026-08-22T19:15:00.000Z",
+   "opponent": "Redbirds STL 14U",
+   "isAway": true,
+   "score": {
+    "us": 5,
+    "them": 6
+   },
+   "innings": 5,
+   "lineup": [
+    "p_brady",
+    "p_owen_clark",
+    "p_cooper",
+    "p_owen_haynes",
+    "p_gabe",
+    "p_jd",
+    "p_knox",
+    "p_ben",
+    "p_carsyn",
+    "p_weedon"
+   ],
+   "subs": [
+    {
+     "outId": "p_brady",
+     "inId": "p_lucas",
+     "at": {
+      "inning": 5,
+      "half": "top"
+     }
+    },
+    {
+     "outId": "p_owen_clark",
+     "inId": "p_chase",
+     "at": {
+      "inning": 5,
+      "half": "top"
+     }
+    },
+    {
+     "outId": "p_weedon",
+     "inId": "p_hamilton",
+     "at": {
+      "inning": 5,
+      "half": "top"
+     }
+    },
+    {
+     "outId": "p_lucas",
+     "inId": "p_brady",
+     "at": {
+      "inning": 5,
+      "half": "top"
+     }
+    }
+   ],
+   "opponentJerseys": [
+    "30",
+    "10",
+    "45",
+    "28",
+    "6",
+    "99",
+    "17",
+    "0",
+    "16",
+    "2",
+    "1"
+   ],
+   "atBats": [
+    {
+     "side": "us",
+     "batterId": "p_brady",
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "k_looking",
+     "offsetS": 300
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_clark",
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 363
+    },
+    {
+     "side": "us",
+     "batterId": "p_cooper",
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "offsetS": 467
+    },
+    {
+     "side": "them",
+     "batter": 0,
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "k_swinging",
+     "pitcherId": "p_cooper",
+     "offsetS": 676
+    },
+    {
+     "side": "them",
+     "batter": 1,
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_cooper",
+     "offsetS": 742
+    },
+    {
+     "side": "them",
+     "batter": 2,
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "k_swinging",
+     "pitcherId": "p_cooper",
+     "offsetS": 896
+    },
+    {
+     "side": "them",
+     "batter": 3,
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "k_swinging",
+     "pitcherId": "p_cooper",
+     "offsetS": 956
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_haynes",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 1223
+    },
+    {
+     "side": "us",
+     "batterId": "p_gabe",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 1270
+    },
+    {
+     "side": "us",
+     "batterId": "p_jd",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "offsetS": 1366
+    },
+    {
+     "side": "us",
+     "batterId": "p_knox",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 1423
+    },
+    {
+     "side": "us",
+     "batterId": "p_ben",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "fly_out_hard",
+     "offsetS": 1508
+    },
+    {
+     "side": "us",
+     "batterId": "p_carsyn",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 1582
+    },
+    {
+     "side": "us",
+     "batterId": "p_weedon",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "k_swinging",
+     "offsetS": 1661
+    },
+    {
+     "side": "them",
+     "batter": 4,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_cooper",
+     "offsetS": 1872
+    },
+    {
+     "side": "them",
+     "batter": 5,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_cooper",
+     "offsetS": 1971
+    },
+    {
+     "side": "them",
+     "batter": 6,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_cooper",
+     "offsetS": 1993
+    },
+    {
+     "side": "them",
+     "batter": 7,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_cooper",
+     "offsetS": 2048
+    },
+    {
+     "side": "them",
+     "batter": 8,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "fly_out_hard",
+     "pitcherId": "p_cooper",
+     "offsetS": 2182
+    },
+    {
+     "side": "us",
+     "batterId": "p_lucas",
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "k_looking",
+     "offsetS": 2418
+    },
+    {
+     "side": "us",
+     "batterId": "p_chase",
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 2474
+    },
+    {
+     "side": "us",
+     "batterId": "p_cooper",
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 2505
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_haynes",
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 2586
+    },
+    {
+     "side": "us",
+     "batterId": "p_gabe",
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "offsetS": 2633
+    },
+    {
+     "side": "us",
+     "batterId": "p_jd",
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "offsetS": 2722
+    },
+    {
+     "side": "them",
+     "batter": 9,
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_cooper",
+     "offsetS": 2880
+    },
+    {
+     "side": "them",
+     "batter": 0,
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_cooper",
+     "offsetS": 2982
+    },
+    {
+     "side": "them",
+     "batter": 1,
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_cooper",
+     "offsetS": 3093
+    },
+    {
+     "side": "them",
+     "batter": 2,
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_cooper",
+     "offsetS": 3217
+    },
+    {
+     "side": "them",
+     "batter": 3,
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "k_swinging",
+     "pitcherId": "p_cooper",
+     "offsetS": 3300
+    },
+    {
+     "side": "us",
+     "batterId": "p_knox",
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "plain_w",
+     "offsetS": 3485
+    },
+    {
+     "side": "us",
+     "batterId": "p_ben",
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "offsetS": 3579
+    },
+    {
+     "side": "us",
+     "batterId": "p_carsyn",
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "offsetS": 3658
+    },
+    {
+     "side": "us",
+     "batterId": "p_hamilton",
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "offsetS": 3724
+    },
+    {
+     "side": "them",
+     "batter": 4,
+     "inning": 4,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_cooper",
+     "offsetS": 3965
+    },
+    {
+     "side": "them",
+     "batter": 5,
+     "inning": 4,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_cooper",
+     "offsetS": 4019
+    },
+    {
+     "side": "them",
+     "batter": 7,
+     "inning": 4,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_cooper",
+     "offsetS": 4079
+    },
+    {
+     "side": "them",
+     "batter": 10,
+     "inning": 4,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_cooper",
+     "offsetS": 4205
+    },
+    {
+     "side": "them",
+     "batter": 8,
+     "inning": 4,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_cooper",
+     "offsetS": 4299
+    },
+    {
+     "side": "them",
+     "batter": 8,
+     "inning": 4,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_cooper",
+     "offsetS": 4323
+    },
+    {
+     "side": "them",
+     "batter": 0,
+     "inning": 4,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_cooper",
+     "offsetS": 4420
+    },
+    {
+     "side": "them",
+     "batter": 1,
+     "inning": 4,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_cooper",
+     "offsetS": 4498
+    },
+    {
+     "side": "them",
+     "batter": 2,
+     "inning": 4,
+     "half": "bottom",
+     "outcomeId": "k_swinging",
+     "pitcherId": "p_cooper",
+     "offsetS": 4593
+    },
+    {
+     "side": "us",
+     "batterId": "p_brady",
+     "inning": 5,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "offsetS": 4746
+    },
+    {
+     "side": "us",
+     "batterId": "p_chase",
+     "inning": 5,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "offsetS": 4799
+    },
+    {
+     "side": "us",
+     "batterId": "p_cooper",
+     "inning": 5,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 4829
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_haynes",
+     "inning": 5,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 4905
+    },
+    {
+     "side": "us",
+     "batterId": "p_gabe",
+     "inning": 5,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 4975
+    },
+    {
+     "side": "us",
+     "batterId": "p_jd",
+     "inning": 5,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "offsetS": 5096
+    },
+    {
+     "side": "us",
+     "batterId": "p_knox",
+     "inning": 5,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "offsetS": 5181
+    },
+    {
+     "side": "them",
+     "batter": 3,
+     "inning": 5,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_cooper",
+     "offsetS": 5398
+    },
+    {
+     "side": "them",
+     "batter": 4,
+     "inning": 5,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_cooper",
+     "offsetS": 5432
+    },
+    {
+     "side": "them",
+     "batter": 5,
+     "inning": 5,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_cooper",
+     "offsetS": 5509
+    },
+    {
+     "side": "them",
+     "batter": 6,
+     "inning": 5,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_cooper",
+     "offsetS": 5634
+    }
+   ]
+  },
+  {
+   "key": "aug-22-game-2",
+   "startsAtUtc": "2026-08-22T22:45:00.000Z",
+   "opponent": "Bears Ken 14U",
+   "isAway": false,
+   "score": {
+    "us": 11,
+    "them": 5
+   },
+   "innings": 4,
+   "lineup": [
+    "p_hamilton",
+    "p_brady",
+    "p_cooper",
+    "p_owen_haynes",
+    "p_gabe",
+    "p_chase",
+    "p_ben",
+    "p_carsyn",
+    "p_owen_clark",
+    "p_lucas"
+   ],
+   "subs": [
+    {
+     "outId": "p_hamilton",
+     "inId": "p_knox",
+     "at": {
+      "inning": 3,
+      "half": "bottom"
+     }
+    },
+    {
+     "outId": "p_brady",
+     "inId": "p_jd",
+     "at": {
+      "inning": 3,
+      "half": "bottom"
+     }
+    }
+   ],
+   "opponentJerseys": [
+    "12",
+    "7",
+    "14",
+    "4",
+    "24",
+    "?",
+    "18",
+    "54",
+    "6",
+    "34",
+    "11"
+   ],
+   "atBats": [
+    {
+     "side": "them",
+     "batter": 0,
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "k_swinging",
+     "pitcherId": "p_lucas",
+     "offsetS": 300
+    },
+    {
+     "side": "them",
+     "batter": 1,
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "k_swinging",
+     "pitcherId": "p_lucas",
+     "offsetS": 371
+    },
+    {
+     "side": "them",
+     "batter": 2,
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "k_swinging",
+     "pitcherId": "p_lucas",
+     "offsetS": 485
+    },
+    {
+     "side": "us",
+     "batterId": "p_hamilton",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 750
+    },
+    {
+     "side": "us",
+     "batterId": "p_brady",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "k_swinging",
+     "offsetS": 868
+    },
+    {
+     "side": "us",
+     "batterId": "p_cooper",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "offsetS": 1047
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_haynes",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "k_looking",
+     "offsetS": 1146
+    },
+    {
+     "side": "us",
+     "batterId": "p_gabe",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 1185
+    },
+    {
+     "side": "us",
+     "batterId": "p_chase",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "offsetS": 1215
+    },
+    {
+     "side": "them",
+     "batter": 3,
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "hit",
+     "pitcherId": "p_lucas",
+     "offsetS": 1408
+    },
+    {
+     "side": "them",
+     "batter": 0,
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_gabe",
+     "offsetS": 1528
+    },
+    {
+     "side": "them",
+     "batter": 4,
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "fly_out_hard",
+     "pitcherId": "p_gabe",
+     "offsetS": 1625
+    },
+    {
+     "side": "them",
+     "batter": 5,
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "hit",
+     "pitcherId": "p_gabe",
+     "offsetS": 1646
+    },
+    {
+     "side": "them",
+     "batter": 6,
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_gabe",
+     "offsetS": 1720
+    },
+    {
+     "side": "them",
+     "batter": 5,
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_gabe",
+     "offsetS": 1872
+    },
+    {
+     "side": "them",
+     "batter": 7,
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "hit",
+     "pitcherId": "p_gabe",
+     "offsetS": 1982
+    },
+    {
+     "side": "them",
+     "batter": 8,
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "k_swinging",
+     "pitcherId": "p_gabe",
+     "offsetS": 2081
+    },
+    {
+     "side": "them",
+     "batter": 9,
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "k_swinging",
+     "pitcherId": "p_gabe",
+     "offsetS": 2156
+    },
+    {
+     "side": "us",
+     "batterId": "p_ben",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "offsetS": 2379
+    },
+    {
+     "side": "us",
+     "batterId": "p_carsyn",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 2457
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_clark",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "offsetS": 2520
+    },
+    {
+     "side": "us",
+     "batterId": "p_lucas",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 2611
+    },
+    {
+     "side": "us",
+     "batterId": "p_hamilton",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "offsetS": 2707
+    },
+    {
+     "side": "us",
+     "batterId": "p_brady",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 2909
+    },
+    {
+     "side": "us",
+     "batterId": "p_cooper",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "offsetS": 3122
+    },
+    {
+     "side": "them",
+     "batter": 10,
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "k_looking",
+     "pitcherId": "p_gabe",
+     "offsetS": 3343
+    },
+    {
+     "side": "them",
+     "batter": 0,
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "k_swinging",
+     "pitcherId": "p_gabe",
+     "offsetS": 3426
+    },
+    {
+     "side": "them",
+     "batter": 1,
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_gabe",
+     "offsetS": 3464
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_haynes",
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 3698
+    },
+    {
+     "side": "us",
+     "batterId": "p_gabe",
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 3725
+    },
+    {
+     "side": "us",
+     "batterId": "p_chase",
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "offsetS": 3899
+    },
+    {
+     "side": "us",
+     "batterId": "p_ben",
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "offsetS": 4049
+    },
+    {
+     "side": "us",
+     "batterId": "p_carsyn",
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 4162
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_clark",
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 4268
+    },
+    {
+     "side": "us",
+     "batterId": "p_lucas",
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 4374
+    },
+    {
+     "side": "us",
+     "batterId": "p_knox",
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 4548
+    },
+    {
+     "side": "us",
+     "batterId": "p_jd",
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "offsetS": 4647
+    },
+    {
+     "side": "them",
+     "batter": 2,
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_gabe",
+     "offsetS": 4865
+    },
+    {
+     "side": "them",
+     "batter": 3,
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "k_swinging",
+     "pitcherId": "p_gabe",
+     "offsetS": 4931
+    },
+    {
+     "side": "them",
+     "batter": 0,
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_gabe",
+     "offsetS": 5035
+    },
+    {
+     "side": "them",
+     "batter": 4,
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_gabe",
+     "offsetS": 5190
+    },
+    {
+     "side": "them",
+     "batter": 5,
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "hit",
+     "pitcherId": "p_gabe",
+     "offsetS": 5262
+    },
+    {
+     "side": "them",
+     "batter": 6,
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "hit",
+     "pitcherId": "p_gabe",
+     "offsetS": 5299
+    },
+    {
+     "side": "them",
+     "batter": 5,
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_gabe",
+     "offsetS": 5379
+    }
+   ]
+  },
+  {
+   "key": "aug-23-game-1",
+   "startsAtUtc": "2026-08-23T14:00:00.000Z",
+   "opponent": "Bears Ken 14U",
+   "isAway": false,
+   "score": {
+    "us": 20,
+    "them": 0
+   },
+   "innings": 2,
+   "lineup": [
+    "p_brady",
+    "p_ben",
+    "p_cooper",
+    "p_owen_haynes",
+    "p_owen_clark",
+    "p_gabe",
+    "p_jd",
+    "p_lucas",
+    "p_carsyn",
+    "p_chase"
+   ],
+   "subs": [
+    {
+     "outId": "p_carsyn",
+     "inId": "p_knox",
+     "at": {
+      "inning": 2,
+      "half": "bottom"
+     }
+    },
+    {
+     "outId": "p_brady",
+     "inId": "p_hamilton",
+     "at": {
+      "inning": 2,
+      "half": "bottom"
+     }
+    },
+    {
+     "outId": "p_cooper",
+     "inId": "p_weedon",
+     "at": {
+      "inning": 2,
+      "half": "bottom"
+     }
+    }
+   ],
+   "opponentJerseys": [
+    "24",
+    "21",
+    "54",
+    "7",
+    "34",
+    "12",
+    "6"
+   ],
+   "atBats": [
+    {
+     "side": "them",
+     "batter": 0,
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_lucas",
+     "offsetS": 300
+    },
+    {
+     "side": "them",
+     "batter": 1,
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_lucas",
+     "offsetS": 434
+    },
+    {
+     "side": "them",
+     "batter": 2,
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "hit",
+     "pitcherId": "p_lucas",
+     "offsetS": 519
+    },
+    {
+     "side": "them",
+     "batter": 3,
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_lucas",
+     "offsetS": 579
+    },
+    {
+     "side": "them",
+     "batter": 4,
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_lucas",
+     "offsetS": 700
+    },
+    {
+     "side": "us",
+     "batterId": "p_brady",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 999
+    },
+    {
+     "side": "us",
+     "batterId": "p_ben",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "plain_w",
+     "offsetS": 1029
+    },
+    {
+     "side": "us",
+     "batterId": "p_cooper",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 1090
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_haynes",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "offsetS": 1123
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_clark",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 1190
+    },
+    {
+     "side": "us",
+     "batterId": "p_gabe",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "offsetS": 1300
+    },
+    {
+     "side": "us",
+     "batterId": "p_jd",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "offsetS": 1406
+    },
+    {
+     "side": "us",
+     "batterId": "p_lucas",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "offsetS": 1559
+    },
+    {
+     "side": "us",
+     "batterId": "p_carsyn",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "offsetS": 1684
+    },
+    {
+     "side": "us",
+     "batterId": "p_chase",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 1919
+    },
+    {
+     "side": "us",
+     "batterId": "p_brady",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "plain_w",
+     "offsetS": 1952
+    },
+    {
+     "side": "us",
+     "batterId": "p_ben",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "offsetS": 2047
+    },
+    {
+     "side": "us",
+     "batterId": "p_cooper",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 2134
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_haynes",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 2197
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_clark",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 2277
+    },
+    {
+     "side": "us",
+     "batterId": "p_gabe",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "plain_w",
+     "offsetS": 2414
+    },
+    {
+     "side": "us",
+     "batterId": "p_jd",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "offsetS": 2555
+    },
+    {
+     "side": "them",
+     "batter": 5,
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "k_swinging",
+     "pitcherId": "p_lucas",
+     "offsetS": 2795
+    },
+    {
+     "side": "them",
+     "batter": 6,
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "k_looking",
+     "pitcherId": "p_lucas",
+     "offsetS": 2914
+    },
+    {
+     "side": "them",
+     "batter": 4,
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "hit",
+     "pitcherId": "p_lucas",
+     "offsetS": 2985
+    },
+    {
+     "side": "them",
+     "batter": 3,
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_lucas",
+     "offsetS": 3021
+    },
+    {
+     "side": "us",
+     "batterId": "p_lucas",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "offsetS": 3296
+    },
+    {
+     "side": "us",
+     "batterId": "p_knox",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 3353
+    },
+    {
+     "side": "us",
+     "batterId": "p_chase",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "offsetS": 3409
+    },
+    {
+     "side": "us",
+     "batterId": "p_hamilton",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "offsetS": 3461
+    },
+    {
+     "side": "us",
+     "batterId": "p_ben",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 3515
+    },
+    {
+     "side": "us",
+     "batterId": "p_weedon",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "offsetS": 3684
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_haynes",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 3691
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_clark",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "offsetS": 3719
+    },
+    {
+     "side": "us",
+     "batterId": "p_gabe",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "offsetS": 3802
+    },
+    {
+     "side": "us",
+     "batterId": "p_jd",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "offsetS": 3935
+    },
+    {
+     "side": "us",
+     "batterId": "p_lucas",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 3980
+    },
+    {
+     "side": "us",
+     "batterId": "p_knox",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "offsetS": 4088
+    }
+   ]
+  },
+  {
+   "key": "aug-23-game-2",
+   "startsAtUtc": "2026-08-23T17:30:00.000Z",
+   "opponent": "Rawlings Tigers Meyer 14U",
+   "isAway": true,
+   "score": {
+    "us": 5,
+    "them": 4
+   },
+   "innings": 4,
+   "lineup": [
+    "p_brady",
+    "p_ben",
+    "p_cooper",
+    "p_owen_haynes",
+    "p_gabe",
+    "p_owen_clark",
+    "p_jd",
+    "p_chase",
+    "p_knox",
+    "p_carsyn"
+   ],
+   "subs": [
+    {
+     "outId": "p_gabe",
+     "inId": "p_lucas",
+     "at": {
+      "inning": 3,
+      "half": "top"
+     }
+    },
+    {
+     "outId": "p_owen_clark",
+     "inId": "p_weedon",
+     "at": {
+      "inning": 3,
+      "half": "top"
+     }
+    }
+   ],
+   "opponentJerseys": [
+    "13",
+    "4",
+    "19",
+    "32",
+    "14",
+    "25",
+    "12",
+    "23",
+    "20",
+    "1",
+    "6",
+    "9",
+    "72"
+   ],
+   "atBats": [
+    {
+     "side": "us",
+     "batterId": "p_brady",
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 300
+    },
+    {
+     "side": "us",
+     "batterId": "p_ben",
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 506
+    },
+    {
+     "side": "us",
+     "batterId": "p_cooper",
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 539
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_haynes",
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "offsetS": 628
+    },
+    {
+     "side": "us",
+     "batterId": "p_gabe",
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "offsetS": 734
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_clark",
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "k_swinging",
+     "offsetS": 837
+    },
+    {
+     "side": "us",
+     "batterId": "p_jd",
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "offsetS": 915
+    },
+    {
+     "side": "us",
+     "batterId": "p_chase",
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "offsetS": 987
+    },
+    {
+     "side": "them",
+     "batter": 0,
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "k_swinging",
+     "pitcherId": "p_carsyn",
+     "offsetS": 1292
+    },
+    {
+     "side": "them",
+     "batter": 1,
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "k_swinging",
+     "pitcherId": "p_carsyn",
+     "offsetS": 1403
+    },
+    {
+     "side": "them",
+     "batter": 2,
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_carsyn",
+     "offsetS": 1472
+    },
+    {
+     "side": "us",
+     "batterId": "p_knox",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "offsetS": 1715
+    },
+    {
+     "side": "us",
+     "batterId": "p_carsyn",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "fly_out_hard",
+     "offsetS": 1889
+    },
+    {
+     "side": "us",
+     "batterId": "p_brady",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "offsetS": 1984
+    },
+    {
+     "side": "them",
+     "batter": 3,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_carsyn",
+     "offsetS": 2172
+    },
+    {
+     "side": "them",
+     "batter": 4,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_carsyn",
+     "offsetS": 2265
+    },
+    {
+     "side": "them",
+     "batter": 5,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "k_swinging",
+     "pitcherId": "p_carsyn",
+     "offsetS": 2390
+    },
+    {
+     "side": "them",
+     "batter": 6,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_carsyn",
+     "offsetS": 2465
+    },
+    {
+     "side": "them",
+     "batter": 7,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_carsyn",
+     "offsetS": 2546
+    },
+    {
+     "side": "them",
+     "batter": 8,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_carsyn",
+     "offsetS": 2665
+    },
+    {
+     "side": "them",
+     "batter": 9,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_carsyn",
+     "offsetS": 2739
+    },
+    {
+     "side": "them",
+     "batter": 10,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "k_swinging",
+     "pitcherId": "p_carsyn",
+     "offsetS": 2831
+    },
+    {
+     "side": "us",
+     "batterId": "p_ben",
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 2987
+    },
+    {
+     "side": "us",
+     "batterId": "p_cooper",
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 3193
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_haynes",
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 3555
+    },
+    {
+     "side": "us",
+     "batterId": "p_lucas",
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "offsetS": 3675
+    },
+    {
+     "side": "us",
+     "batterId": "p_weedon",
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 3712
+    },
+    {
+     "side": "us",
+     "batterId": "p_jd",
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "k_looking",
+     "offsetS": 3853
+    },
+    {
+     "side": "them",
+     "batter": 11,
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_carsyn",
+     "offsetS": 4123
+    },
+    {
+     "side": "them",
+     "batter": 12,
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "k_looking",
+     "pitcherId": "p_carsyn",
+     "offsetS": 4231
+    },
+    {
+     "side": "them",
+     "batter": 0,
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_carsyn",
+     "offsetS": 4288
+    },
+    {
+     "side": "them",
+     "batter": 1,
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_carsyn",
+     "offsetS": 4383
+    },
+    {
+     "side": "us",
+     "batterId": "p_chase",
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 4573
+    },
+    {
+     "side": "us",
+     "batterId": "p_knox",
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "k_looking",
+     "offsetS": 4729
+    },
+    {
+     "side": "us",
+     "batterId": "p_carsyn",
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "k_looking",
+     "offsetS": 4829
+    },
+    {
+     "side": "us",
+     "batterId": "p_brady",
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "offsetS": 4941
+    },
+    {
+     "side": "them",
+     "batter": 2,
+     "inning": 4,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_carsyn",
+     "offsetS": 5093
+    },
+    {
+     "side": "them",
+     "batter": 3,
+     "inning": 4,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_carsyn",
+     "offsetS": 5246
+    },
+    {
+     "side": "them",
+     "batter": 4,
+     "inning": 4,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_carsyn",
+     "offsetS": 5281
+    },
+    {
+     "side": "them",
+     "batter": 5,
+     "inning": 4,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_carsyn",
+     "offsetS": 5319
+    }
+   ]
+  },
+  {
+   "key": "aug-23-game-3",
+   "startsAtUtc": "2026-08-23T21:00:00.000Z",
+   "opponent": "Redbirds STL 14U",
+   "isAway": true,
+   "score": {
+    "us": 11,
+    "them": 12
+   },
+   "innings": 4,
+   "lineup": [
+    "p_brady",
+    "p_ben",
+    "p_cooper",
+    "p_owen_haynes",
+    "p_lucas",
+    "p_jd",
+    "p_knox",
+    "p_carsyn",
+    "p_weedon",
+    "p_hamilton"
+   ],
+   "subs": [
+    {
+     "outId": "p_hamilton",
+     "inId": "p_owen_clark",
+     "at": {
+      "inning": 3,
+      "half": "top"
+     }
+    },
+    {
+     "outId": "p_ben",
+     "inId": "p_chase",
+     "at": {
+      "inning": 4,
+      "half": "bottom"
+     }
+    },
+    {
+     "outId": "p_chase",
+     "inId": "p_ben",
+     "at": {
+      "inning": 4,
+      "half": "bottom"
+     }
+    }
+   ],
+   "opponentJerseys": [
+    "16",
+    "1",
+    "52",
+    "45",
+    "28",
+    "17",
+    "6",
+    "30",
+    "0",
+    "46"
+   ],
+   "atBats": [
+    {
+     "side": "us",
+     "batterId": "p_brady",
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 300
+    },
+    {
+     "side": "us",
+     "batterId": "p_ben",
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "k_swinging",
+     "offsetS": 367
+    },
+    {
+     "side": "us",
+     "batterId": "p_cooper",
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 483
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_haynes",
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 626
+    },
+    {
+     "side": "us",
+     "batterId": "p_lucas",
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "offsetS": 750
+    },
+    {
+     "side": "us",
+     "batterId": "p_jd",
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "fly_out_hard",
+     "offsetS": 825
+    },
+    {
+     "side": "them",
+     "batter": 0,
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_owen_haynes",
+     "offsetS": 1077
+    },
+    {
+     "side": "them",
+     "batter": 1,
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_owen_haynes",
+     "offsetS": 1118
+    },
+    {
+     "side": "them",
+     "batter": 2,
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "fly_out_hard",
+     "pitcherId": "p_owen_haynes",
+     "offsetS": 1239
+    },
+    {
+     "side": "them",
+     "batter": 3,
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_owen_haynes",
+     "offsetS": 1267
+    },
+    {
+     "side": "us",
+     "batterId": "p_knox",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 1458
+    },
+    {
+     "side": "us",
+     "batterId": "p_carsyn",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "offsetS": 1485
+    },
+    {
+     "side": "us",
+     "batterId": "p_weedon",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 1538
+    },
+    {
+     "side": "us",
+     "batterId": "p_hamilton",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 1599
+    },
+    {
+     "side": "us",
+     "batterId": "p_brady",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 1645
+    },
+    {
+     "side": "us",
+     "batterId": "p_ben",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "plain_w",
+     "offsetS": 1686
+    },
+    {
+     "side": "us",
+     "batterId": "p_cooper",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 1761
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_haynes",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 1828
+    },
+    {
+     "side": "us",
+     "batterId": "p_lucas",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 1985
+    },
+    {
+     "side": "us",
+     "batterId": "p_jd",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "offsetS": 2126
+    },
+    {
+     "side": "us",
+     "batterId": "p_knox",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "fly_out_hard",
+     "offsetS": 2181
+    },
+    {
+     "side": "them",
+     "batter": 4,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_owen_haynes",
+     "offsetS": 2340
+    },
+    {
+     "side": "them",
+     "batter": 5,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_owen_haynes",
+     "offsetS": 2389
+    },
+    {
+     "side": "them",
+     "batter": 5,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_owen_haynes",
+     "offsetS": 2433
+    },
+    {
+     "side": "them",
+     "batter": 6,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_owen_haynes",
+     "offsetS": 2587
+    },
+    {
+     "side": "them",
+     "batter": 7,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_owen_haynes",
+     "offsetS": 2704
+    },
+    {
+     "side": "them",
+     "batter": 8,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "plain_w",
+     "pitcherId": "p_owen_haynes",
+     "offsetS": 2719
+    },
+    {
+     "side": "them",
+     "batter": 0,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_owen_haynes",
+     "offsetS": 2801
+    },
+    {
+     "side": "them",
+     "batter": 1,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_owen_haynes",
+     "offsetS": 2955
+    },
+    {
+     "side": "them",
+     "batter": 2,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_owen_haynes",
+     "offsetS": 3019
+    },
+    {
+     "side": "them",
+     "batter": 2,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_owen_haynes",
+     "offsetS": 3135
+    },
+    {
+     "side": "us",
+     "batterId": "p_carsyn",
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "offsetS": 3361
+    },
+    {
+     "side": "us",
+     "batterId": "p_weedon",
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "offsetS": 3468
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_clark",
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "offsetS": 3522
+    },
+    {
+     "side": "us",
+     "batterId": "p_brady",
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "offsetS": 3668
+    },
+    {
+     "side": "us",
+     "batterId": "p_chase",
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "offsetS": 3795
+    },
+    {
+     "side": "them",
+     "batter": 9,
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_owen_haynes",
+     "offsetS": 3996
+    },
+    {
+     "side": "them",
+     "batter": 4,
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_owen_haynes",
+     "offsetS": 4078
+    },
+    {
+     "side": "them",
+     "batter": 5,
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "k_swinging",
+     "pitcherId": "p_knox",
+     "offsetS": 4382
+    },
+    {
+     "side": "them",
+     "batter": 6,
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_knox",
+     "offsetS": 4414
+    },
+    {
+     "side": "them",
+     "batter": 7,
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_knox",
+     "offsetS": 4504
+    },
+    {
+     "side": "them",
+     "batter": 8,
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_knox",
+     "offsetS": 4553
+    },
+    {
+     "side": "us",
+     "batterId": "p_cooper",
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 4764
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_haynes",
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 4867
+    },
+    {
+     "side": "us",
+     "batterId": "p_lucas",
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 4910
+    },
+    {
+     "side": "us",
+     "batterId": "p_jd",
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "walk_2_looking",
+     "offsetS": 5023
+    },
+    {
+     "side": "us",
+     "batterId": "p_knox",
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "k_looking",
+     "offsetS": 5140
+    },
+    {
+     "side": "us",
+     "batterId": "p_carsyn",
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 5207
+    },
+    {
+     "side": "us",
+     "batterId": "p_weedon",
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 5246
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_clark",
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 5280
+    },
+    {
+     "side": "us",
+     "batterId": "p_brady",
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "offsetS": 5357
+    },
+    {
+     "side": "us",
+     "batterId": "p_ben",
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "k_looking",
+     "offsetS": 5446
+    },
+    {
+     "side": "them",
+     "batter": 1,
+     "inning": 4,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_knox",
+     "offsetS": 5677
+    },
+    {
+     "side": "them",
+     "batter": 0,
+     "inning": 4,
+     "half": "bottom",
+     "outcomeId": "k_swinging",
+     "pitcherId": "p_knox",
+     "offsetS": 5799
+    },
+    {
+     "side": "them",
+     "batter": 2,
+     "inning": 4,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_knox",
+     "offsetS": 5883
+    },
+    {
+     "side": "them",
+     "batter": 1,
+     "inning": 4,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_knox",
+     "offsetS": 6107
+    }
+   ]
+  },
+  {
+   "key": "sep-12-game-1",
+   "startsAtUtc": "2026-09-12T13:00:00.000Z",
+   "opponent": "Rawlings Tigers Meyer 14U",
+   "isAway": false,
+   "score": {
+    "us": 11,
+    "them": 1
+   },
+   "innings": 4,
+   "lineup": [
+    "p_hamilton",
+    "p_brady",
+    "p_cooper",
+    "p_owen_haynes",
+    "p_gabe",
+    "p_lucas",
+    "p_ben",
+    "p_knox",
+    "p_carsyn",
+    "p_weedon"
+   ],
+   "subs": [
+    {
+     "outId": "p_weedon",
+     "inId": "p_owen_clark",
+     "at": {
+      "inning": 2,
+      "half": "bottom"
+     }
+    },
+    {
+     "outId": "p_hamilton",
+     "inId": "p_chase",
+     "at": {
+      "inning": 2,
+      "half": "bottom"
+     }
+    }
+   ],
+   "opponentJerseys": [
+    "13",
+    "23",
+    "19",
+    "32",
+    "4",
+    "14",
+    "20",
+    "12",
+    "25",
+    "72",
+    "1"
+   ],
+   "atBats": [
+    {
+     "side": "them",
+     "batter": 0,
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "k_swinging",
+     "pitcherId": "p_cooper",
+     "offsetS": 300
+    },
+    {
+     "side": "them",
+     "batter": 1,
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "hit",
+     "pitcherId": "p_cooper",
+     "offsetS": 337
+    },
+    {
+     "side": "them",
+     "batter": 2,
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_cooper",
+     "offsetS": 393
+    },
+    {
+     "side": "them",
+     "batter": 3,
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "hit",
+     "pitcherId": "p_cooper",
+     "offsetS": 496
+    },
+    {
+     "side": "us",
+     "batterId": "p_hamilton",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "offsetS": 724
+    },
+    {
+     "side": "us",
+     "batterId": "p_brady",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "offsetS": 836
+    },
+    {
+     "side": "us",
+     "batterId": "p_cooper",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 877
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_haynes",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 955
+    },
+    {
+     "side": "us",
+     "batterId": "p_gabe",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 1003
+    },
+    {
+     "side": "us",
+     "batterId": "p_lucas",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 1071
+    },
+    {
+     "side": "us",
+     "batterId": "p_ben",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "offsetS": 1208
+    },
+    {
+     "side": "us",
+     "batterId": "p_knox",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "offsetS": 1325
+    },
+    {
+     "side": "us",
+     "batterId": "p_carsyn",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "offsetS": 1423
+    },
+    {
+     "side": "us",
+     "batterId": "p_weedon",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "k_looking",
+     "offsetS": 1704
+    },
+    {
+     "side": "us",
+     "batterId": "p_hamilton",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "offsetS": 1850
+    },
+    {
+     "side": "them",
+     "batter": 4,
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "hit",
+     "pitcherId": "p_cooper",
+     "offsetS": 2000
+    },
+    {
+     "side": "them",
+     "batter": 5,
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_cooper",
+     "offsetS": 2097
+    },
+    {
+     "side": "them",
+     "batter": 6,
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "k_swinging",
+     "pitcherId": "p_cooper",
+     "offsetS": 2163
+    },
+    {
+     "side": "them",
+     "batter": 7,
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_cooper",
+     "offsetS": 2247
+    },
+    {
+     "side": "us",
+     "batterId": "p_brady",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 2501
+    },
+    {
+     "side": "us",
+     "batterId": "p_cooper",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "offsetS": 2678
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_haynes",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "offsetS": 2984
+    },
+    {
+     "side": "us",
+     "batterId": "p_gabe",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 3061
+    },
+    {
+     "side": "us",
+     "batterId": "p_lucas",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "k_swinging",
+     "offsetS": 3142
+    },
+    {
+     "side": "us",
+     "batterId": "p_ben",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 3217
+    },
+    {
+     "side": "us",
+     "batterId": "p_knox",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 3267
+    },
+    {
+     "side": "us",
+     "batterId": "p_carsyn",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "offsetS": 3376
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_clark",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "offsetS": 3453
+    },
+    {
+     "side": "us",
+     "batterId": "p_chase",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "offsetS": 3640
+    },
+    {
+     "side": "them",
+     "batter": 8,
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_cooper",
+     "offsetS": 3857
+    },
+    {
+     "side": "them",
+     "batter": 9,
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "k_swinging",
+     "pitcherId": "p_cooper",
+     "offsetS": 3902
+    },
+    {
+     "side": "them",
+     "batter": 10,
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "k_swinging",
+     "pitcherId": "p_cooper",
+     "offsetS": 3970
+    },
+    {
+     "side": "us",
+     "batterId": "p_brady",
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "offsetS": 4214
+    },
+    {
+     "side": "us",
+     "batterId": "p_cooper",
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "offsetS": 4315
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_haynes",
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "offsetS": 4394
+    },
+    {
+     "side": "us",
+     "batterId": "p_gabe",
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "offsetS": 4527
+    },
+    {
+     "side": "us",
+     "batterId": "p_lucas",
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "offsetS": 4571
+    },
+    {
+     "side": "them",
+     "batter": 0,
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_cooper",
+     "offsetS": 4799
+    },
+    {
+     "side": "them",
+     "batter": 1,
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_cooper",
+     "offsetS": 4874
+    },
+    {
+     "side": "them",
+     "batter": 2,
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "hit",
+     "pitcherId": "p_cooper",
+     "offsetS": 4930
+    },
+    {
+     "side": "them",
+     "batter": 3,
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_cooper",
+     "offsetS": 5011
+    },
+    {
+     "side": "them",
+     "batter": 4,
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_cooper",
+     "offsetS": 5055
+    }
+   ]
+  },
+  {
+   "key": "sep-12-game-2",
+   "startsAtUtc": "2026-09-12T17:00:00.000Z",
+   "opponent": "Midwest Rebels Layne 14U",
+   "isAway": true,
+   "score": {
+    "us": 13,
+    "them": 9
+   },
+   "innings": 4,
+   "lineup": [
+    "p_hamilton",
+    "p_brady",
+    "p_cooper",
+    "p_owen_haynes",
+    "p_gabe",
+    "p_owen_clark",
+    "p_ben",
+    "p_knox",
+    "p_chase",
+    "p_weedon"
+   ],
+   "subs": [
+    {
+     "outId": "p_gabe",
+     "inId": "p_carsyn",
+     "at": {
+      "inning": 3,
+      "half": "top"
+     }
+    },
+    {
+     "outId": "p_weedon",
+     "inId": "p_lucas",
+     "at": {
+      "inning": 4,
+      "half": "top"
+     }
+    }
+   ],
+   "opponentJerseys": [
+    "17",
+    "77",
+    "8",
+    "1",
+    "55",
+    "48",
+    "4",
+    "24",
+    "16",
+    "99"
+   ],
+   "atBats": [
+    {
+     "side": "us",
+     "batterId": "p_hamilton",
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 300
+    },
+    {
+     "side": "us",
+     "batterId": "p_brady",
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "offsetS": 451
+    },
+    {
+     "side": "us",
+     "batterId": "p_cooper",
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "offsetS": 530
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_haynes",
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 563
+    },
+    {
+     "side": "us",
+     "batterId": "p_gabe",
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "offsetS": 680
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_clark",
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 737
+    },
+    {
+     "side": "us",
+     "batterId": "p_ben",
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 848
+    },
+    {
+     "side": "us",
+     "batterId": "p_knox",
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 888
+    },
+    {
+     "side": "us",
+     "batterId": "p_chase",
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "offsetS": 942
+    },
+    {
+     "side": "them",
+     "batter": 0,
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "plain_w",
+     "pitcherId": "p_weedon",
+     "offsetS": 1167
+    },
+    {
+     "side": "them",
+     "batter": 1,
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_weedon",
+     "offsetS": 1223
+    },
+    {
+     "side": "them",
+     "batter": 2,
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_weedon",
+     "offsetS": 1286
+    },
+    {
+     "side": "them",
+     "batter": 3,
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_weedon",
+     "offsetS": 1325
+    },
+    {
+     "side": "them",
+     "batter": 4,
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_weedon",
+     "offsetS": 1385
+    },
+    {
+     "side": "us",
+     "batterId": "p_weedon",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "plain_w",
+     "offsetS": 1611
+    },
+    {
+     "side": "us",
+     "batterId": "p_hamilton",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 1651
+    },
+    {
+     "side": "us",
+     "batterId": "p_brady",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "offsetS": 1774
+    },
+    {
+     "side": "us",
+     "batterId": "p_cooper",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "offsetS": 1901
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_haynes",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "offsetS": 2035
+    },
+    {
+     "side": "us",
+     "batterId": "p_gabe",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "offsetS": 2074
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_clark",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 2159
+    },
+    {
+     "side": "us",
+     "batterId": "p_ben",
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "offsetS": 2209
+    },
+    {
+     "side": "them",
+     "batter": 5,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_weedon",
+     "offsetS": 2436
+    },
+    {
+     "side": "them",
+     "batter": 6,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_weedon",
+     "offsetS": 2626
+    },
+    {
+     "side": "them",
+     "batter": 7,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_weedon",
+     "offsetS": 2665
+    },
+    {
+     "side": "them",
+     "batter": 8,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_weedon",
+     "offsetS": 2733
+    },
+    {
+     "side": "them",
+     "batter": 9,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_weedon",
+     "offsetS": 2886
+    },
+    {
+     "side": "them",
+     "batter": 0,
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_weedon",
+     "offsetS": 2921
+    },
+    {
+     "side": "us",
+     "batterId": "p_knox",
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "plain_w",
+     "offsetS": 3101
+    },
+    {
+     "side": "us",
+     "batterId": "p_chase",
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "offsetS": 3184
+    },
+    {
+     "side": "us",
+     "batterId": "p_weedon",
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 3246
+    },
+    {
+     "side": "us",
+     "batterId": "p_hamilton",
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "offsetS": 3278
+    },
+    {
+     "side": "us",
+     "batterId": "p_brady",
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 3327
+    },
+    {
+     "side": "us",
+     "batterId": "p_cooper",
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 3381
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_haynes",
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 3446
+    },
+    {
+     "side": "us",
+     "batterId": "p_carsyn",
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 3666
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_clark",
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "fly_out_hard",
+     "offsetS": 3717
+    },
+    {
+     "side": "them",
+     "batter": 1,
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_weedon",
+     "offsetS": 3942
+    },
+    {
+     "side": "them",
+     "batter": 2,
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_weedon",
+     "offsetS": 4024
+    },
+    {
+     "side": "them",
+     "batter": 3,
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_weedon",
+     "offsetS": 4223
+    },
+    {
+     "side": "them",
+     "batter": 4,
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_lucas",
+     "offsetS": 4479
+    },
+    {
+     "side": "them",
+     "batter": 5,
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_lucas",
+     "offsetS": 4516
+    },
+    {
+     "side": "us",
+     "batterId": "p_ben",
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "offsetS": 4771
+    },
+    {
+     "side": "us",
+     "batterId": "p_knox",
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "offsetS": 4920
+    },
+    {
+     "side": "us",
+     "batterId": "p_chase",
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "offsetS": 5024
+    },
+    {
+     "side": "us",
+     "batterId": "p_lucas",
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "hit",
+     "offsetS": 5124
+    },
+    {
+     "side": "us",
+     "batterId": "p_hamilton",
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "offsetS": 5178
+    },
+    {
+     "side": "us",
+     "batterId": "p_brady",
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "k_looking",
+     "offsetS": 5327
+    },
+    {
+     "side": "them",
+     "batter": 6,
+     "inning": 4,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_lucas",
+     "offsetS": 5570
+    },
+    {
+     "side": "them",
+     "batter": 7,
+     "inning": 4,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_lucas",
+     "offsetS": 5719
+    },
+    {
+     "side": "them",
+     "batter": 8,
+     "inning": 4,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_lucas",
+     "offsetS": 5848
+    },
+    {
+     "side": "them",
+     "batter": 9,
+     "inning": 4,
+     "half": "bottom",
+     "outcomeId": "k_looking",
+     "pitcherId": "p_lucas",
+     "offsetS": 5972
+    },
+    {
+     "side": "them",
+     "batter": 0,
+     "inning": 4,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_lucas",
+     "offsetS": 6028
+    },
+    {
+     "side": "them",
+     "batter": 1,
+     "inning": 4,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_owen_haynes",
+     "offsetS": 6244
+    },
+    {
+     "side": "them",
+     "batter": 2,
+     "inning": 4,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_owen_haynes",
+     "offsetS": 6309
+    },
+    {
+     "side": "them",
+     "batter": 3,
+     "inning": 4,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_owen_haynes",
+     "offsetS": 6359
+    },
+    {
+     "side": "them",
+     "batter": 4,
+     "inning": 4,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "pitcherId": "p_owen_haynes",
+     "offsetS": 6408
+    },
+    {
+     "side": "them",
+     "batter": 5,
+     "inning": 4,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_owen_haynes",
+     "offsetS": 6551
+    }
+   ]
+  },
+  {
+   "key": "sep-13-game-1",
+   "startsAtUtc": "2026-09-13T17:00:00.000Z",
+   "opponent": "PSA Chiesa 14U",
+   "isAway": false,
+   "score": {
+    "us": 8,
+    "them": 4
+   },
+   "innings": 5,
+   "lineup": [
+    "p_hamilton",
+    "p_brady",
+    "p_cooper",
+    "p_owen_haynes",
+    "p_gabe",
+    "p_owen_clark",
+    "p_lucas",
+    "p_ben",
+    "p_carsyn",
+    "p_chase"
+   ],
+   "subs": [
+    {
+     "outId": "p_carsyn",
+     "inId": "p_weedon",
+     "at": {
+      "inning": 3,
+      "half": "bottom"
+     }
+    },
+    {
+     "outId": "p_chase",
+     "inId": "p_jd",
+     "at": {
+      "inning": 3,
+      "half": "bottom"
+     }
+    },
+    {
+     "outId": "p_jd",
+     "inId": "p_chase",
+     "at": {
+      "inning": 3,
+      "half": "bottom"
+     }
+    }
+   ],
+   "opponentJerseys": [
+    "12",
+    "6",
+    "?",
+    "3",
+    "10",
+    "24",
+    "21",
+    "22"
+   ],
+   "atBats": [
+    {
+     "side": "them",
+     "batter": 0,
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "hit",
+     "pitcherId": "p_carsyn",
+     "offsetS": 300
+    },
+    {
+     "side": "them",
+     "batter": 1,
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "hit",
+     "pitcherId": "p_carsyn",
+     "offsetS": 354
+    },
+    {
+     "side": "them",
+     "batter": 2,
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_carsyn",
+     "offsetS": 436
+    },
+    {
+     "side": "them",
+     "batter": 2,
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_carsyn",
+     "offsetS": 513
+    },
+    {
+     "side": "them",
+     "batter": 2,
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "hit",
+     "pitcherId": "p_carsyn",
+     "offsetS": 627
+    },
+    {
+     "side": "them",
+     "batter": 2,
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "hit",
+     "pitcherId": "p_carsyn",
+     "offsetS": 726
+    },
+    {
+     "side": "them",
+     "batter": 2,
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "k_swinging",
+     "pitcherId": "p_carsyn",
+     "offsetS": 794
+    },
+    {
+     "side": "us",
+     "batterId": "p_hamilton",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "plain_w",
+     "offsetS": 1058
+    },
+    {
+     "side": "us",
+     "batterId": "p_brady",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 1131
+    },
+    {
+     "side": "us",
+     "batterId": "p_cooper",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 1187
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_haynes",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "plain_w",
+     "offsetS": 1268
+    },
+    {
+     "side": "us",
+     "batterId": "p_gabe",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "offsetS": 1327
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_clark",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "offsetS": 1459
+    },
+    {
+     "side": "us",
+     "batterId": "p_lucas",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "offsetS": 1500
+    },
+    {
+     "side": "us",
+     "batterId": "p_ben",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "offsetS": 1595
+    },
+    {
+     "side": "us",
+     "batterId": "p_carsyn",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "offsetS": 1721
+    },
+    {
+     "side": "them",
+     "batter": 3,
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "hit",
+     "pitcherId": "p_carsyn",
+     "offsetS": 1999
+    },
+    {
+     "side": "them",
+     "batter": 4,
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_carsyn",
+     "offsetS": 2029
+    },
+    {
+     "side": "them",
+     "batter": 5,
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_carsyn",
+     "offsetS": 2090
+    },
+    {
+     "side": "them",
+     "batter": 6,
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "hit",
+     "pitcherId": "p_carsyn",
+     "offsetS": 2175
+    },
+    {
+     "side": "them",
+     "batter": 7,
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_carsyn",
+     "offsetS": 2254
+    },
+    {
+     "side": "them",
+     "batter": 0,
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_carsyn",
+     "offsetS": 2376
+    },
+    {
+     "side": "them",
+     "batter": 1,
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_carsyn",
+     "offsetS": 2634
+    },
+    {
+     "side": "us",
+     "batterId": "p_chase",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "k_swinging",
+     "offsetS": 2864
+    },
+    {
+     "side": "us",
+     "batterId": "p_hamilton",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "k_swinging",
+     "offsetS": 2983
+    },
+    {
+     "side": "us",
+     "batterId": "p_brady",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "offsetS": 3103
+    },
+    {
+     "side": "us",
+     "batterId": "p_cooper",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 3180
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_haynes",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "offsetS": 3359
+    },
+    {
+     "side": "us",
+     "batterId": "p_gabe",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 3479
+    },
+    {
+     "side": "them",
+     "batter": 2,
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "hit",
+     "pitcherId": "p_carsyn",
+     "offsetS": 3668
+    },
+    {
+     "side": "them",
+     "batter": 2,
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_carsyn",
+     "offsetS": 3755
+    },
+    {
+     "side": "them",
+     "batter": 2,
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_carsyn",
+     "offsetS": 3776
+    },
+    {
+     "side": "them",
+     "batter": 2,
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_carsyn",
+     "offsetS": 3805
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_clark",
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 3977
+    },
+    {
+     "side": "us",
+     "batterId": "p_lucas",
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "offsetS": 4105
+    },
+    {
+     "side": "us",
+     "batterId": "p_ben",
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "offsetS": 4229
+    },
+    {
+     "side": "us",
+     "batterId": "p_weedon",
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "offsetS": 4515
+    },
+    {
+     "side": "us",
+     "batterId": "p_jd",
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "offsetS": 4597
+    },
+    {
+     "side": "us",
+     "batterId": "p_hamilton",
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "offsetS": 4618
+    },
+    {
+     "side": "them",
+     "batter": 2,
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_cooper",
+     "offsetS": 4828
+    },
+    {
+     "side": "them",
+     "batter": 3,
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "plain_w",
+     "pitcherId": "p_cooper",
+     "offsetS": 4872
+    },
+    {
+     "side": "them",
+     "batter": 4,
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_cooper",
+     "offsetS": 4957
+    },
+    {
+     "side": "them",
+     "batter": 5,
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "k_looking",
+     "pitcherId": "p_cooper",
+     "offsetS": 5005
+    },
+    {
+     "side": "them",
+     "batter": 6,
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_cooper",
+     "offsetS": 5050
+    },
+    {
+     "side": "us",
+     "batterId": "p_brady",
+     "inning": 4,
+     "half": "bottom",
+     "outcomeId": "k_swinging",
+     "offsetS": 5328
+    },
+    {
+     "side": "us",
+     "batterId": "p_cooper",
+     "inning": 4,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 5371
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_haynes",
+     "inning": 4,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "offsetS": 5454
+    },
+    {
+     "side": "us",
+     "batterId": "p_gabe",
+     "inning": 4,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 5512
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_clark",
+     "inning": 4,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 5541
+    },
+    {
+     "side": "us",
+     "batterId": "p_lucas",
+     "inning": 4,
+     "half": "bottom",
+     "outcomeId": "k_looking",
+     "offsetS": 5598
+    },
+    {
+     "side": "us",
+     "batterId": "p_ben",
+     "inning": 4,
+     "half": "bottom",
+     "outcomeId": "k_looking",
+     "offsetS": 5707
+    },
+    {
+     "side": "them",
+     "batter": 7,
+     "inning": 5,
+     "half": "top",
+     "outcomeId": "k_swinging",
+     "pitcherId": "p_cooper",
+     "offsetS": 5914
+    },
+    {
+     "side": "them",
+     "batter": 0,
+     "inning": 5,
+     "half": "top",
+     "outcomeId": "k_looking",
+     "pitcherId": "p_cooper",
+     "offsetS": 5996
+    },
+    {
+     "side": "them",
+     "batter": 1,
+     "inning": 5,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_cooper",
+     "offsetS": 6048
+    }
+   ]
+  },
+  {
+   "key": "sep-13-game-2",
+   "startsAtUtc": "2026-09-13T21:00:00.000Z",
+   "opponent": "Missouri Gators Carmi 14U",
+   "isAway": false,
+   "score": {
+    "us": 3,
+    "them": 7
+   },
+   "innings": 4,
+   "lineup": [
+    "p_hamilton",
+    "p_brady",
+    "p_cooper",
+    "p_owen_haynes",
+    "p_gabe",
+    "p_owen_clark",
+    "p_lucas",
+    "p_ben",
+    "p_carsyn",
+    "p_chase"
+   ],
+   "subs": [
+    {
+     "outId": "p_gabe",
+     "inId": "p_jd",
+     "at": {
+      "inning": 3,
+      "half": "bottom"
+     }
+    },
+    {
+     "outId": "p_chase",
+     "inId": "p_weedon",
+     "at": {
+      "inning": 4,
+      "half": "bottom"
+     }
+    }
+   ],
+   "opponentJerseys": [
+    "0",
+    "10",
+    "1",
+    "9",
+    "43",
+    "11",
+    "21",
+    "19",
+    "6",
+    "18"
+   ],
+   "atBats": [
+    {
+     "side": "them",
+     "batter": 0,
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_carsyn",
+     "offsetS": 300
+    },
+    {
+     "side": "them",
+     "batter": 1,
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "k_swinging",
+     "pitcherId": "p_carsyn",
+     "offsetS": 360
+    },
+    {
+     "side": "them",
+     "batter": 2,
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_carsyn",
+     "offsetS": 471
+    },
+    {
+     "side": "them",
+     "batter": 3,
+     "inning": 1,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_carsyn",
+     "offsetS": 631
+    },
+    {
+     "side": "us",
+     "batterId": "p_hamilton",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "offsetS": 891
+    },
+    {
+     "side": "us",
+     "batterId": "p_brady",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 939
+    },
+    {
+     "side": "us",
+     "batterId": "p_cooper",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "offsetS": 1058
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_haynes",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "offsetS": 1115
+    },
+    {
+     "side": "us",
+     "batterId": "p_gabe",
+     "inning": 1,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "offsetS": 1146
+    },
+    {
+     "side": "them",
+     "batter": 4,
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_carsyn",
+     "offsetS": 1327
+    },
+    {
+     "side": "them",
+     "batter": 5,
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "k_swinging",
+     "pitcherId": "p_carsyn",
+     "offsetS": 1399
+    },
+    {
+     "side": "them",
+     "batter": 6,
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "hit",
+     "pitcherId": "p_carsyn",
+     "offsetS": 1461
+    },
+    {
+     "side": "them",
+     "batter": 7,
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "hit",
+     "pitcherId": "p_carsyn",
+     "offsetS": 1522
+    },
+    {
+     "side": "them",
+     "batter": 8,
+     "inning": 2,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_carsyn",
+     "offsetS": 1615
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_clark",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 1859
+    },
+    {
+     "side": "us",
+     "batterId": "p_lucas",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "offsetS": 1949
+    },
+    {
+     "side": "us",
+     "batterId": "p_ben",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 1997
+    },
+    {
+     "side": "us",
+     "batterId": "p_carsyn",
+     "inning": 2,
+     "half": "bottom",
+     "outcomeId": "k_swinging",
+     "offsetS": 2131
+    },
+    {
+     "side": "them",
+     "batter": 9,
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "hit",
+     "pitcherId": "p_carsyn",
+     "offsetS": 2321
+    },
+    {
+     "side": "them",
+     "batter": 0,
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "k_looking",
+     "pitcherId": "p_lucas",
+     "offsetS": 2493
+    },
+    {
+     "side": "them",
+     "batter": 1,
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "walk_2_looking",
+     "pitcherId": "p_lucas",
+     "offsetS": 2622
+    },
+    {
+     "side": "them",
+     "batter": 2,
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_lucas",
+     "offsetS": 2770
+    },
+    {
+     "side": "them",
+     "batter": 3,
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_lucas",
+     "offsetS": 2843
+    },
+    {
+     "side": "them",
+     "batter": 4,
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_chase",
+     "offsetS": 3088
+    },
+    {
+     "side": "them",
+     "batter": 5,
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "hit",
+     "pitcherId": "p_chase",
+     "offsetS": 3174
+    },
+    {
+     "side": "them",
+     "batter": 6,
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_chase",
+     "offsetS": 3227
+    },
+    {
+     "side": "them",
+     "batter": 7,
+     "inning": 3,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_chase",
+     "offsetS": 3390
+    },
+    {
+     "side": "us",
+     "batterId": "p_chase",
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "offsetS": 3723
+    },
+    {
+     "side": "us",
+     "batterId": "p_hamilton",
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 3766
+    },
+    {
+     "side": "us",
+     "batterId": "p_brady",
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "offsetS": 3824
+    },
+    {
+     "side": "us",
+     "batterId": "p_cooper",
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 3945
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_haynes",
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 3986
+    },
+    {
+     "side": "us",
+     "batterId": "p_jd",
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "hit",
+     "offsetS": 4023
+    },
+    {
+     "side": "us",
+     "batterId": "p_owen_clark",
+     "inning": 3,
+     "half": "bottom",
+     "outcomeId": "k_looking",
+     "offsetS": 4160
+    },
+    {
+     "side": "them",
+     "batter": 8,
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_chase",
+     "offsetS": 4419
+    },
+    {
+     "side": "them",
+     "batter": 9,
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_chase",
+     "offsetS": 4471
+    },
+    {
+     "side": "them",
+     "batter": 0,
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "hit",
+     "pitcherId": "p_chase",
+     "offsetS": 4589
+    },
+    {
+     "side": "them",
+     "batter": 1,
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "k_swinging",
+     "pitcherId": "p_weedon",
+     "offsetS": 4793
+    },
+    {
+     "side": "them",
+     "batter": 2,
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "walk_clean",
+     "pitcherId": "p_weedon",
+     "offsetS": 4880
+    },
+    {
+     "side": "them",
+     "batter": 3,
+     "inning": 4,
+     "half": "top",
+     "outcomeId": "plain_l",
+     "pitcherId": "p_weedon",
+     "offsetS": 4939
+    },
+    {
+     "side": "us",
+     "batterId": "p_lucas",
+     "inning": 4,
+     "half": "bottom",
+     "outcomeId": "k_swinging",
+     "offsetS": 5212
+    },
+    {
+     "side": "us",
+     "batterId": "p_ben",
+     "inning": 4,
+     "half": "bottom",
+     "outcomeId": "walk_2_looking",
+     "offsetS": 5352
+    },
+    {
+     "side": "us",
+     "batterId": "p_carsyn",
+     "inning": 4,
+     "half": "bottom",
+     "outcomeId": "k_looking",
+     "offsetS": 5776
+    },
+    {
+     "side": "us",
+     "batterId": "p_weedon",
+     "inning": 4,
+     "half": "bottom",
+     "outcomeId": "walk_clean",
+     "offsetS": 5906
+    },
+    {
+     "side": "us",
+     "batterId": "p_hamilton",
+     "inning": 4,
+     "half": "bottom",
+     "outcomeId": "plain_l",
+     "offsetS": 6050
+    }
+   ]
+  }
+ ]
+}
