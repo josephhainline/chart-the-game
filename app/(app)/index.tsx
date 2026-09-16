@@ -6,7 +6,7 @@ import { FlatList, Platform, Pressable, StyleSheet, Text, TextInput, View } from
 import AppHeader from '@/components/AppHeader';
 import Screen from '@/components/Screen';
 import { EmptyState, ListRow } from '@/components/ui';
-import { colors, fonts, radii, type } from '@/constants/theme';
+import { colors, fonts, radii } from '@/constants/theme';
 import { useStore } from '@/lib/store';
 import type { Team } from '@/lib/types';
 
@@ -58,10 +58,6 @@ export default function MyTeamsScreen() {
             </Pressable>
           ) : null}
         </View>
-      </View>
-
-      <View style={styles.headingRow}>
-        <Text style={type.h1}>My Teams</Text>
       </View>
 
       <FlatList
@@ -130,13 +126,6 @@ const styles = StyleSheet.create({
     color: colors.text,
     // The focus ring is drawn on the rounded chip instead of the inner input.
     ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as any) : null),
-  },
-  headingRow: {
-    paddingHorizontal: 20,
-    paddingTop: 14,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.divider,
   },
   list: { flex: 1 },
   listEmpty: { flexGrow: 1, justifyContent: 'center' },

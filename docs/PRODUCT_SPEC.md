@@ -83,7 +83,7 @@ Both buttons go to the app (no real auth in the prototype). Intro is skipped
 after the first visit; the Account screen has "Replay intro".
 
 **App level** tabs: Home · About · Account
-- Home (`/`): search field, "My Teams" list (name + chevron), "+ Add Team"
+- Home (`/`): search field, the team list (name + chevron), "+ Add Team"
   button. Tapping a team opens team level.
 - About: the "What is Chart The Game (CTG)?" page (copy in §7), navy
   "Ready to discover the real game within the game?" panel, Privacy Policy /
@@ -92,7 +92,7 @@ after the first visit; the Account screen has "Replay intro".
   data**.
 
 **Team level** (`/team/[teamId]`) tabs: Games · Team · Lineup · Stats. Sub-header
-shows the team name; back chevron returns to My Teams. (Each tab bar is
+shows the team name; back chevron returns to the team list. (Each tab bar is
 about the thing you are inside: games are reached through a team, and the
 tab says "Games", not "Home".)
 - Games: the team's games grouped by month bands ("Sept 2026"). Each row: "@ Opponent" or
@@ -539,7 +539,7 @@ One scheduled game, `g_next`: **vs Bears Ken 14U**, next Saturday 10:00am,
 the default lineup, a default opponent order ("Batter 1…9"), no pitcher and
 no at-bats, so the CTG screen starts from Set pitcher.
 
-Three more teams appear in My Teams with empty rosters, no games and empty
+Three more teams appear in the team list with empty rosters, no games and empty
 default lineups, all season "Fall 2026": **Bears Ken 14U** (`t_ken14u`),
 **Bears Engelken 14U** (`t_engelken14u`), **Bears Floyd 17U** (`t_floyd17u`).
 
