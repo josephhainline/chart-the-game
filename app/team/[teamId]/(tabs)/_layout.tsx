@@ -18,7 +18,7 @@ export default function TeamTabsLayout() {
       screenOptions={{ headerShown: false }}
       tabBar={(props) => <TabBar {...props} activeColor={colors.primary} />}
     >
-      <Tabs.Screen name="index" initialParams={{ teamId }} options={{ title: 'Home', tabBarIcon: ({ color }) => <TabIcon name="house" color={color} /> }} />
+      <Tabs.Screen name="index" initialParams={{ teamId }} options={{ title: 'Games', tabBarIcon: ({ color }) => <TabIcon name="baseball" color={color} /> }} />
       <Tabs.Screen name="roster" initialParams={{ teamId }} options={{ title: 'Team', tabBarIcon: ({ color }) => <TabIcon name="users" color={color} /> }} />
       <Tabs.Screen name="lineup" initialParams={{ teamId }} options={{ title: 'Lineup', tabBarIcon: ({ color }) => <TabIcon name="rectangle-list" color={color} /> }} />
       <Tabs.Screen name="stats" initialParams={{ teamId }} options={{ title: 'Stats', tabBarIcon: ({ color }) => <TabIcon name="chart-simple" color={color} /> }} />

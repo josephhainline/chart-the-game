@@ -82,19 +82,20 @@ so the copy stays legible:
 Both buttons go to the app (no real auth in the prototype). Intro is skipped
 after the first visit; the Account screen has "Replay intro".
 
-**App level** tabs: Home · Games · About · Account
+**App level** tabs: Home · About · Account
 - Home (`/`): search field, "My Teams" list (name + chevron), "+ Add Team"
   button. Tapping a team opens team level.
-- Games: every game across all teams, grouped by month, tap to open.
 - About: the "What is Chart The Game (CTG)?" page (copy in §7), navy
   "Ready to discover the real game within the game?" panel, Privacy Policy /
   Contact Us links (no-op).
 - Account: demo coach card, **Replay intro**, **Reset demo data**, **Clear all
   data**.
 
-**Team level** (`/team/[teamId]`) tabs: Home · Team · Lineup · Stats. Sub-header
-shows the team name; back chevron returns to My Teams.
-- Home: games grouped by month bands ("Sept 2026"). Each row: "@ Opponent" or
+**Team level** (`/team/[teamId]`) tabs: Games · Team · Lineup · Stats. Sub-header
+shows the team name; back chevron returns to My Teams. (Each tab bar is
+about the thing you are inside: games are reached through a team, and the
+tab says "Games", not "Home".)
+- Games: the team's games grouped by month bands ("Sept 2026"). Each row: "@ Opponent" or
   "vs Opponent", weekday/date/time, then either
   - final: "Final after 4 innings" + notes line, and on the right
     "HITTING: 29W / 7L" and "PITCHING: 9W / 3L" (green when W ≥ L, red
@@ -125,9 +126,9 @@ shows the team name; back chevron returns to My Teams.
   for players with no data. Rows in lineup order; tapping the Score header
   sorts by score descending.
 
-**Game level** (`/game/[gameId]`) tabs: Home · Team · Opponent · CTG · Stats.
-Orange sub-header "@ Tigers, Oct 5 2:30pm". The Home tab leaves the game and
-returns to the team's Home.
+**Game level** (`/game/[gameId]`) tabs: Games · Team · Opponent · CTG · Stats.
+Orange sub-header "@ Tigers, Oct 5 2:30pm". The Games tab leaves the game and
+returns to the team's Games.
 - Team: this game's batting order (copied from the default lineup when the game
   is created), same row style as Lineup — number, name, an orange swap control
   ("Substitute for …", opens the substitution sheet; hidden on a final game),

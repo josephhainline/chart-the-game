@@ -8,7 +8,7 @@ import Screen from '@/components/Screen';
 import { EmptyState, FloatingButton, SectionBand } from '@/components/ui';
 import { useStore, useTeam, useTeamGames } from '@/lib/store';
 
-/** Team Home: this team's games grouped by month, with the "+ New Game" button. */
+/** Team Games: this team's games grouped by month, with the "+ New Game" button. */
 export default function TeamHomeScreen() {
   const { teamId } = useLocalSearchParams<{ teamId: string }>();
   const router = useRouter();

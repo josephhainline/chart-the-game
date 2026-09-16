@@ -7,7 +7,7 @@ import { useGame } from '@/lib/store';
 
 /**
  * Game level: Home · Team · Opponent · CTG · Stats. Sub-header is orange.
- * The Home tab leaves the game and returns to the team's Home.
+ * The Games tab leaves the game and returns to the team's Games.
  * CTG (index) is the default screen when a game is opened.
  */
 export default function GameTabsLayout() {
@@ -26,7 +26,7 @@ export default function GameTabsLayout() {
       <Tabs.Screen
         name="home"
         initialParams={{ gameId }}
-        options={{ title: 'Home', tabBarIcon: ({ color }) => <TabIcon name="house" color={color} /> }}
+        options={{ title: 'Games', tabBarIcon: ({ color }) => <TabIcon name="baseball" color={color} /> }}
         listeners={{
           tabPress: (e) => {
             e.preventDefault();

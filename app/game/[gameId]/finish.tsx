@@ -26,7 +26,7 @@ export default function FinishGameScreen() {
 
   const save = () => {
     finishGame(game.id, { notes });
-    // Back to the team's Home, where the game now shows as a final.
+    // Back to the team's Games, where the game now shows as a final.
     router.replace(`/team/${game.teamId}`);
   };
 

@@ -23,8 +23,8 @@ FontAwesome6 from `@expo/vector-icons` only. No react-native-paper, no lucide.
 
 ## Layout
 - `app/` — expo-router routes. Three nesting levels, each a Tabs group:
-  `(app)` (My Teams · Games · About · Account), `team/[teamId]/(tabs)`
-  (Home · Team · Lineup · Stats), `game/[gameId]/(tabs)` (Home · Team ·
+  `(app)` (My Teams · About · Account), `team/[teamId]/(tabs)`
+  (Games · Team · Lineup · Stats), `game/[gameId]/(tabs)` (Games · Team ·
   Opponent · CTG · Stats). Modal forms sit beside each `(tabs)` group; the
   game level's sheets are `atbat/[atBatId]`, `batter/[side]/[batterId]`,
   `sub/[batterId]` (substitution: the bench hottest first), `pitcher` and
