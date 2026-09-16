@@ -17,7 +17,7 @@ import { compareClock, displayResult, invertResult, sortAtBats } from '@/lib/atb
 import { confirmAction } from '@/lib/confirm';
 import { gameTitle, halfLabel, opponentBatterLabel, playerLabel, playerShort } from '@/lib/format';
 import { isPlain, outcomeLabel, outcomeShort, plainFor } from '@/lib/outcomes';
-import { benchFor, benchOrder, hittingFor, orderWithLeavers } from '@/lib/stats';
+import { benchFor, benchOrder, gameHitting, hittingFor, orderWithLeavers } from '@/lib/stats';
 import { battingSide, useGame, useGameAtBats, useStore, useTeamGames, useTeamPlayers, type AtBatPatch } from '@/lib/store';
 import type { AtBat, Game, Half, OutcomeId, Result, Side } from '@/lib/types';
 import { useTypesExpanded } from '@/lib/uiPrefs';
@@ -515,8 +515,8 @@ export default function ChartTheGameScreen() {
       ? { L: `Loss for ${batterName}`, W: `Win for ${batterName}` }
       : { L: `${pitcherName} lost to ${batterName}`, W: `${pitcherName} won against ${batterName}` };
 
-  const finalWord = game.score.us > game.score.them ? 'Won' : game.score.us < game.score.them ? 'Lost' : 'Tied';
-  const finalColor = finalWord === 'Won' ? colors.win : finalWord === 'Lost' ? colors.loss : colors.text;
+  // A finished game's band carries the team's hitting line for the game; runs are not tracked.
+  const finalHitting = isFinal ? gameHitting(atBats, game.id) : undefined;
 
   // ---- Rows ----
 
@@ -653,9 +653,12 @@ export default function ChartTheGameScreen() {
 
       {isFinal ? (
         <View style={styles.finalBand}>
-          <Text style={[styles.finalText, { color: finalColor }]} numberOfLines={1}>
-            Final: {finalWord} {game.score.us} - {game.score.them}
-          </Text>
+          <View style={styles.finalLeft}>
+            <Text style={styles.finalText} numberOfLines={1}>
+              Final
+            </Text>
+            {finalHitting ? <WLText wl={finalHitting} style={styles.finalLine} /> : null}
+          </View>
           <Button variant="ghost" size="sm" icon="rotate-left" title="Reopen game" onPress={() => reopenGame(game.id)} />
         </View>
       ) : null}
@@ -811,7 +814,9 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     gap: 8,
   },
-  finalText: { fontFamily: fonts.bold, fontSize: 18, flexShrink: 1 },
+  finalLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1 },
+  finalText: { fontFamily: fonts.bold, fontSize: 18, color: colors.text },
+  finalLine: { fontSize: 16, flexShrink: 1 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

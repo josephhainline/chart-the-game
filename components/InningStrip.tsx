@@ -5,7 +5,7 @@ import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from
 
 import { colors, fonts } from '@/constants/theme';
 import { halfLabel, inningOrdinal, playerShort } from '@/lib/format';
-import { battingSide, useStore } from '@/lib/store';
+import { battingSide } from '@/lib/store';
 import type { Game, Half, Player, Side } from '@/lib/types';
 
 type Props = {
@@ -14,7 +14,7 @@ type Props = {
   pitcher?: Player;
   /** Which side the screen is showing. Defaults to whoever is batting in the game's current half-inning. */
   side?: Side;
-  /** Final games: keep the inning/score readout but hide the steppers, half-inning controls and End Game. */
+  /** Final games: keep the inning readout but hide the steppers, half-inning controls and End Game. */
   readOnly?: boolean;
   /** The screen owns the half-inning flips (it pushes the undo entry with each one). */
   onPrevHalf: () => void;
@@ -32,23 +32,20 @@ type Props = {
 
 const webCursor = Platform.OS === 'web' ? ({ cursor: 'pointer' } as const) : null;
 
-/** Below this window width the pitcher chip drops the jersey number so the score keeps one line at 375pt. */
+/** Below this window width the pitcher chip drops the jersey number so the line stays short at 375pt. */
 const CHIP_NUMBER_MIN_WIDTH = 390;
 
 /**
  * The strip under the game header on the CTG screen, two lines. Line 1:
  * Prev half · "▲ 2nd" · Next half · HITTING/PITCHING pill · End Game at the
  * right. Line 2: the pitcher chip (or "Set pitcher") while pitching, or the
- * amber review line when the clock is behind the newest charted half; the
- * score "Us N [−][+] · Them N [−][+]" on one line at the right.
+ * amber review line when the clock is behind the newest charted half. The
+ * second line is left out while we are hitting with nothing to review.
  */
 export default function InningStrip({ game, pitcher, side, readOnly, onPrevHalf, onNextHalf, onEndGame, reviewing, onJumpAhead }: Props) {
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const { setScore } = useStore();
   const hitting = (side ?? battingSide(game)) === 'us';
-
-  const bump = (who: Side, delta: number) => setScore(game.id, { ...game.score, [who]: Math.max(0, game.score[who] + delta) });
   const pitcherRoute = `/game/${game.id}/pitcher` as const;
 
   let secondLeft: React.ReactNode = null;
@@ -123,31 +120,12 @@ export default function InningStrip({ game, pitcher, side, readOnly, onPrevHalf,
         ) : null}
       </View>
 
-      <View style={styles.line}>
-        <View style={styles.secondLeft}>{secondLeft}</View>
-        <View style={styles.score}>
-          <Text style={styles.scoreText}>Us {game.score.us}</Text>
-          {!readOnly ? (
-            <View style={styles.pair}>
-              <IconButton icon="minus" label="Us minus" onPress={() => bump('us', -1)} />
-              <IconButton icon="plus" label="Us plus" onPress={() => bump('us', 1)} />
-            </View>
-          ) : null}
-          <Text style={styles.dot}>·</Text>
-          <Text style={styles.scoreText}>Them {game.score.them}</Text>
-          {!readOnly ? (
-            <View style={styles.pair}>
-              <IconButton icon="minus" label="Them minus" onPress={() => bump('them', -1)} />
-              <IconButton icon="plus" label="Them plus" onPress={() => bump('them', 1)} />
-            </View>
-          ) : null}
-        </View>
-      </View>
+      {secondLeft ? <View style={styles.line}>{secondLeft}</View> : null}
     </View>
   );
 }
 
-function IconButton({ icon, label, onPress }: { icon: 'minus' | 'plus' | 'backward-step' | 'forward-step'; label: string; onPress: () => void }) {
+function IconButton({ icon, label, onPress }: { icon: 'backward-step' | 'forward-step'; label: string; onPress: () => void }) {
   return (
     <Pressable
       onPress={onPress}
@@ -193,7 +171,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   endGameText: { fontFamily: fonts.bold, fontSize: 12, color: colors.orange },
-  secondLeft: { flex: 1, minWidth: 0, justifyContent: 'center' },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', maxWidth: '100%', paddingVertical: 4 },
   chipText: { fontFamily: fonts.bold, fontSize: 13, lineHeight: 16, color: colors.text, flexShrink: 1 },
   linkWrap: { alignSelf: 'flex-start', paddingVertical: 4 },
@@ -212,10 +189,6 @@ const styles = StyleSheet.create({
   },
   reviewText: { fontFamily: fonts.regular, fontSize: 12, lineHeight: 14, color: colors.amberInk, flexShrink: 1 },
   reviewLink: { fontFamily: fonts.bold, textDecorationLine: 'underline' },
-  score: { flexDirection: 'row', alignItems: 'center', flexShrink: 0, gap: 4, marginLeft: 8 },
-  scoreText: { fontFamily: fonts.bold, fontSize: 16, lineHeight: 20, color: colors.text, fontVariant: ['tabular-nums'] },
-  dot: { fontFamily: fonts.bold, fontSize: 16, lineHeight: 20, color: colors.textMuted, paddingHorizontal: 2 },
-  pair: { flexDirection: 'row', gap: 4 },
   iconButton: {
     width: 28,
     height: 28,

@@ -59,11 +59,9 @@ export function featuredGameIds(games: Game[], now: Date = new Date()): Set<stri
   return ids;
 }
 
-/** "Final Score: Won 19 - 5" / "Lost 6 - 7" / "Tied 4 - 4" */
-export function finalScoreLabel(game: Pick<Game, 'score'>): string {
-  const { us, them } = game.score;
-  const word = us > them ? 'Won' : us < them ? 'Lost' : 'Tied';
-  return `Final Score: ${word} ${us} - ${them}`;
+/** "Final after 4 innings" — runs are not tracked; the W/L lines beside the row tell the story. */
+export function finalLabel(game: Pick<Game, 'inning'>): string {
+  return `Final after ${game.inning} ${game.inning === 1 ? 'inning' : 'innings'}`;
 }
 
 /** "Charting in progress · Top 3rd" */
@@ -72,7 +70,7 @@ export function inProgressLabel(game: Pick<Game, 'inning' | 'half'>): string {
 }
 
 function statusLine(game: Game, featured: boolean): string {
-  if (game.status === 'final') return finalScoreLabel(game);
+  if (game.status === 'final') return finalLabel(game);
   if (game.status === 'in_progress') return inProgressLabel(game);
   // Only the team's next game says "Next Game"; later ones just count down.
   return (featured ? upcomingLabel(game.startsAt) : countdownLabel(game.startsAt)) || 'Not charted yet';

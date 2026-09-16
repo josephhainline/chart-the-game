@@ -98,10 +98,6 @@
    "startsAtUtc": "2026-08-15T21:00:00.000Z",
    "opponent": "Kypher Redbirds 13U",
    "isAway": true,
-   "score": {
-    "us": 0,
-    "them": 10
-   },
    "innings": 4,
    "lineup": [
     "p_brady",
@@ -449,10 +445,6 @@
    "startsAtUtc": "2026-08-15T22:45:00.000Z",
    "opponent": "Sturgeon Bulldogs 14U",
    "isAway": true,
-   "score": {
-    "us": 9,
-    "them": 3
-   },
    "innings": 3,
    "lineup": [
     "p_owen_clark",
@@ -822,10 +814,6 @@
    "startsAtUtc": "2026-08-16T15:45:00.000Z",
    "opponent": "Southside Prospects 14U",
    "isAway": false,
-   "score": {
-    "us": 12,
-    "them": 0
-   },
    "innings": 3,
    "lineup": [
     "p_brady",
@@ -1150,10 +1138,6 @@
    "startsAtUtc": "2026-08-16T19:15:00.000Z",
    "opponent": "Rawlings Tigers Bottorff 14U",
    "isAway": true,
-   "score": {
-    "us": 4,
-    "them": 12
-   },
    "innings": 3,
    "lineup": [
     "p_brady",
@@ -1560,10 +1544,6 @@
    "startsAtUtc": "2026-08-22T19:15:00.000Z",
    "opponent": "Redbirds STL 14U",
    "isAway": true,
-   "score": {
-    "us": 5,
-    "them": 6
-   },
    "innings": 5,
    "lineup": [
     "p_brady",
@@ -2091,10 +2071,6 @@
    "startsAtUtc": "2026-08-22T22:45:00.000Z",
    "opponent": "Bears Ken 14U",
    "isAway": false,
-   "score": {
-    "us": 11,
-    "them": 5
-   },
    "innings": 4,
    "lineup": [
     "p_hamilton",
@@ -2521,10 +2497,6 @@
    "startsAtUtc": "2026-08-23T14:00:00.000Z",
    "opponent": "Bears Ken 14U",
    "isAway": false,
-   "score": {
-    "us": 20,
-    "them": 0
-   },
    "innings": 2,
    "lineup": [
     "p_brady",
@@ -2894,10 +2866,6 @@
    "startsAtUtc": "2026-08-23T17:30:00.000Z",
    "opponent": "Rawlings Tigers Meyer 14U",
    "isAway": true,
-   "score": {
-    "us": 5,
-    "them": 4
-   },
    "innings": 4,
    "lineup": [
     "p_brady",
@@ -3291,10 +3259,6 @@
    "startsAtUtc": "2026-08-23T21:00:00.000Z",
    "opponent": "Redbirds STL 14U",
    "isAway": true,
-   "score": {
-    "us": 11,
-    "them": 12
-   },
    "innings": 4,
    "lineup": [
     "p_brady",
@@ -3826,10 +3790,6 @@
    "startsAtUtc": "2026-09-12T13:00:00.000Z",
    "opponent": "Rawlings Tigers Meyer 14U",
    "isAway": false,
-   "score": {
-    "us": 11,
-    "them": 1
-   },
    "innings": 4,
    "lineup": [
     "p_hamilton",
@@ -4234,10 +4194,6 @@
    "startsAtUtc": "2026-09-12T17:00:00.000Z",
    "opponent": "Midwest Rebels Layne 14U",
    "isAway": true,
-   "score": {
-    "us": 13,
-    "them": 9
-   },
    "innings": 4,
    "lineup": [
     "p_hamilton",
@@ -4779,10 +4735,6 @@
    "startsAtUtc": "2026-09-13T17:00:00.000Z",
    "opponent": "PSA Chiesa 14U",
    "isAway": false,
-   "score": {
-    "us": 8,
-    "them": 4
-   },
    "innings": 5,
    "lineup": [
     "p_hamilton",
@@ -5298,10 +5250,6 @@
    "startsAtUtc": "2026-09-13T21:00:00.000Z",
    "opponent": "Missouri Gators Carmi 14U",
    "isAway": false,
-   "score": {
-    "us": 3,
-    "them": 7
-   },
    "innings": 4,
    "lineup": [
     "p_hamilton",

@@ -99,9 +99,12 @@ export function normalizeLoaded(data: AppData): AppData {
   });
   const games = data.games.map((g) => {
     const lineup = cleanSlots(g.lineup);
-    if (lineup === g.lineup) return g;
+    // Older builds tracked runs; the app is about the battles, so the score is dropped.
+    const hadScore = 'score' in g;
+    if (lineup === g.lineup && !hadScore) return g;
     changed = true;
-    return { ...g, lineup };
+    const { score: _score, ...rest } = g as Game & { score?: unknown };
+    return { ...rest, lineup };
   });
   return changed ? { ...data, teams, games } : data;
 }
@@ -159,7 +162,6 @@ export type Store = {
    * different pitcher are re-stamped too (a pitching change charted late).
    */
   setPitcher: (gameId: Id, playerId: Id | undefined, opts?: { recreditHalf?: boolean }) => void;
-  setScore: (gameId: Id, score: Game['score']) => void;
   nextHalfInning: (gameId: Id) => void;
   prevHalfInning: (gameId: Id) => void;
   setNextBatter: (gameId: Id, side: Side, index: number) => void;
@@ -183,7 +185,7 @@ export type Store = {
   /** Puts a removed at-bat back (no-op if its id exists); pointers and clock untouched. */
   restoreAtBat: (atBat: AtBat) => void;
   undoLastAtBat: (gameId: Id) => AtBat | undefined;
-  finishGame: (gameId: Id, input: { score: Game['score']; notes?: string }) => void;
+  finishGame: (gameId: Id, input?: { notes?: string }) => void;
   reopenGame: (gameId: Id) => void;
   /**
    * Puts `inId` (a player of the game's team who is not in the order) into
@@ -484,7 +486,6 @@ export function StoreProvider({ children, initialData }: { children: React.React
           half: 'top',
           ourNextBatter: 0,
           theirNextBatter: 0,
-          score: { us: 0, them: 0 },
           notes: input.notes?.trim() || undefined,
           createdAt: now(),
         };
@@ -540,14 +541,6 @@ export function StoreProvider({ children, initialData }: { children: React.React
                     : ab,
                 );
           return { ...d, atBats, games: d.games.map((g) => (g.id === gameId ? { ...g, pitcherId: playerId } : g)) };
-        }),
-
-      // Any run on the board means the game is under way.
-      setScore: (gameId, score) =>
-        updateGameIn(gameId, (g) => {
-          const next = { us: Math.max(0, score.us), them: Math.max(0, score.them) };
-          const started = next.us > 0 || next.them > 0;
-          return { ...g, score: next, status: g.status === 'scheduled' && started ? 'in_progress' : g.status };
         }),
 
       nextHalfInning: (gameId) =>
@@ -721,8 +714,7 @@ export function StoreProvider({ children, initialData }: { children: React.React
         updateGameIn(gameId, (g) => ({
           ...g,
           status: 'final',
-          score: input.score,
-          notes: input.notes?.trim() || undefined,
+          notes: input?.notes?.trim() || undefined,
           finishedAt: now(),
         }));
         flushNow();

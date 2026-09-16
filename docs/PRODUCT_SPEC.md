@@ -96,7 +96,7 @@ after the first visit; the Account screen has "Replay intro".
 shows the team name; back chevron returns to My Teams.
 - Home: games grouped by month bands ("Sept 2026"). Each row: "@ Opponent" or
   "vs Opponent", weekday/date/time, then either
-  - final: "Final Score: Won 19 - 5" + notes line, and on the right
+  - final: "Final after 4 innings" + notes line, and on the right
     "HITTING: 29W / 7L" and "PITCHING: 9W / 3L" (green when W ≥ L, red
     otherwise), or
   - upcoming: "Next Game in 4 Days" ("Game Day: Today", "Next Game:
@@ -152,8 +152,10 @@ returns to the team's Home.
     is behind the newest charted half (after Prev half, or after the editor
     moves an at-bat to a later half than the clock) an amber review line
     "Reviewing ▲ 1st · game is in ▼ 2nd · Jump ahead" replaces it; Jump ahead
-    steps Next half until the clock reaches that half. Right:
-    "Us N [−][+] · Them N [−][+]" on one line. Away team bats in the top half.
+    steps Next half until the clock reaches that half. The second line is
+    left out while we are hitting with nothing to review. Runs are not
+    tracked anywhere: the app is about each player's battles, not the
+    scoreboard. Away team bats in the top half.
   - Batting-order list: one row per batter of the side at bat — number, name
     and, when the batter has at-bats this game, the label of this half's
     newest at-bat followed by one mini chip per at-bat this game (tinted W/L
@@ -227,7 +229,7 @@ returns to the team's Home.
     to live. Selecting an at-bat of the side not batting peeks that side's
     order (light-blue rows, no tags or skip targets) until the selection
     clears — on any commit, ▶ Now, a half change, End Game or leaving the
-    screen. Pointer, clock and score never change on a re-judge.
+    screen. Pointer and clock never change on a re-judge.
   - Undo is a per-game session stack (20 deep; survives tab switches, not a
     reload): record → delete it (a batter-sheet backfill leaves the pointer
     where it is); skip → the skipped-from batter is due up again; Next/Prev
@@ -248,11 +250,12 @@ returns to the team's Home.
     behind an orange **Set pitcher** in the dock header (and the strip's
     link); picking one credits this half's unassigned opponent at-bats.
   - A game becomes "in progress" on the first at-bat, half-inning change,
-    score change, or batter skip.
-  - **End Game** opens the finish sheet (final score, notes) and marks the
+    or batter skip.
+  - **End Game** opens the finish sheet (the game's HITTING and PITCHING
+    W/L as a recap, notes) and marks the
     game final. A finished game's CTG tab shows our lineup with every at-bat
     as a tile (tap to open the editor) and each player's game W/L under the
-    "Final: Won 19 - 5" band with **Reopen game**. A player who left his slot
+    "Final" band (which carries the game's hitting W/L) with **Reopen game**. A player who left his slot
     through a substitution keeps a muted row at that slot number right above
     the player who took it, captioned "OUT ▲ 4th"; the replacement's row reads
     "IN ▲ 4th" (a re-entered player appears once, with his latest entry).
@@ -294,7 +297,7 @@ returns to the team's Home.
     with name, HOT / COLD tag, form line and "Started · out ▲ 4th" when he
     left this game earlier. Tapping a row puts him in the outgoing batter's
     slot — nothing else in the order moves, the batter due up stays due up,
-    and the clock, score and pitcher are untouched — records the substitution
+    and the clock and pitcher are untouched — records the substitution
     at the game's current half-inning, pushes "Undo sub", and closes; when the
     outgoing batter was our pitcher the pitcher picker opens instead of
     closing. A caption under the list explains: "The sub takes slot N. Cooper
@@ -352,7 +355,6 @@ type Game = {
   pitcherId?: Id;                                  // our current pitcher
   inning: number; half: 'top' | 'bottom';
   ourNextBatter: number; theirNextBatter: number;  // indices into the orders
-  score: { us: number; them: number };
   substitutions?: Substitution[];                  // oldest first; absent on older documents and on games with none
   notes?: string;
   createdAt: string; finishedAt?: string;
@@ -483,26 +485,26 @@ The default lineup is the starting order of the first Sep 12 game: players
 1–10 above, in that order; the bench is Owen Clark, JD, Chase, Rhett and
 Angel. Jersey numbers are kept as captured ("04" stays "04").
 
-Games (all `final`, in this order; `@` = away, `vs` = home; score us-them):
+Games (all `final`, in this order; `@` = away, `vs` = home):
 
-| id | weekend | opponent | score | inn. |
-|----|---------|----------|-------|------|
-| `g_0815_1` | Sat −4, 4:00pm | @ Kypher Redbirds 13U | 0-10 | 4 |
-| `g_0815_2` | Sat −4, 5:45pm | @ Sturgeon Bulldogs 14U | 9-3 | 3 |
-| `g_0816_1` | Sun −4, 10:45am | vs Southside Prospects 14U | 12-0 | 3 |
-| `g_0816_2` | Sun −4, 2:15pm | @ Rawlings Tigers Bottorff 14U | 4-12 | 3 |
-| `g_0822_1` | Sat −3, 2:15pm | @ Redbirds STL 14U | 5-6 | 5 |
-| `g_0822_2` | Sat −3, 5:45pm | @ Bears Ken 14U | 11-5 | 4 |
-| `g_0823_1` | Sun −3, 9:00am | vs Bears Ken 14U | 20-0 | 2 |
-| `g_0823_2` | Sun −3, 12:30pm | @ Rawlings Tigers Meyer 14U | 5-4 | 4 |
-| `g_0823_3` | Sun −3, 4:00pm | @ Redbirds STL 14U | 11-12 | 4 |
-| `g_0912_1` | Sat 0, 8:00am | vs Rawlings Tigers Meyer 14U | 11-1 | 4 |
-| `g_0912_2` | Sat 0, 12:00pm | @ Midwest Rebels Layne 14U | 13-9 | 4 |
-| `g_0913_1` | Sun 0, 12:00pm | vs PSA Chiesa 14U | 8-4 | 5 |
-| `g_0913_2` | Sun 0, 4:00pm | vs Missouri Gators Carmi 14U | 3-7 | 4 |
+| id | weekend | opponent | inn. |
+|----|---------|----------|------|
+| `g_0815_1` | Sat −4, 4:00pm | @ Kypher Redbirds 13U | 4 |
+| `g_0815_2` | Sat −4, 5:45pm | @ Sturgeon Bulldogs 14U | 3 |
+| `g_0816_1` | Sun −4, 10:45am | vs Southside Prospects 14U | 3 |
+| `g_0816_2` | Sun −4, 2:15pm | @ Rawlings Tigers Bottorff 14U | 3 |
+| `g_0822_1` | Sat −3, 2:15pm | @ Redbirds STL 14U | 5 |
+| `g_0822_2` | Sat −3, 5:45pm | vs Bears Ken 14U | 4 |
+| `g_0823_1` | Sun −3, 9:00am | vs Bears Ken 14U | 2 |
+| `g_0823_2` | Sun −3, 12:30pm | @ Rawlings Tigers Meyer 14U | 4 |
+| `g_0823_3` | Sun −3, 4:00pm | @ Redbirds STL 14U | 4 |
+| `g_0912_1` | Sat 0, 8:00am | vs Rawlings Tigers Meyer 14U | 4 |
+| `g_0912_2` | Sat 0, 12:00pm | @ Midwest Rebels Layne 14U | 4 |
+| `g_0913_1` | Sun 0, 12:00pm | vs PSA Chiesa 14U | 5 |
+| `g_0913_2` | Sun 0, 4:00pm | vs Missouri Gators Carmi 14U | 4 |
 
 Each final game carries its real starting order with the captured
-substitutions applied (eleven games have them; `g_0823_1` has three in one
+substitutions applied (twelve games have them; `g_0823_1` has three in one
 half-inning, `g_0913_1` a re-entry: JD for Chase and Chase back for JD), the
 `substitutions` records, an opponent order of one "Batter N" per jersey
 number seen (in order of first appearance, jersey as the number, unknown
@@ -516,9 +518,10 @@ from it, so the season has typed and plain at-bats on both sides: 314 of our
 plate appearances and 265 of theirs. Cooper ends the season +19 and Owen
 Haynes +17.
 
-As captured, six games have a batter the GameChanger stream never put in
-the order (they show as LEFT GAME rows) and `g_0822_2` was scored with the
-halves the other way round from its away flag.
+The builder replays GameChanger's lineup events, so a slot the scorer
+cleared and refilled counts as a substitution and every batter is in the
+order; home/away comes from the half we batted in (the scorer's flag was
+wrong for `g_0822_2`). No game keeps its run totals.
 
 One scheduled game, `g_next`: **vs Bears Ken 14U**, next Saturday 10:00am,
 the default lineup, a default opponent order ("Batter 1…9"), no pitcher and
@@ -557,5 +560,6 @@ About page body (verbatim from prototype):
 
 ## 8. Out of scope for this prototype
 
-Real authentication, multi-device sync, opponent scouting, pitch counts,
+Runs and the scoreboard (the app scores battles, not innings), real
+authentication, multi-device sync, opponent scouting, pitch counts,
 box-score stats (AVG/OBP), exporting. Everything is local to the browser.

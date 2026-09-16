@@ -79,7 +79,6 @@ export type Game = {
   ourNextBatter: number;
   /** Index into `opponentLineup` of the next batter due up for them. */
   theirNextBatter: number;
-  score: { us: number; them: number };
   /** Every substitution made in our order, oldest first. Absent on documents written before the feature. */
   substitutions?: Substitution[];
   notes?: string;

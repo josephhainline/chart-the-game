@@ -40,7 +40,6 @@ export type DemoGame = {
   startsAtUtc: string;
   opponent: string;
   isAway: boolean;
-  score: { us: number; them: number };
   innings: number;
   /** The STARTING order, before any substitution. */
   lineup: Id[];
@@ -236,7 +235,6 @@ function buildGame(now: Date, source: DemoGame, players: Map<Id, Player>): { gam
     half: 'bottom',
     ourNextBatter: 0,
     theirNextBatter: 0,
-    score: { us: source.score.us, them: source.score.them },
     createdAt: addDays(startsAt, -1).toISOString(),
     finishedAt: addHours(startsAt, 2).toISOString(),
   };
@@ -297,7 +295,6 @@ export function buildDemoData(now: Date = new Date()): AppData {
     half: 'top',
     ourNextBatter: 0,
     theirNextBatter: 0,
-    score: { us: 0, them: 0 },
     createdAt: addDays(nextStartsAt, -1).toISOString(),
   });
 

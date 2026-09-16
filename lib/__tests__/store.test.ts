@@ -1017,7 +1017,6 @@ describe('StoreProvider actions', () => {
         half: 'top',
         ourNextBatter: 0,
         theirNextBatter: 0,
-        score: { us: 0, them: 0 },
         notes: 'Home opener',
       });
       expect(g.opponentLineup.map((b) => b.name)).toEqual(Array.from({ length: 9 }, (_, i) => `Batter ${i + 1}`));
@@ -1534,20 +1533,6 @@ describe('StoreProvider actions', () => {
       });
     });
 
-    it('setScore never stores a negative run total', () => {
-      run((s) => s.setScore(SCHEDULED, { us: -1, them: 3 }));
-      expect(game(SCHEDULED).score).toEqual({ us: 0, them: 3 });
-    });
-
-    it('setScore starts a scheduled game once a run is on the board, but 0-0 leaves it scheduled', () => {
-      run((s) => s.setScore(SCHEDULED, { us: 0, them: 0 }));
-      expect(game(SCHEDULED).status).toBe('scheduled');
-      run((s) => s.setScore(SCHEDULED, { us: 0, them: 1 }));
-      expect(game(SCHEDULED).status).toBe('in_progress');
-      run((s) => s.setScore('g_0823_3', { us: 20, them: 5 }));
-      expect(game('g_0823_3').status).toBe('final');
-    });
-
     it('setNextBatter starts a scheduled game and never touches a final one', () => {
       run((s) => s.setNextBatter(SCHEDULED, 'us', 3));
       expect(game(SCHEDULED)).toMatchObject({ status: 'in_progress', ourNextBatter: 3 });
@@ -1555,11 +1540,10 @@ describe('StoreProvider actions', () => {
       expect(game('g_0823_3')).toMatchObject({ status: 'final', theirNextBatter: 2 });
     });
 
-    it('finishGame marks the game final with score, notes and finishedAt; reopenGame reverts', () => {
-      run((s) => s.finishGame(SCHEDULED, { score: { us: 5, them: 4 }, notes: '  Walk-off  ' }));
+    it('finishGame marks the game final with notes and finishedAt; reopenGame reverts', () => {
+      run((s) => s.finishGame(SCHEDULED, { notes: '  Walk-off  ' }));
       const g = game(SCHEDULED);
       expect(g.status).toBe('final');
-      expect(g.score).toEqual({ us: 5, them: 4 });
       expect(g.notes).toBe('Walk-off');
       expect(g.finishedAt).toBeDefined();
       run((s) => s.reopenGame(SCHEDULED));
@@ -1607,7 +1591,7 @@ describe('StoreProvider actions', () => {
       expect(storage.setItem).toHaveBeenCalledTimes(2);
       expect(lastWritten()!.atBats.some((x) => x.gameId === SCHEDULED)).toBe(false);
 
-      run((s) => s.finishGame(SCHEDULED, { score: { us: 1, them: 0 } }));
+      run((s) => s.finishGame(SCHEDULED));
       expect(storage.setItem).toHaveBeenCalledTimes(3);
       expect(lastWritten()!.games.find((g) => g.id === SCHEDULED)!.status).toBe('final');
 
@@ -1755,6 +1739,15 @@ describe('StoreProvider loading', () => {
       // Untouched parts keep their identity.
       const untouchedTeam = old.teams.find((t) => t.defaultLineup.length === 0)!;
       expect(clean.teams.find((t) => t.id === untouchedTeam.id)).toBe(untouchedTeam);
+    });
+
+    it('normalizeLoaded drops the run totals an older build stored on games', () => {
+      const withScore = { ...demo, games: demo.games.map((g, i) => (i === 0 ? { ...g, score: { us: 4, them: 2 } } : g)) } as AppData;
+      const clean = normalizeLoaded(withScore);
+      expect(clean).not.toBe(withScore);
+      expect(clean.games.some((g) => 'score' in g)).toBe(false);
+      expect(clean.games.map((g) => g.id)).toEqual(withScore.games.map((g) => g.id));
+      expect(clean.games[1]).toBe(withScore.games[1]);
     });
 
     it('normalizeLoaded returns the very same object when every slot is already clean', () => {

@@ -66,7 +66,6 @@ function game(id: Id, teamId: Id): Game {
     half: 'top',
     ourNextBatter: 0,
     theirNextBatter: 0,
-    score: { us: 0, them: 0 },
     createdAt: '2026-09-01T14:00:00.000Z',
   };
 }

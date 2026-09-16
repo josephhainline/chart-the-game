@@ -92,8 +92,8 @@ describe('buildDemoData: determinism', () => {
   it('keeps every id, batter, result and outcome when built for a different date: only the calendar moves', () => {
     const other = buildDemoData(new Date('2027-03-01T08:00:00'));
     expect(other.games.map((g) => g.id)).toEqual(data.games.map((g) => g.id));
-    expect(other.games.map((g) => [g.lineup, g.substitutions?.map(({ at: _at, ...rest }) => rest), g.score, g.pitcherId])).toEqual(
-      data.games.map((g) => [g.lineup, g.substitutions?.map(({ at: _at, ...rest }) => rest), g.score, g.pitcherId]),
+    expect(other.games.map((g) => [g.lineup, g.substitutions?.map(({ at: _at, ...rest }) => rest), g.pitcherId])).toEqual(
+      data.games.map((g) => [g.lineup, g.substitutions?.map(({ at: _at, ...rest }) => rest), g.pitcherId]),
     );
     expect(other.atBats.map((x) => [x.id, x.batterId, x.pitcherId, x.result, x.outcomeId, x.inning, x.half])).toEqual(
       data.atBats.map((x) => [x.id, x.batterId, x.pitcherId, x.result, x.outcomeId, x.inning, x.half]),
@@ -184,13 +184,14 @@ describe('buildDemoData: games', () => {
     for (const r of REAL_GAMES) {
       const g = gameById.get(r.id)!;
       const s = sourceOf(r.id);
-      expect(g).toMatchObject({ opponent: s.opponent, isAway: s.isAway, score: s.score, inning: s.innings, half: 'bottom', status: 'final' });
+      expect(g).toMatchObject({ opponent: s.opponent, isAway: s.isAway, inning: s.innings, half: 'bottom', status: 'final' });
+      expect('score' in g).toBe(false);
       expect(g.ourNextBatter).toBe(0);
       expect(g.theirNextBatter).toBe(0);
       expect(g.notes).toBeUndefined();
     }
-    expect(gameById.get('g_0823_1')).toMatchObject({ opponent: 'Bears Ken 14U', isAway: false, score: { us: 20, them: 0 }, inning: 2 });
-    expect(gameById.get('g_0913_2')).toMatchObject({ opponent: 'Missouri Gators Carmi 14U', isAway: false, score: { us: 3, them: 7 }, inning: 4 });
+    expect(gameById.get('g_0823_1')).toMatchObject({ opponent: 'Bears Ken 14U', isAway: false, inning: 2 });
+    expect(gameById.get('g_0913_2')).toMatchObject({ opponent: 'Missouri Gators Carmi 14U', isAway: false, inning: 4 });
   });
 
   describe('the calendar', () => {
@@ -260,12 +261,11 @@ describe('buildDemoData: games', () => {
     });
   });
 
-  it('the scheduled game is untouched: top of the 1st, nobody up, 0-0, the default lineup, no pitcher, no at-bats', () => {
+  it('the scheduled game is untouched: top of the 1st, nobody up, the default lineup, no pitcher, no at-bats', () => {
     expect(nextGame.inning).toBe(1);
     expect(nextGame.half).toBe('top');
     expect(nextGame.ourNextBatter).toBe(0);
     expect(nextGame.theirNextBatter).toBe(0);
-    expect(nextGame.score).toEqual({ us: 0, them: 0 });
     expect(nextGame.finishedAt).toBeUndefined();
     expect(nextGame.notes).toBeUndefined();
     expect(nextGame.substitutions).toBeUndefined();

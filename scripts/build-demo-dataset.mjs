@@ -9,8 +9,7 @@
  * scorekeeping stream: roster, starting lineup, substitutions) and a footage
  * manifest (`footage/<yyyy-mm-dd>/manifest.json`) whose `games[i].plays` is the
  * play-by-play reconstructed from that stream by `tools/reconstruct_plays.py`
- * and whose `games[i].meta` carries the opponent, home/away, scheduled start and
- * final score.
+ * and whose `games[i].meta` carries the opponent, home/away and scheduled start.
  *
  * What this script does with them:
  *   - roster: the 15 players who appeared for the Bears in those games, with
@@ -320,7 +319,6 @@ for (const [harFile, date, index] of SPEC) {
     opponent: OPP[meta.opponent] || meta.opponent,
     // Which half we batted in is the truth; the scorer's home/away flag is wrong for one game.
     isAway: ourHalf === 'top',
-    score: meta.score,
     innings: maxInning,
     lineup,
     subs: subsOut,
@@ -346,6 +344,6 @@ for (const g of games) {
   const them = g.atBats.filter((a) => a.side === 'them').length;
   const subs = g.subs.map((s) => `${s.inId}>${s.outId}@${s.at.inning}`).join(' ');
   console.log(
-    `${g.key} | ${g.startsAtUtc} ${g.isAway ? '@' : 'vs'} ${g.opponent} | ${g.score.us}-${g.score.them} | inn ${g.innings} | us PAs ${us} them ${them} | lineup ${g.lineup.length} | subs ${subs}`,
+    `${g.key} | ${g.startsAtUtc} ${g.isAway ? '@' : 'vs'} ${g.opponent} | inn ${g.innings} | us PAs ${us} them ${them} | lineup ${g.lineup.length} | subs ${subs}`,
   );
 }
