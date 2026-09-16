@@ -61,6 +61,38 @@ export function gamePitching(atBats: AtBat[], gameId: Id): WL {
   return wl;
 }
 
+/** One of our pitchers' line for a game (see `gamePitcherLines`). */
+export type PitcherLine = {
+  player: Player;
+  /** From our pitcher's side: W = the batter lost the battle. */
+  wl: WL;
+  /** First and last inning he faced a batter; undefined before his first at-bat. */
+  innings?: { from: number; to: number };
+};
+
+/**
+ * Our pitchers in a game, in the order they first faced a batter, each with
+ * his W/L and the innings he pitched. The game's current pitcher is listed
+ * even before he has faced anyone. Opposing batters are not tracked as
+ * individuals: the pitching side of a game is our pitchers' battles only.
+ */
+export function gamePitcherLines(atBats: AtBat[], gameId: Id, players: Player[], currentPitcherId?: Id): PitcherLine[] {
+  const byId = new Map(players.map((p) => [p.id, p]));
+  const lines = new Map<Id, PitcherLine>();
+  const theirs = atBats.filter((ab) => ab.gameId === gameId && ab.side === 'them' && ab.pitcherId !== undefined).sort(compareAtBats);
+  for (const ab of theirs) {
+    const player = byId.get(ab.pitcherId!);
+    if (!player) continue;
+    const line = lines.get(player.id) ?? { player, wl: ZERO };
+    line.wl = addResult(line.wl, ab.result === 'L');
+    line.innings = line.innings ? { from: line.innings.from, to: Math.max(line.innings.to, ab.inning) } : { from: ab.inning, to: ab.inning };
+    lines.set(player.id, line);
+  }
+  const current = currentPitcherId ? byId.get(currentPitcherId) : undefined;
+  if (current && !lines.has(current.id)) lines.set(current.id, { player: current, wl: ZERO });
+  return [...lines.values()];
+}
+
 export type StatMode = 'hitting' | 'pitching';
 
 export type StatRow = {

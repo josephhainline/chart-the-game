@@ -264,6 +264,11 @@ returns to the team's Home.
     tiles add up to the game's hitting line; recording again needs Reopen
     game.
 - Game sheets (modal routes beside End Game and Edit Game, orange header):
+  - Pitcher sheet `/game/[gameId]/pitching/[playerId]`: "Weedon Hainline
+    (#04) · pitching", his W/L and innings this game, then every batter he
+    faced, newest first ("▲ 2nd · Batter 6 (#11) · Strikeout Swinging" with a
+    tile from the pitcher's side), each opening the at-bat editor. This is how
+    an opposing at-bat is re-judged after the game.
   - At-bat editor `/game/[gameId]/atbat/[atBatId]`: title "Cooper Woollen
     (#50) · ▲ 2nd" (pitching: "Batter 3 · ▼ 2nd · Weedon H. (#04) pitching"),
     a large tile with "W · Fly Out, Hard Hit Ball" / "W · no play type", two
@@ -324,9 +329,15 @@ returns to the team's Home.
   GAME" rows ("–" for the slot) after the order, so the grid reconciles with
   the totals. Under the
   HITTING / PITCHING line a caption reads "N at-bats without a play type"
-  when N > 0. A second section shows the opponent grid (our pitching). The
-  W-L totals column stays pinned on the right; five or more innings scroll
-  sideways.
+  when N > 0. The W-L totals column stays pinned on the right; five or more
+  innings scroll sideways. The **Pitching** section (purple band) is a list
+  of our pitchers only, in the order they pitched: Pitcher · Innings
+  ("1st–3rd") · W / L (pitcher's side) · Score, with a Totals row; the game's
+  current pitcher is listed before he has faced anyone ("Not yet"). Opposing
+  batters are never tracked as individuals. Tapping a pitcher opens the
+  pitcher sheet.
+  The team-level Stats tab (outside a game) covers every game of the season;
+  this tab covers the one game.
 
 ## 4. Data model (persisted as one JSON document in AsyncStorage)
 

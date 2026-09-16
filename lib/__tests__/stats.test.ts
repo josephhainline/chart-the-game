@@ -15,6 +15,7 @@ import {
   formRating,
   formScore,
   gameHitting,
+  gamePitcherLines,
   gamePitching,
   hittingFor,
   lastGameLine,
@@ -169,6 +170,54 @@ describe('gameHitting / gamePitching', () => {
     expect(gamePitching(atBats, 'g1')).toEqual({ w: 2, l: 1 });
     expect(gamePitching(atBats, 'g2')).toEqual({ w: 0, l: 1 });
     expect(gamePitching(atBats, 'g3')).toEqual(ZERO);
+  });
+});
+
+describe('gamePitcherLines', () => {
+  const p1 = player('p1', 't', 'Weedon', 'Hainline');
+  const p9 = player('p9', 't', 'Lucas', 'Kloster');
+  const p5 = player('p5', 't', 'Chase', 'Baker');
+  const players = [p5, p9, p1];
+  const atBats: AtBat[] = [
+    ab({ batterId: 'ob1', result: 'L', side: 'them', pitcherId: 'p1', inning: 1, half: 'bottom', recordedAt: '2026-09-07T14:01:00.000Z' }),
+    ab({ batterId: 'ob2', result: 'W', side: 'them', pitcherId: 'p1', inning: 2, half: 'bottom', recordedAt: '2026-09-07T14:10:00.000Z' }),
+    ab({ batterId: 'ob3', result: 'L', side: 'them', pitcherId: 'p9', inning: 3, half: 'bottom', recordedAt: '2026-09-07T14:20:00.000Z' }),
+    ab({ batterId: 'ob1', result: 'L', side: 'them', pitcherId: 'p1', inning: 4, half: 'bottom', recordedAt: '2026-09-07T14:30:00.000Z' }),
+    ab({ batterId: 'p1', result: 'W', inning: 1, half: 'top' }),
+    ab({ batterId: 'ob1', result: 'W', side: 'them', pitcherId: 'p9', gameId: 'g2' }),
+  ];
+
+  it('lists our pitchers in the order they first faced a batter, from the pitcher side, with the innings they worked', () => {
+    expect(gamePitcherLines(atBats, 'g1', players)).toEqual([
+      { player: p1, wl: { w: 2, l: 1 }, innings: { from: 1, to: 4 } },
+      { player: p9, wl: { w: 1, l: 0 }, innings: { from: 3, to: 3 } },
+    ]);
+  });
+
+  it('adds the current pitcher with nothing faced yet, and skips one who has already pitched', () => {
+    expect(gamePitcherLines(atBats, 'g1', players, 'p5')).toEqual([
+      { player: p1, wl: { w: 2, l: 1 }, innings: { from: 1, to: 4 } },
+      { player: p9, wl: { w: 1, l: 0 }, innings: { from: 3, to: 3 } },
+      { player: p5, wl: ZERO },
+    ]);
+    expect(gamePitcherLines(atBats, 'g1', players, 'p9')).toHaveLength(2);
+    expect(gamePitcherLines(atBats, 'g3', players)).toEqual([]);
+    expect(gamePitcherLines(atBats, 'g3', players, 'p1')).toEqual([{ player: p1, wl: ZERO }]);
+  });
+
+  it('ignores at-bats whose pitcher is unknown or no longer on the roster', () => {
+    const extra = [...atBats, ab({ batterId: 'ob4', result: 'L', side: 'them' }), ab({ batterId: 'ob4', result: 'L', side: 'them', pitcherId: 'gone' })];
+    expect(gamePitcherLines(extra, 'g1', players).map((l) => l.player.id)).toEqual(['p1', 'p9']);
+  });
+
+  it('matches the demo season: every game lists the pitchers who faced a batter and their totals add up to gamePitching', () => {
+    const data = buildDemoData(new Date('2026-09-15T12:00:00'));
+    for (const g of data.games.filter((x) => x.status === 'final')) {
+      const lines = gamePitcherLines(data.atBats, g.id, data.players, g.pitcherId);
+      const sum = lines.reduce((acc, l) => ({ w: acc.w + l.wl.w, l: acc.l + l.wl.l }), ZERO);
+      expect(sum).toEqual(gamePitching(data.atBats, g.id));
+      expect(lines.some((l) => l.player.id === g.pitcherId)).toBe(true);
+    }
   });
 });
 

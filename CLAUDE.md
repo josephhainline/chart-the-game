@@ -27,7 +27,8 @@ FontAwesome6 from `@expo/vector-icons` only. No react-native-paper, no lucide.
   (Home · Team · Lineup · Stats), `game/[gameId]/(tabs)` (Home · Team ·
   Opponent · CTG · Stats). Modal forms sit beside each `(tabs)` group; the
   game level's sheets are `atbat/[atBatId]`, `batter/[side]/[batterId]`,
-  `sub/[batterId]` (substitution: the bench hottest first) and `pitcher`.
+  `sub/[batterId]` (substitution: the bench hottest first), `pitcher` and
+  `pitching/[playerId]` (one pitcher's at-bats in a game).
 - `lib/` — `types.ts` (data model), `store.tsx` (single-document state +
   AsyncStorage persistence + every action, incl. `substitute`/
   `undoSubstitution` and `normalizeLoaded` for old documents), `stats.ts`
@@ -48,7 +49,7 @@ FontAwesome6 from `@expo/vector-icons` only. No react-native-paper, no lucide.
   plus feature components (`CaptureDock`, `InningStrip`, `CTGGauge`,
   `OutcomeButtons`, `ResultTile`, `MiniChips`, `FormLine` (last-six chips +
   HOT/COLD tag), `LineupEditor` (order rows with swap/remove controls),
-  `StatsTable`, `Scorebook`, `GameRow`, …).
+  `StatsTable`, `Scorebook`, `PitcherList`, `GameRow`, …).
 - `constants/theme.ts` — every color/font/size token (sampled from the PNGs).
 
 ## Conventions

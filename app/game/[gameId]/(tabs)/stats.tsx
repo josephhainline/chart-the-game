@@ -3,15 +3,16 @@ import React, { useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import AppHeader from '@/components/AppHeader';
+import PitcherList from '@/components/PitcherList';
 import Scorebook, { type ScorebookRowView } from '@/components/Scorebook';
 import Screen from '@/components/Screen';
-import { WLText } from '@/components/ui';
+import { SectionBand, WLText } from '@/components/ui';
 import { colors, fonts } from '@/constants/theme';
-import { gameTitle, halfLabel, opponentBatterLabel, playerShort } from '@/lib/format';
+import { gameTitle, halfLabel, playerShort } from '@/lib/format';
 import { isPlain, outcomeShort } from '@/lib/outcomes';
-import { gameHitting, gamePitching, orderWithLeavers, pitcherResult, scorebook, type OrderRow } from '@/lib/stats';
+import { gameHitting, gamePitcherLines, gamePitching, orderWithLeavers, scorebook, type OrderRow } from '@/lib/stats';
 import { useGame, useGameAtBats, useStore } from '@/lib/store';
-import type { Player, Side } from '@/lib/types';
+import type { Player } from '@/lib/types';
 
 const EMPTY_BOOK = { innings: [] as number[], rows: [] as ScorebookRowView[] };
 
@@ -28,12 +29,14 @@ function rowNote(row: OrderRow): string | undefined {
 }
 
 /**
- * Game-level Stats tab: the scorebook grids for our hitting and our pitching.
- * Every cell with an at-bat opens the editor (a multi-at-bat cell opens the
- * batter sheet). A batter who left his slot through a substitution keeps a
+ * Game-level Stats tab: the hitting scorebook grid and our pitchers as a list.
+ * Every grid cell with an at-bat opens the editor (a multi-at-bat cell opens
+ * the batter sheet). A batter who left his slot through a substitution keeps a
  * muted "OUT" row right above the "IN" row of the player who took it (same
  * slot number); batters removed from the order with the lineup editor keep
  * their at-bats in muted "LEFT GAME" rows so the grid reconciles with the totals.
+ * The pitching side lists our pitchers only (innings, W/L, score); tapping one
+ * opens the pitcher sheet with his at-bats. Opposing batters are not tracked.
  */
 export default function GameStatsScreen() {
   const { gameId } = useLocalSearchParams<{ gameId: string }>();
@@ -63,25 +66,7 @@ export default function GameStatsScreen() {
     return { innings: book.innings, rows };
   }, [game, atBats, data.players, minInnings]);
 
-  const pitching = useMemo(() => {
-    if (!game) return EMPTY_BOOK;
-    const byId = new Map(game.opponentLineup.map((b) => [b.id, b]));
-    const book = scorebook(atBats, game.id, 'them', orderWithLeavers(game, atBats, 'them'), minInnings);
-    const rows: ScorebookRowView[] = book.rows.map((r) => {
-      const batter = byId.get(r.batter.id);
-      return {
-        id: r.batter.id,
-        slot: slotLabel(r.batter),
-        name: batter ? opponentBatterLabel(batter) : 'Batter (left)',
-        // Shown from our pitcher's side: green when our pitcher won the battle.
-        innings: r.innings.map((abs) => abs.map((ab) => ({ atBatId: ab.id, result: pitcherResult(ab), short: outcomeShort(ab.outcomeId) }))),
-        wl: r.wl,
-        muted: r.batter.status !== 'in',
-        note: rowNote(r.batter),
-      };
-    });
-    return { innings: book.innings, rows };
-  }, [game, atBats, minInnings]);
+  const pitchers = useMemo(() => (game ? gamePitcherLines(atBats, game.id, data.players, game.pitcherId) : []), [game, atBats, data.players]);
 
   if (!game) return null;
 
@@ -90,9 +75,9 @@ export default function GameStatsScreen() {
   const plainCount = atBats.filter((ab) => isPlain(ab.outcomeId)).length;
 
   /** One at-bat opens the editor; a cell with several opens the batter sheet listing them. */
-  const openCell = (side: Side) => (atBatIds: string[], rowId: string) => {
+  const openCell = (atBatIds: string[], rowId: string) => {
     if (atBatIds.length === 1) router.push(`/game/${game.id}/atbat/${atBatIds[0]}`);
-    else router.push(`/game/${game.id}/batter/${side}/${rowId}`);
+    else router.push(`/game/${game.id}/batter/us/${rowId}`);
   };
 
   return (
@@ -119,9 +104,10 @@ export default function GameStatsScreen() {
           </Text>
         ) : null}
 
-        <Scorebook innings={hitting.innings} rows={hitting.rows} onPressCell={openCell('us')} />
+        <Scorebook innings={hitting.innings} rows={hitting.rows} onPressCell={openCell} />
         <View style={styles.gap} />
-        <Scorebook title="Pitching" color={colors.pitching} innings={pitching.innings} rows={pitching.rows} onPressCell={openCell('them')} />
+        <SectionBand title="Pitching" color={colors.pitching} textColor={colors.white} />
+        <PitcherList lines={pitchers} onPress={(playerId) => router.push(`/game/${game.id}/pitching/${playerId}`)} />
       </ScrollView>
     </Screen>
   );
