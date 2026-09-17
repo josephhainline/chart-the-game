@@ -70,6 +70,14 @@ CloudFront cache. Add `--skip-build` to re-upload an existing `dist-web/`.
 `node scripts/deploy-web.mjs status` prints the stack outputs (URLs,
 bucket, distribution id, nameservers).
 
+Do not roll back to a build older than the version-2 document (issue #1,
+Sept 2026) once the site has been charted with a newer one. The app keeps
+its whole document under `localStorage['ctg:data:v1']`; an older build only
+reads version 1, so on the same origin it parks a version-2 document under
+`ctg:data:backup` and reseeds the demo, and no build restores from the
+backup key. Deploying forward is safe: the new build migrates a version-1
+document on load and writes it back once (`docs/PRODUCT_SPEC.md` §4).
+
 ## How routing works
 
 CloudFront maps S3's 403/404 for any missing key to `/index.html` with a

@@ -4,7 +4,7 @@ import { AppState, Platform } from 'react-native';
 
 import { newestAtBat } from './atbats';
 import { newId } from './ids';
-import { getOutcome } from './outcomes';
+import { getOutcome, outcomeSide } from './outcomes';
 import { buildDemoData } from './seed';
 import { primeTypesExpanded } from './uiPrefs';
 import { clearAllUndo, clearUndo } from './undo';
@@ -19,6 +19,7 @@ import type {
   OutcomeId,
   Player,
   Side,
+  StoredDocument,
   Substitution,
   Team,
 } from './types';
@@ -83,11 +84,61 @@ function cleanSlots(slots: LineupSlot[]): LineupSlot[] {
 }
 
 /**
- * Brings a saved version-1 document up to this build's shape: lineup slots
- * used to carry a fielding `position`, which is gone. Every stray key on a
- * team's default lineup or a game's order is dropped. Returns the very same
- * object when nothing needed changing, so the loader knows whether to write
- * the cleaned document back.
+ * How a version-1 opponent at-bat is re-expressed: the batter outcome it was
+ * charted with becomes the pitcher outcome naming the same play, carrying our
+ * pitcher's grade. A version-1 `result` on a 'them' at-bat was the BATTER's
+ * letter, so the plain pair swaps (an old plain W was a pitcher L). Outs the
+ * old inversion graded W stay plain: the coach never judged their contact.
+ * The only line that moves is the walk after two called strikes, which the
+ * old rule counted as a pitcher W.
+ */
+const V1_THEM_OUTCOMES: Partial<Record<OutcomeId, { outcomeId: OutcomeId; result: AtBat['result'] }>> = {
+  k_swinging: { outcomeId: 'p_k_swinging', result: 'W' },
+  k_looking: { outcomeId: 'p_k_looking', result: 'W' },
+  walk_clean: { outcomeId: 'p_walk', result: 'L' },
+  walk_2_looking: { outcomeId: 'p_walk', result: 'L' },
+  hit: { outcomeId: 'p_hard_reached', result: 'L' },
+  sac_fly: { outcomeId: 'p_hard_out', result: 'L' },
+  bunt: { outcomeId: 'plain_w', result: 'W' },
+  error_weak: { outcomeId: 'p_weak_reached', result: 'W' },
+  fc_weak: { outcomeId: 'p_weak_reached', result: 'W' },
+  error_hard: { outcomeId: 'p_hard_reached', result: 'L' },
+  fc_hard: { outcomeId: 'p_hard_reached', result: 'L' },
+  fly_out_hard: { outcomeId: 'p_hard_out', result: 'L' },
+  plain_w: { outcomeId: 'plain_l', result: 'L' },
+  plain_l: { outcomeId: 'plain_w', result: 'W' },
+};
+
+/**
+ * Brings a version-1 document (pitching at-bats charted in the batter
+ * vocabulary, `result` from the batter's side) up to version 2, where every
+ * `side: 'them'` at-bat carries a pitcher outcome and our pitcher's own letter
+ * (`V1_THEM_OUTCOMES`). Our at-bats, an at-bat with an id this build does not
+ * know, and every other part of the document are the same objects; a version-2
+ * document is returned as is. The plain swap is not safe to run twice, so the
+ * version stamp is what makes this run exactly once.
+ */
+export function migrateV1(doc: StoredDocument): AppData {
+  // `StoredDocument` is one object type, so the version check does not narrow it.
+  if (doc.version === 2) return doc as AppData;
+  let changed = false;
+  const atBats = doc.atBats.map((ab) => {
+    if (ab.side !== 'them') return ab;
+    const mapped = V1_THEM_OUTCOMES[ab.outcomeId];
+    if (!mapped) return ab;
+    changed = true;
+    return { ...ab, outcomeId: mapped.outcomeId, result: mapped.result };
+  });
+  return { ...doc, version: 2, atBats: changed ? atBats : doc.atBats };
+}
+
+/**
+ * Brings a saved document up to this build's shape: lineup slots used to
+ * carry a fielding `position`, which is gone, and games a run total. Every
+ * stray key on a team's default lineup or a game's order is dropped. Returns
+ * the very same object when nothing needed changing, so the loader knows
+ * whether to write the cleaned document back. At-bats are never touched here:
+ * the vocabulary change is `migrateV1`'s, gated by the version stamp.
  */
 export function normalizeLoaded(data: AppData): AppData {
   let changed = false;
@@ -107,6 +158,17 @@ export function normalizeLoaded(data: AppData): AppData {
     return { ...rest, lineup };
   });
   return changed ? { ...data, teams, games } : data;
+}
+
+/**
+ * A batter outcome grades our batter and a pitcher outcome our pitcher, so
+ * each belongs on one side only; the plain pair fits both. Throws rather than
+ * storing a grade for the wrong player.
+ */
+function assertOutcomeSide(outcomeId: OutcomeId, side: Side): void {
+  const grades = outcomeSide(outcomeId);
+  if (grades === 'batter' && side === 'them') throw new Error(`${outcomeId} is a batter outcome; this is a pitching at-bat`);
+  if (grades === 'pitcher' && side === 'us') throw new Error(`${outcomeId} is a pitcher outcome; this is a hitting at-bat`);
 }
 
 function defaultOpponentLineup(): OpponentBatter[] {
@@ -168,10 +230,16 @@ export type Store = {
   /**
    * Without `target`: charts the batter due up in the current half-inning and
    * advances that side's pointer. With `target` (a backfill): stamps those
-   * four fields and leaves both pointers and the clock alone.
+   * four fields and leaves both pointers and the clock alone. Throws when the
+   * outcome grades the other side's player (a batter outcome while pitching,
+   * a pitcher outcome while hitting); the plain pair is fine on either.
    */
   recordAtBat: (gameId: Id, outcomeId: OutcomeId, target?: AtBatTarget) => AtBat | undefined;
-  /** Re-judges an at-bat in place: `result` is derived from the outcome; the game document is never touched. */
+  /**
+   * Re-judges an at-bat in place: `result` is derived from the outcome; the
+   * game document is never touched. A new outcome must grade the at-bat's own
+   * side (see `recordAtBat`).
+   */
   updateAtBat: (atBatId: Id, patch: AtBatPatch) => AtBat | undefined;
   /**
    * Removes an at-bat. That side's pointer rolls back to the batter's slot
@@ -211,15 +279,16 @@ const StoreContext = createContext<Store | undefined>(undefined);
 
 type Persisted =
   | { kind: 'none' }
-  | { kind: 'ok'; data: AppData }
+  /** A document this build can open: version 2, or version 1 for `migrateV1`. */
+  | { kind: 'ok'; data: StoredDocument }
   /** The key holds something this build cannot use (corrupt JSON, another schema version). */
   | { kind: 'unreadable'; raw: string };
 
-function isAppData(value: unknown): value is AppData {
+function isStoredDocument(value: unknown): value is StoredDocument {
   if (!value || typeof value !== 'object') return false;
-  const doc = value as Partial<AppData>;
+  const doc = value as Partial<StoredDocument>;
   return (
-    doc.version === 1 &&
+    (doc.version === 1 || doc.version === 2) &&
     Array.isArray(doc.teams) &&
     Array.isArray(doc.players) &&
     Array.isArray(doc.games) &&
@@ -238,9 +307,9 @@ async function readPersisted(): Promise<Persisted> {
   if (!raw) return { kind: 'none' };
   try {
     const parsed: unknown = JSON.parse(raw);
-    if (isAppData(parsed)) return { kind: 'ok', data: parsed };
+    if (isStoredDocument(parsed)) return { kind: 'ok', data: parsed };
     const version = parsed && typeof parsed === 'object' ? (parsed as { version?: unknown }).version : undefined;
-    console.warn(`Saved data is not a version 1 document (version ${String(version)}); keeping a backup.`);
+    console.warn(`Saved data is not a version 1 or 2 document (version ${String(version)}); keeping a backup.`);
   } catch (error) {
     console.warn('Could not parse saved data; keeping a backup.', error);
   }
@@ -296,8 +365,10 @@ export function StoreProvider({ children, initialData }: { children: React.React
       if (cancelled) return;
       let next: AppData;
       if (saved.kind === 'ok') {
-        next = normalizeLoaded(saved.data);
-        // A document written by an older build (lineup slots with positions) is rewritten clean.
+        // A document written by an older build (version 1, lineup slots with
+        // positions, run totals) is rewritten in this build's shape.
+        const migrated = migrateV1(saved.data);
+        next = normalizeLoaded(migrated);
         if (next !== saved.data) dirty.current = true;
       } else {
         if (saved.kind === 'unreadable') {
@@ -562,6 +633,7 @@ export function StoreProvider({ children, initialData }: { children: React.React
       recordAtBat: (gameId, outcomeId, target) => {
         const game = dataRef.current.games.find((g) => g.id === gameId);
         if (!game) return undefined;
+        assertOutcomeSide(outcomeId, target ? target.side : battingSide(game));
         const outcome = getOutcome(outcomeId);
 
         if (target) {
@@ -628,7 +700,10 @@ export function StoreProvider({ children, initialData }: { children: React.React
         const current = dataRef.current.atBats.find((ab) => ab.id === atBatId);
         if (!current) return undefined;
         const next: AtBat = { ...current };
-        if (patch.outcomeId !== undefined) next.outcomeId = patch.outcomeId;
+        if (patch.outcomeId !== undefined) {
+          assertOutcomeSide(patch.outcomeId, current.side);
+          next.outcomeId = patch.outcomeId;
+        }
         if (patch.batterId !== undefined) next.batterId = patch.batterId;
         // An explicit `pitcherId: undefined` clears the pitcher (and restores an at-bat that had none).
         if ('pitcherId' in patch) next.pitcherId = patch.pitcherId;

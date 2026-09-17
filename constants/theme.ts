@@ -26,6 +26,8 @@ export const colors = {
   hotTint: 'rgba(255, 144, 82, 0.16)',
   coldTint: 'rgba(0, 166, 255, 0.14)',
   pitching: '#976DD0',
+  /** Pitching with alpha: the lavender surface behind the batting order while we pitch (CTG screen). */
+  pitchingTint: 'rgba(151, 109, 208, 0.10)',
   navy: '#040B71',
   text: '#495460',
   textMuted: '#99A2AD',

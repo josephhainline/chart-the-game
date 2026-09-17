@@ -8,8 +8,8 @@ import ModalScreen from '@/components/ModalScreen';
 import ResultTile from '@/components/ResultTile';
 import { Button, EmptyState, WLText } from '@/components/ui';
 import { colors, fonts, radii, type } from '@/constants/theme';
-import { displayResult, invertResult, sortAtBats } from '@/lib/atbats';
-import { halfLabel, opponentBatterLabel, playerLabel } from '@/lib/format';
+import { sortAtBats } from '@/lib/atbats';
+import { halfLabel, opponentBatterLabel, playerLabel, playerShort } from '@/lib/format';
 import { useDismiss } from '@/lib/navigation';
 import { outcomeLabel, outcomeShort, plainFor } from '@/lib/outcomes';
 import { addResult, ZERO } from '@/lib/stats';
@@ -23,10 +23,14 @@ const webCursor = Platform.OS === 'web' ? ({ cursor: 'pointer' } as const) : nul
  * The batter sheet: one batter's at-bats this game, newest first (each opens
  * the editor), his form across the season (our batters), "Bring up to bat
  * now" while that side is batting, "Substitute…" while he is in the order of
- * a live game, and plain W / L backfill buttons that chart an at-bat in the
+ * a live game, and plain L / W backfill buttons that chart an at-bat in the
  * current half-inning without moving the batting order. Opened from a row
  * body or the dock's AT-BAT name on the CTG tab and from a multi-at-bat cell
  * on the Stats scorebook.
+ *
+ * Every letter is `ab.result`, the graded player's: the batter's on our side,
+ * our pitcher's on an opposing batter's sheet (his rows and W/L are what our
+ * pitchers did against him).
  */
 export default function BatterSheetScreen() {
   const { gameId, side: rawSide, batterId } = useLocalSearchParams<{ gameId: string; side: string; batterId: string }>();
@@ -65,7 +69,11 @@ export default function BatterSheetScreen() {
   const isFinal = game.status === 'final';
   const batting = !isFinal && index >= 0 && current >= 0 && battingSide(game) === side;
   const canSubstitute = !isFinal && index >= 0 && side === 'us';
-  const wl = mine.reduce((acc, ab) => addResult(acc, displayResult(ab) === 'W'), ZERO);
+  const wl = mine.reduce((acc, ab) => addResult(acc, ab.result === 'W'), ZERO);
+  /** Our pitcher of record, whom a backfilled opposing at-bat grades (the store stamps `game.pitcherId`). */
+  const pitcher = side === 'them' && game.pitcherId ? players.find((p) => p.id === game.pitcherId) : undefined;
+  /** The backfill caption names the graded player when it is not the batter: "Charted for Weedon H. (#04), our pitcher, in the …". */
+  const gradedFor = side === 'us' ? '' : pitcher ? `for ${playerShort(pitcher)}, our pitcher, ` : 'with no pitcher of record ';
 
   const bringUp = () => {
     if (!batting) return;
@@ -77,10 +85,9 @@ export default function BatterSheetScreen() {
   /** The sub sheet takes this sheet's place, so closing it (or making the sub) lands back where this one was opened. */
   const openSubstitute = () => router.replace(`/game/${game.id}/sub/${batterId}`);
 
-  /** A plain at-bat in the current half-inning; the letter is in the perspective shown (our pitcher's for them). */
-  const add = (shownResult: Result) => {
-    const batterResult = side === 'them' ? invertResult(shownResult) : shownResult;
-    const ab = recordAtBat(game.id, plainFor(batterResult), { side, batterId, inning: game.inning, half: game.half });
+  /** A plain at-bat in the current half-inning; the letter grades this side's player (the batter here, our pitcher on theirs). */
+  const add = (result: Result) => {
+    const ab = recordAtBat(game.id, plainFor(result), { side, batterId, inning: game.inning, half: game.half });
     if (ab) pushUndo(game.id, { kind: 'record', atBat: ab, backfill: true });
   };
 
@@ -92,7 +99,6 @@ export default function BatterSheetScreen() {
       </View>
 
       {mine.map((ab) => {
-        const shown = displayResult(ab);
         const label = outcomeLabel(ab.outcomeId);
         const text = `${halfLabel(ab.inning, ab.half)} · ${label || 'no play type'}`;
         return (
@@ -100,10 +106,10 @@ export default function BatterSheetScreen() {
             key={ab.id}
             onPress={() => router.push(`/game/${game.id}/atbat/${ab.id}`)}
             accessibilityRole="button"
-            accessibilityLabel={`Edit ${text}, ${shown}`}
+            accessibilityLabel={`Edit ${text}, ${ab.result}`}
             style={({ pressed }) => [styles.row, pressed && styles.rowPressed, webCursor]}
           >
-            <ResultTile result={shown} code={outcomeShort(ab.outcomeId)} />
+            <ResultTile result={ab.result} code={outcomeShort(ab.outcomeId)} />
             <Text style={styles.rowText} numberOfLines={2}>
               {text}
             </Text>
@@ -137,24 +143,13 @@ export default function BatterSheetScreen() {
       {!isFinal ? (
         <View style={styles.actions}>
           <Text style={styles.sectionLabel}>Missed one?</Text>
+          {/* L on the left and W on the right, like the dock: the letter is the graded player's on both sides. */}
           <View style={styles.addRow}>
-            <Button
-              title={side === 'them' ? 'Add a W (pitcher won)' : 'Add a W'}
-              variant="win"
-              size="sm"
-              style={styles.addButton}
-              onPress={() => add('W')}
-            />
-            <Button
-              title={side === 'them' ? 'Add an L (pitcher lost)' : 'Add an L'}
-              variant="loss"
-              size="sm"
-              style={styles.addButton}
-              onPress={() => add('L')}
-            />
+            <Button title="Add an L" variant="loss" size="sm" style={styles.addButton} onPress={() => add('L')} />
+            <Button title="Add a W" variant="win" size="sm" style={styles.addButton} onPress={() => add('W')} />
           </View>
           <Text style={type.caption}>
-            Charted in the {halfLabel(game.inning, game.half)} with no play type; the batting order does not move. Tap it above to add a play type.
+            Charted {gradedFor}in the {halfLabel(game.inning, game.half)} with no play type; the batting order does not move. Tap it above to add a play type.
           </Text>
         </View>
       ) : null}

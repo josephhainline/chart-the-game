@@ -7,7 +7,7 @@ import MiniChips, { type MiniChip } from '@/components/MiniChips';
 import ModalScreen from '@/components/ModalScreen';
 import { EmptyState } from '@/components/ui';
 import { colors, fonts, radii, type } from '@/constants/theme';
-import { displayResult, sortAtBats } from '@/lib/atbats';
+import { sortAtBats } from '@/lib/atbats';
 import { playerLabel, playerShort } from '@/lib/format';
 import { useDismiss } from '@/lib/navigation';
 import { benchFor, benchOrder } from '@/lib/stats';
@@ -73,10 +73,7 @@ export default function SubstituteSheetScreen() {
   }
 
   const outForm = formFor(data.atBats, games, out.id);
-  const thisGame: MiniChip[] = sortAtBats(atBats.filter((ab) => ab.side === 'us' && ab.batterId === out.id)).map((ab) => ({
-    id: ab.id,
-    result: displayResult(ab),
-  }));
+  const thisGame: MiniChip[] = sortAtBats(atBats.filter((ab) => ab.side === 'us' && ab.batterId === out.id)).map((ab) => ({ id: ab.id, result: ab.result }));
   const pitching = game.pitcherId === out.id;
 
   const pick = (inId: Id) => {

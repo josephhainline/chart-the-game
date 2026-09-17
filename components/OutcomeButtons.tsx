@@ -3,25 +3,21 @@ import React from 'react';
 import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { colors, fonts } from '@/constants/theme';
-import { LOSS_OUTCOMES, outcomeLabel, WIN_OUTCOMES, type Outcome } from '@/lib/outcomes';
+import { LOSS_OUTCOMES, WIN_OUTCOMES, catalogFor, outcomeLabel, type Outcome } from '@/lib/outcomes';
 import type { OutcomeId } from '@/lib/types';
 
-export type Perspective = 'batter' | 'pitcher';
+/** Which grid to show: the batter outcomes while we hit, the pitcher outcomes while we pitch. */
+export type OutcomeButtonsMode = 'hitting' | 'pitching';
 
 /**
  * 'regular' is the prototype's 38pt grid (the default). The Capture Dock uses
- * 'compact' (36pt buttons, 6pt row gaps) and, on short phones, 'tiny'
+ * 'compact' (34pt rows, 4pt row gaps) and, on short phones, 'tiny'
  * (28pt / 4pt) so the grid fits under the big buttons.
  */
 export type OutcomeButtonsSize = 'regular' | 'compact' | 'tiny';
 
 type Props = {
-  /**
-   * 'batter': left column (batter losses) is red, right column (batter wins) is green.
-   * 'pitcher': the opponent is batting, so the colors flip — our pitcher won the
-   * battles in the left column, so it is green and the right column is red.
-   */
-  perspective: Perspective;
+  mode: OutcomeButtonsMode;
   onPress: (outcomeId: OutcomeId) => void;
   disabled?: boolean;
   size?: OutcomeButtonsSize;
@@ -38,36 +34,51 @@ const ROOMY_WIDTH = 410;
 /* Per-size metrics. Regular is sampled from the prototype at 375pt: 132x39 buttons, 9pt row gap, 50pt between columns, 29pt side margins. */
 const METRICS: Record<OutcomeButtonsSize, { rowGap: number; columnGap: number; sides: number; minHeight: number; fontSize: number; lineHeight: number; padV: number }> = {
   regular: { rowGap: 8, columnGap: 44, sides: 28, minHeight: 38, fontSize: 12, lineHeight: 16, padV: 3 },
-  compact: { rowGap: 6, columnGap: 12, sides: 16, minHeight: 36, fontSize: 11, lineHeight: 13, padV: 2 },
+  compact: { rowGap: 4, columnGap: 12, sides: 16, minHeight: 34, fontSize: 11, lineHeight: 13, padV: 2 },
   tiny: { rowGap: 4, columnGap: 12, sides: 16, minHeight: 28, fontSize: 10, lineHeight: 11, padV: 1 },
 };
 
 /**
- * The twelve outcome buttons from the prototype: six rows of two, losses on
- * the left and wins on the right. Rendering by row (not two independent
- * columns) keeps each pair the same height, so a label that wraps never
- * knocks the grid out of alignment.
+ * The grid box is the height of the batter grid (seven rows at `minHeight`
+ * plus the gaps) in both modes, so the big buttons above it never move when
+ * the half changes: 314pt regular, 262pt compact, 220pt tiny.
  */
-export default function OutcomeButtons({ perspective, onPress, disabled, size = 'regular', selectedId }: Props) {
+const BOX_ROWS = Math.max(LOSS_OUTCOMES.length, WIN_OUTCOMES.length);
+
+function boxHeight(size: OutcomeButtonsSize): number {
+  const m = METRICS[size];
+  return BOX_ROWS * m.minHeight + (BOX_ROWS - 1) * m.rowGap;
+}
+
+/**
+ * The outcome grid: the side's catalog in rows of two, L column on the left
+ * (red) and W column on the right (green), in both modes. Rendering by row
+ * (not two independent columns) keeps each pair the same height, so a label
+ * that wraps never knocks the grid out of alignment. The rows share the box
+ * evenly (`flex: 1`): the seven batter rows fill it at `minHeight` (row 7 is
+ * a blank L cell beside Hit by Pitch); the four pitcher rows stretch to fill
+ * the same box, so a pitcher button is taller.
+ */
+export default function OutcomeButtons({ mode, onPress, disabled, size = 'regular', selectedId }: Props) {
   const { width } = useWindowDimensions();
   const m = METRICS[size];
   const roomy = size === 'regular' && width >= ROOMY_WIDTH;
-  const leftTone = perspective === 'pitcher' ? 'win' : 'loss';
-  const rightTone = perspective === 'pitcher' ? 'loss' : 'win';
+  const { loss, win } = catalogFor(mode === 'hitting' ? 'us' : 'them');
+  const rows = Array.from({ length: Math.max(loss.length, win.length) }, (_, i) => [loss[i], win[i]] as const);
   return (
-    <View style={[styles.rows, { gap: m.rowGap, paddingHorizontal: m.sides }]}>
-      {LOSS_OUTCOMES.map((loss, i) => (
-        <View key={loss.id} style={[styles.row, { gap: m.columnGap }]}>
-          <OutcomeButton outcome={loss} tone={leftTone} roomy={roomy} size={size} selected={loss.id === selectedId} onPress={onPress} disabled={disabled} />
-          <OutcomeButton
-            outcome={WIN_OUTCOMES[i]}
-            tone={rightTone}
-            roomy={roomy}
-            size={size}
-            selected={WIN_OUTCOMES[i].id === selectedId}
-            onPress={onPress}
-            disabled={disabled}
-          />
+    <View style={[styles.rows, { height: boxHeight(size), gap: m.rowGap, paddingHorizontal: m.sides }]}>
+      {rows.map(([l, w], i) => (
+        <View key={l?.id ?? w?.id ?? i} style={[styles.row, { gap: m.columnGap }]}>
+          {l ? (
+            <OutcomeButton outcome={l} tone="loss" roomy={roomy} size={size} selected={l.id === selectedId} onPress={onPress} disabled={disabled} />
+          ) : (
+            <View style={styles.blank} />
+          )}
+          {w ? (
+            <OutcomeButton outcome={w} tone="win" roomy={roomy} size={size} selected={w.id === selectedId} onPress={onPress} disabled={disabled} />
+          ) : (
+            <View style={styles.blank} />
+          )}
         </View>
       ))}
     </View>
@@ -119,6 +130,7 @@ function OutcomeButton({
 const styles = StyleSheet.create({
   rows: {},
   row: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'stretch',
   },
@@ -129,6 +141,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 6,
   },
+  /** An empty cell keeps the other column at its width (the batter grid's seventh row has no L). */
+  blank: { flex: 1 },
   selected: { borderWidth: 3, borderColor: colors.navy },
   check: { position: 'absolute', top: 2, right: 4 },
   pressed: { opacity: 0.75 },

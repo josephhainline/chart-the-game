@@ -1,21 +1,22 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { HALF_ORDER, compareAtBats, compareClock, displayResult, newestAtBat, sortAtBats } from '../atbats';
-import { pitcherResult } from '../stats';
+import { HALF_ORDER, compareAtBats, compareClock, newestAtBat, sortAtBats } from '../atbats';
 import type { AtBat, Id, Result } from '../types';
 
 let seq = 0;
 
+/** Minimal at-bat factory. `result` is the graded player's letter, so the default outcome follows the side. */
 function ab(over: Partial<AtBat> & { result: Result }): AtBat {
   seq += 1;
+  const side = over.side ?? 'us';
   return {
     id: `ab${seq}`,
     gameId: 'g1',
-    side: 'us',
+    side,
     batterId: 'p1',
     inning: 1,
     half: 'top',
-    outcomeId: over.result === 'W' ? 'hit' : 'k_swinging',
+    outcomeId: side === 'us' ? (over.result === 'W' ? 'hit' : 'k_swinging') : over.result === 'W' ? 'p_k_swinging' : 'p_hard_reached',
     recordedAt: '2026-09-07T14:00:00.000Z',
     ...over,
   };
@@ -109,21 +110,5 @@ describe('newestAtBat', () => {
     const a = ab({ result: 'W', recordedAt: '2026-09-07T14:01:00.000Z' });
     const b = ab({ result: 'W', recordedAt: '2026-09-07T14:03:00.000Z' });
     expect(newestAtBat([b, a])).toBe(b);
-  });
-});
-
-describe('displayResult', () => {
-  it('is the batter result when we bat', () => {
-    expect(displayResult(ab({ result: 'W' }))).toBe('W');
-    expect(displayResult(ab({ result: 'L' }))).toBe('L');
-  });
-
-  it('is our pitcher’s result (the inverse) when they bat, matching pitcherResult', () => {
-    const theirW = ab({ result: 'W', side: 'them', batterId: 'ob1', pitcherId: 'p1' });
-    const theirL = ab({ result: 'L', side: 'them', batterId: 'ob1', pitcherId: 'p1' });
-    expect(displayResult(theirW)).toBe('L');
-    expect(displayResult(theirL)).toBe('W');
-    expect(displayResult(theirW)).toBe(pitcherResult(theirW));
-    expect(displayResult(theirL)).toBe(pitcherResult(theirL));
   });
 });

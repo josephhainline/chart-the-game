@@ -9,7 +9,7 @@ const webCursor = Platform.OS === 'web' ? ({ cursor: 'pointer' } as const) : nul
 export type MiniChip = {
   /** AtBat id. */
   id: string;
-  /** Already from the perspective being shown (W = green). */
+  /** The graded player's letter (`AtBat.result`; W = green). */
   result: Result;
   /** Orange ring: this at-bat is selected for re-judging. */
   selected?: boolean;

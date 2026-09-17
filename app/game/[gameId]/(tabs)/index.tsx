@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type StyleProp, type ViewStyle } from 'react-native';
 
 import AppHeader from '@/components/AppHeader';
-import CaptureDock, { type DockLast, type DockRejudge } from '@/components/CaptureDock';
+import CaptureDock, { modeColor, type DockHeader, type DockLast, type DockMode, type DockRejudge } from '@/components/CaptureDock';
 import type { NeedleSide } from '@/components/CTGGauge';
 import FormLine, { benchNote, describeForm, formFor, HiddenText, RatingPill } from '@/components/FormLine';
 import InningStrip from '@/components/InningStrip';
@@ -13,7 +13,7 @@ import ResultTile from '@/components/ResultTile';
 import Screen from '@/components/Screen';
 import { Button, EmptyState, WLText } from '@/components/ui';
 import { colors, fonts } from '@/constants/theme';
-import { compareClock, displayResult, invertResult, sortAtBats } from '@/lib/atbats';
+import { compareClock, sortAtBats } from '@/lib/atbats';
 import { confirmAction } from '@/lib/confirm';
 import { gameTitle, halfLabel, opponentBatterLabel, playerLabel, playerShort } from '@/lib/format';
 import { isPlain, outcomeLabel, outcomeShort, plainFor } from '@/lib/outcomes';
@@ -52,9 +52,12 @@ type Batter = {
 /** Which row to bring into view after the next render. */
 type PendingScroll = { kind: 'current' } | { kind: 'batter'; batterId: string } | null;
 
+/** The dock header's subject: the graded player's name, his game so far and where his name goes. */
+type DockSubject = Omit<DockHeader, 'label' | 'color'>;
+
 /** How far above the row we scroll, so exactly one previous row stays in view. */
 const SCROLL_LEAD = 56;
-/** The fourteen record buttons ignore presses this long after a record, so a double tap cannot chart two batters. */
+/** The big buttons and the grid ignore presses this long after a record, so a double tap cannot chart two batters. */
 const LOCK_MS = 450;
 /**
  * Leaving re-judge mode swaps the dock's context row (▶ Now / More… give way
@@ -99,8 +102,11 @@ function plural(count: number, noun: string): string {
  * The CTG charting screen: a fixed header and inning strip, the batting
  * side's order scrolling in the middle (every at-bat a tappable tile or mini
  * chip), and the fixed Capture Dock at the bottom where the big L and W
- * record a plain at-bat in one tap and the twelve types sit underneath.
- * Tapping a tile puts the dock in re-judge mode for that at-bat.
+ * record a plain at-bat in one tap and the side's outcome types sit
+ * underneath. The screen is in hitting mode (blue, our batter is the
+ * subject) or pitching mode (purple, our pitcher is) by the side shown.
+ * Tapping a tile puts the dock in re-judge mode for that at-bat, in that
+ * at-bat's mode.
  */
 export default function ChartTheGameScreen() {
   const { gameId } = useLocalSearchParams<{ gameId: string }>();
@@ -142,6 +148,10 @@ export default function ChartTheGameScreen() {
   // Selecting an at-bat of the side not batting peeks that side's order until the selection clears.
   const side: Side = selected && !isFinal ? selected.side : liveSide;
   const peeking = side !== liveSide;
+  /** Whose grade the screen shows: the live side's while charting, the selected at-bat's while re-judging. */
+  const mode: DockMode = side === 'us' ? 'hitting' : 'pitching';
+  // The list's surface names the mode: lavender behind the opponent order (live or peeked); our order stays white, light blue while peeked.
+  const peekingOurs = peeking && side === 'us';
   const current = currentIndex(game, side);
 
   const playersById = useMemo(() => new Map(players.map((p) => [p.id, p])), [players]);
@@ -241,7 +251,6 @@ export default function ChartTheGameScreen() {
   const currentBatter: Batter | undefined = liveOrder[liveCurrent];
   const pitcher = playersById.get(game.pitcherId ?? '');
   const needsPitcher = !isFinal && liveSide === 'them' && !pitcher;
-  const livePerspective = liveSide === 'us' ? 'batter' : 'pitcher';
   const newest = sorted.length ? sorted[sorted.length - 1] : undefined;
   // The clock is behind the newest charted half (Prev half): the strip shows the review line.
   const reviewing = !isFinal && newest && compareClock(game, newest) < 0 ? { inning: newest.inning, half: newest.half } : undefined;
@@ -269,13 +278,37 @@ export default function ChartTheGameScreen() {
     const b = game.opponentLineup.find((x) => x.id === batterId);
     return b ? opponentBatterLabel(b) : 'Removed batter';
   };
+  const fullName = (s: Side, batterId: string): string => {
+    if (s === 'us') {
+      const p = playersById.get(batterId);
+      return p ? playerLabel(p) : 'Removed player';
+    }
+    return shortName(s, batterId);
+  };
+  /** "3. Batter 3": the batter with his place in his side's order, or the name alone once he has left it. */
+  const slotName = (s: Side, batterId: string): string => {
+    const list = orderFor(s);
+    const i = list.findIndex((b) => b.id === batterId);
+    return i === -1 ? fullName(s, batterId) : `${i + 1}. ${list[i].label}`;
+  };
+  /** "Weedon H. (#04)": a pitcher of record by id. */
+  const pitcherShort = (pitcherId: string): string => {
+    const p = playersById.get(pitcherId);
+    return p ? playerShort(p) : 'Removed player';
+  };
+  /**
+   * A pitching at-bat is read as its graded player facing the batter
+   * ("Weedon H. (#04) vs Batter 3"; "Our pitcher vs …" with no pitcher of
+   * record): this goes before the batter's name. '' for a hitting at-bat.
+   */
+  const pitcherPrefix = (ab: AtBat): string => (ab.side === 'them' ? `${ab.pitcherId ? pitcherShort(ab.pitcherId) : 'Our pitcher'} vs ` : '');
 
   const chipsFor = (abs: AtBat[]): MiniChip[] =>
     abs.map((ab) => ({
       id: ab.id,
-      result: displayResult(ab),
+      result: ab.result,
       selected: ab.id === selection,
-      accessibilityLabel: `Re-judge ${shortName(ab.side, ab.batterId)}: ${displayResult(ab)}, ${halfLabel(ab.inning, ab.half)}`,
+      accessibilityLabel: `Re-judge ${pitcherPrefix(ab)}${shortName(ab.side, ab.batterId)}: ${ab.result}, ${halfLabel(ab.inning, ab.half)}`,
     }));
 
   const locked = () => Date.now() < lockedUntil.current;
@@ -328,7 +361,7 @@ export default function ChartTheGameScreen() {
     if (!ab) return;
     pushUndo(game.id, { kind: 'record', atBat: ab });
     lock();
-    swingNeedle(displayResult(ab));
+    swingNeedle(ab.result);
     clearSelection();
     pendingScroll.current = { kind: 'current' };
   };
@@ -341,20 +374,19 @@ export default function ChartTheGameScreen() {
     if (!updated) return;
     pushUndo(game.id, { kind: 'rejudge', atBatId: ab.id, previous });
     lock();
-    swingNeedle(displayResult(updated));
-    flashRow(ab.id, displayResult(updated));
+    swingNeedle(updated.result);
+    flashRow(ab.id, updated.result);
     leaveRejudge();
   };
 
-  /** A big button, by the letter shown. Chart mode records a plain at-bat; re-judge flips the outlined letter. */
+  /** A big button: the graded player's letter on either side. Chart mode records a plain at-bat; re-judge flips the outlined letter. */
   const handleBig = (letter: Result) => {
     if (selected) {
-      if (letter === displayResult(selected)) return; // the solid letter changes nothing
-      const batterResult = selected.side === 'us' ? letter : invertResult(letter);
-      commitRejudge(selected, { outcomeId: plainFor(batterResult) });
+      if (letter === selected.result) return; // the solid letter changes nothing
+      commitRejudge(selected, { outcomeId: plainFor(letter) });
       return;
     }
-    handleRecord(plainFor(liveSide === 'us' ? letter : invertResult(letter)));
+    handleRecord(plainFor(letter));
   };
 
   const handleOutcome = (outcomeId: OutcomeId) => {
@@ -468,8 +500,8 @@ export default function ChartTheGameScreen() {
   const top = undoStack.length ? undoStack[undoStack.length - 1] : undefined;
   const last: DockLast | undefined = newest
     ? {
-        name: shortName(newest.side, newest.batterId),
-        result: displayResult(newest),
+        name: `${pitcherPrefix(newest)}${shortName(newest.side, newest.batterId)}`,
+        result: newest.result,
         label: outcomeLabel(newest.outcomeId),
         half: inCurrentHalf(newest) ? undefined : halfLabel(newest.inning, newest.half),
         onPress: () => {
@@ -480,40 +512,78 @@ export default function ChartTheGameScreen() {
     : undefined;
   const rejudge: DockRejudge | undefined = selected
     ? {
-        readout: `${shortName(selected.side, selected.batterId)} · ${halfLabel(selected.inning, selected.half)} · ${displayResult(selected)} · ${
+        readout: `${pitcherPrefix(selected)}${shortName(selected.side, selected.batterId)} · ${halfLabel(selected.inning, selected.half)} · ${selected.result} · ${
           outcomeLabel(selected.outcomeId) || 'no play type'
         }`,
-        recorded: displayResult(selected),
-        perspective: selected.side === 'us' ? 'batter' : 'pitcher',
+        recorded: selected.result,
         selectedId: isPlain(selected.outcomeId) ? undefined : selected.outcomeId,
         onNow: leaveRejudge,
         onMore: () => openEditor(selected.id),
       }
     : undefined;
-  const headerChips = currentBatter ? chipsFor(sorted.filter((ab) => ab.side === liveSide && ab.batterId === currentBatter.id)) : [];
-  const header = {
-    label: reviewing ? `AT-BAT · ${halfLabel(game.inning, game.half)}` : 'AT-BAT',
-    color: reviewing ? colors.amberInk : liveSide === 'us' ? colors.primaryDark : colors.pitching,
-    title: currentBatter ? `${liveCurrent + 1}. ${currentBatter.label}` : 'No batters',
-    chips: headerChips,
-    // The name opens the batter sheet (Substitute… lives there), whichever side the list is peeking at.
-    onTitlePress: currentBatter
-      ? () => {
-          if (locked()) return;
-          router.push(`/game/${game.id}/batter/${liveSide}/${currentBatter.id}`);
-        }
-      : undefined,
-    titleLabel: currentBatter ? `${currentBatter.label}, open batter sheet` : undefined,
+
+  // The header's subject is the graded player: our batter while hitting, our
+  // pitcher while pitching, with that player's game so far as the chips. Live,
+  // that is the current batter or the game's pitcher; re-judging, the selected
+  // at-bat's batter or its pitcher of record.
+  const pressTitle = (href: string) => () => {
+    if (locked()) return;
+    router.push(href);
   };
-  // While pitching the big W records our pitcher's win (the batter's L), so the
-  // labels speak in the pitcher's perspective like everything else on that side.
-  const batterName = currentBatter?.label ?? 'batter';
-  const pitcherName = pitcher ? playerShort(pitcher) : 'Our pitcher';
+  const batterSubject = (batterId: string): DockSubject => ({
+    title: slotName('us', batterId),
+    chips: chipsFor(sorted.filter((ab) => ab.side === 'us' && ab.batterId === batterId)),
+    // The batter sheet (Substitute… lives there).
+    onTitlePress: pressTitle(`/game/${game.id}/batter/us/${batterId}`),
+    titleLabel: `${fullName('us', batterId)}, open batter sheet`,
+  });
+  const headerSubject = (): DockSubject => {
+    if (selected) {
+      if (selected.side === 'us') return batterSubject(selected.batterId);
+      const vs = `vs ${slotName('them', selected.batterId)}`;
+      if (!selected.pitcherId) {
+        return {
+          title: `No pitcher of record · ${vs}`,
+          titleMuted: true,
+          chips: [],
+          // The editor's Pitcher field sets one.
+          onTitlePress: pressTitle(`/game/${game.id}/atbat/${selected.id}`),
+          titleLabel: 'No pitcher of record, edit this at-bat',
+        };
+      }
+      const name = pitcherShort(selected.pitcherId);
+      return {
+        title: `${name} ${vs}`,
+        chips: chipsFor(sorted.filter((ab) => ab.side === 'them' && ab.pitcherId === selected.pitcherId)),
+        // The pitcher sheet, not the picker: the picker changes the game's current pitcher, not this at-bat's.
+        onTitlePress: pressTitle(`/game/${game.id}/pitching/${selected.pitcherId}`),
+        titleLabel: `${name}, open pitcher sheet`,
+      };
+    }
+    if (!currentBatter) return { title: 'No batters', titleMuted: true, chips: [] };
+    if (liveSide === 'us') return batterSubject(currentBatter.id);
+    const vs = `vs ${liveCurrent + 1}. ${currentBatter.label}`;
+    if (!pitcher) return { title: `No pitcher · ${vs}`, titleMuted: true, chips: [] };
+    return {
+      title: `${playerShort(pitcher)} ${vs}`,
+      chips: chipsFor(sorted.filter((ab) => ab.side === 'them' && ab.pitcherId === game.pitcherId)),
+      // The pitcher picker; the opposing batter is reached from his row.
+      onTitlePress: pressTitle(`/game/${game.id}/pitcher`),
+      titleLabel: `${playerShort(pitcher)}, change pitcher`,
+    };
+  };
+  const modeWord = mode === 'hitting' ? 'HITTING' : 'PITCHING';
+  // Re-judging drops the reviewing suffix: the RE-JUDGE readout carries the at-bat's half.
+  const header: DockHeader = {
+    label: reviewing && !selected ? `${modeWord} · ${halfLabel(game.inning, game.half)}` : modeWord,
+    color: reviewing && !selected ? colors.amberInk : modeColor(mode),
+    ...headerSubject(),
+  };
+  // Grade language for the graded player on both sides: the big W is his W.
+  const subjectLabel = liveSide === 'us' ? (currentBatter?.label ?? 'batter') : pitcher ? playerLabel(pitcher) : 'our pitcher';
   const bigLabels: Record<Result, string> = selected
     ? { L: 'Change to L', W: 'Change to W' }
-    : liveSide === 'us'
-      ? { L: `Loss for ${batterName}`, W: `Win for ${batterName}` }
-      : { L: `${pitcherName} lost to ${batterName}`, W: `${pitcherName} won against ${batterName}` };
+    : { L: `Loss for ${subjectLabel}`, W: `Win for ${subjectLabel}` };
 
   // A finished game's band carries the team's hitting line for the game; runs are not tracked.
   const finalHitting = isFinal ? gameHitting(atBats, game.id) : undefined;
@@ -557,7 +627,12 @@ export default function ChartTheGameScreen() {
         ref={(node) => {
           rowRefs.current[batter.id] = node;
         }}
-        style={[styles.row, isCurrent && styles.rowCurrent, peeking && styles.rowPeek, flashing && (flashing === 'W' ? styles.rowFlashWin : styles.rowFlashLoss)]}
+        style={[
+          styles.row,
+          isCurrent && [styles.rowCurrent, mode === 'hitting' ? styles.rowCurrentHitting : styles.rowCurrentPitching],
+          peekingOurs && styles.rowPeek,
+          flashing && (flashing === 'W' ? styles.rowFlashWin : styles.rowFlashLoss),
+        ]}
       >
         {/*
           The row's tap target is a button stretched under the content rather
@@ -600,10 +675,10 @@ export default function ChartTheGameScreen() {
               {abs.map((ab) => (
                 <ResultTile
                   key={ab.id}
-                  result={displayResult(ab)}
+                  result={ab.result}
                   code={outcomeShort(ab.outcomeId) || undefined}
                   onPress={() => openEditor(ab.id)}
-                  accessibilityLabel={`Edit ${batter.label}: ${displayResult(ab)}${outcomeLabel(ab.outcomeId) ? `, ${outcomeLabel(ab.outcomeId)}` : ''}, ${halfLabel(ab.inning, ab.half)}`}
+                  accessibilityLabel={`Edit ${batter.label}: ${ab.result}${outcomeLabel(ab.outcomeId) ? `, ${outcomeLabel(ab.outcomeId)}` : ''}, ${halfLabel(ab.inning, ab.half)}`}
                 />
               ))}
             </View>
@@ -616,11 +691,11 @@ export default function ChartTheGameScreen() {
         ) : null}
         {!tag && lastHalf ? (
           <ResultTile
-            result={displayResult(lastHalf)}
+            result={lastHalf.result}
             code={outcomeShort(lastHalf.outcomeId) || undefined}
             selected={lastHalf.id === selection}
             onPress={() => selectAtBat(lastHalf.id)}
-            accessibilityLabel={`Re-judge ${batter.label}: ${displayResult(lastHalf)}${label ? `, ${label}` : ''}`}
+            accessibilityLabel={`Re-judge ${pitcherPrefix(lastHalf)}${batter.label}: ${lastHalf.result}${label ? `, ${label}` : ''}`}
           />
         ) : null}
         {gameLine ? (
@@ -675,7 +750,7 @@ export default function ChartTheGameScreen() {
         onJumpAhead={handleJumpAhead}
       />
 
-      <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+      <ScrollView ref={scrollRef} style={[styles.scroll, side === 'them' && styles.scrollPitching]} contentContainerStyle={styles.scrollContent}>
         <View ref={contentRef} collapsable={false}>
           {n === 0 ? (
             side === 'us' ? (
@@ -712,7 +787,7 @@ export default function ChartTheGameScreen() {
                 // One sentence for assistive tech; the visual parts are hidden from it.
                 const description = `${playerLabel(player)}. ${describeForm(form, note)}`;
                 return (
-                  <View key={player.id} style={[styles.benchRow, peeking && styles.rowPeek]} accessibilityRole="text" {...rowLabel(description)}>
+                  <View key={player.id} style={[styles.benchRow, peekingOurs && styles.rowPeek]} accessibilityRole="text" {...rowLabel(description)}>
                     <HiddenText>{description}</HiddenText>
                     <Inert style={styles.benchBody}>
                       <View style={styles.benchHead}>
@@ -734,7 +809,7 @@ export default function ChartTheGameScreen() {
 
       {!isFinal && (liveOrder.length > 0 || selected) ? (
         <CaptureDock
-          perspective={livePerspective}
+          mode={mode}
           rejudge={rejudge}
           last={last}
           canStepBack={sorted.length > 0 && selectedIndex !== 0}
@@ -803,6 +878,8 @@ function BatterName({ label, muted }: { label: string; muted?: boolean }) {
 /* Row sizes follow the prototype at 375pt: 56pt rows, 20pt names, 14pt tags, 36x40 tiles. */
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
+  // The faint lavender surface behind the opponent order while we pitch (live or peeked).
+  scrollPitching: { backgroundColor: colors.pitchingTint },
   scrollContent: { paddingBottom: 16 },
   finalBand: {
     flexDirection: 'row',
@@ -828,7 +905,10 @@ const styles = StyleSheet.create({
     gap: 8,
     minHeight: 56,
   },
-  rowCurrent: { borderLeftWidth: 4, borderLeftColor: colors.currentRail, paddingLeft: 9 },
+  // The AT-BAT row's left rail takes the mode colour (`currentRail` stays the orange re-judge ring on chips and tiles).
+  rowCurrent: { borderLeftWidth: 4, paddingLeft: 9 },
+  rowCurrentHitting: { borderLeftColor: colors.primaryDark },
+  rowCurrentPitching: { borderLeftColor: colors.pitching },
   rowPeek: { backgroundColor: colors.primaryTint },
   rowFlashWin: { backgroundColor: colors.winTint },
   rowFlashLoss: { backgroundColor: colors.lossTint },

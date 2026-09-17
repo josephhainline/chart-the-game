@@ -8,7 +8,7 @@ import { inningsLabel } from '@/components/PitcherList';
 import ResultTile from '@/components/ResultTile';
 import { EmptyState, WLText } from '@/components/ui';
 import { colors, fonts, type } from '@/constants/theme';
-import { displayResult, sortAtBats } from '@/lib/atbats';
+import { sortAtBats } from '@/lib/atbats';
 import { halfLabel, opponentBatterLabel, playerLabel } from '@/lib/format';
 import { useDismiss } from '@/lib/navigation';
 import { outcomeLabel, outcomeShort } from '@/lib/outcomes';
@@ -20,8 +20,9 @@ const webCursor = Platform.OS === 'web' ? ({ cursor: 'pointer' } as const) : nul
 /**
  * The pitcher sheet: one of our pitchers' battles in a game, newest first,
  * each opening the editor, so an opposing at-bat can be re-judged after the
- * game without a grid of opposing batters. Opened from the Stats tab's
- * pitcher list.
+ * game without a grid of opposing batters. Every row is a 'them' at-bat, so
+ * its letter (`ab.result`) and wording are the pitcher's. Opened from the
+ * Stats tab's pitcher list.
  */
 export default function PitcherSheetScreen() {
   const { gameId, playerId } = useLocalSearchParams<{ gameId: string; playerId: string }>();
@@ -63,19 +64,18 @@ export default function PitcherSheetScreen() {
       </View>
 
       {mine.map((ab) => {
-        const shown = displayResult(ab);
         const batter = batters.get(ab.batterId);
         const label = outcomeLabel(ab.outcomeId);
-        const text = `${halfLabel(ab.inning, ab.half)} · ${batter ? opponentBatterLabel(batter) : 'Batter (left)'} · ${label || 'no play type'}`;
+        const text = `${halfLabel(ab.inning, ab.half)} · vs ${batter ? opponentBatterLabel(batter) : 'Batter (left)'} · ${label || 'no play type'}`;
         return (
           <Pressable
             key={ab.id}
             onPress={() => router.push(`/game/${game.id}/atbat/${ab.id}`)}
             accessibilityRole="button"
-            accessibilityLabel={`Edit ${text}, ${shown}`}
+            accessibilityLabel={`Edit ${text}, ${ab.result}`}
             style={({ pressed }) => [styles.row, pressed && styles.rowPressed, webCursor]}
           >
-            <ResultTile result={shown} code={outcomeShort(ab.outcomeId)} />
+            <ResultTile result={ab.result} code={outcomeShort(ab.outcomeId)} />
             <Text style={styles.rowText} numberOfLines={2}>
               {text}
             </Text>

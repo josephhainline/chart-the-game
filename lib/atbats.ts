@@ -3,8 +3,12 @@
  * the batter sheet, scorebook multi-cells): inning, half, recordedAt. Array
  * order in the document is irrelevant, so a backfilled at-bat sits in its own
  * inning and a restored one lands where it was.
+ *
+ * There is no display helper for the letter: `ab.result` is already the graded
+ * player's grade on both sides (the batter's on 'us', our pitcher's on 'them'),
+ * so views read it directly.
  */
-import type { AtBat, Half, Result } from './types';
+import type { AtBat, Half } from './types';
 
 export const HALF_ORDER: Record<Half, number> = { top: 0, bottom: 1 };
 
@@ -34,19 +38,4 @@ export function newestAtBat(atBats: AtBat[]): AtBat | undefined {
     if (!newest || compareAtBats(ab, newest) > 0) newest = ab;
   }
   return newest;
-}
-
-/**
- * The letter a view shows for this at-bat: the batter's result when we bat,
- * our pitcher's (the inverse, same as `pitcherResult` in lib/stats) when they
- * do, so green always means good for us.
- */
-/** The other side of a battle: the batter's W is the pitcher's L. */
-export function invertResult(result: Result): Result {
-  return result === 'W' ? 'L' : 'W';
-}
-
-export function displayResult(ab: AtBat): Result {
-  if (ab.side === 'us') return ab.result;
-  return invertResult(ab.result);
 }

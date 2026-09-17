@@ -12,12 +12,6 @@ type Props = {
   /** Bump this to replay the swing when the same result is recorded twice in a row. */
   pulse?: number;
   /**
-   * 'batter' (default): red L ticks on the left, green W ticks on the right.
-   * 'pitcher': mirrored so the green (our pitcher won) side is on the left,
-   * matching the outcome button columns when the opponent is batting.
-   */
-  perspective?: 'batter' | 'pitcher';
-  /**
    * Where the needle sits between swings (default 'center'). The dock's
    * re-judge mode rests it on the recorded side of the at-bat being reviewed.
    */
@@ -51,30 +45,32 @@ const REST_DEG = 45;
 
 const NEEDLE_PATH = 'M 0 -22 L 11 -4.8 A 12 12 0 1 1 -11 -4.8 Z';
 
-/** Angle for a side in the given perspective: the W side is on the right when we bat, on the left when we pitch. */
-function sideAngle(side: NeedleSide, perspective: 'batter' | 'pitcher', degrees: number): number {
+/** Angle for a side: L is always to the left, W always to the right, whichever side is batting. */
+function sideAngle(side: NeedleSide, degrees: number): number {
   if (side === 'center') return 0;
-  const goesRight = side === 'W' ? perspective === 'batter' : perspective === 'pitcher';
-  return goesRight ? degrees : -degrees;
+  return side === 'W' ? degrees : -degrees;
 }
 
 /**
  * The "Chart The Game" gauge from the prototype: a gray arc, seven chunky
- * bars (loss side, amber center, win side) and a gray teardrop needle that
- * swings toward the recorded result and eases back to its resting position.
+ * bars (red L side on the left, amber center, green W side on the right) and
+ * a gray teardrop needle that swings toward the recorded result and eases
+ * back to its resting position. The letter it shows is the graded player's
+ * (the batter's while hitting, our pitcher's while pitching), so it is never
+ * mirrored.
  */
-export default function CTGGauge({ needle, pulse = 0, perspective = 'batter', rest = 'center', width = 80 }: Props) {
+export default function CTGGauge({ needle, pulse = 0, rest = 'center', width = 80 }: Props) {
   const angle = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const restAngle = sideAngle(rest, perspective, REST_DEG);
+    const restAngle = sideAngle(rest, REST_DEG);
     if (needle === 'center') {
       Animated.timing(angle, { toValue: restAngle, duration: 350, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
       return;
     }
     Animated.sequence([
       Animated.timing(angle, {
-        toValue: sideAngle(needle, perspective, SWING_DEG),
+        toValue: sideAngle(needle, SWING_DEG),
         duration: 260,
         easing: Easing.out(Easing.back(1.2)),
         useNativeDriver: false,
@@ -82,7 +78,7 @@ export default function CTGGauge({ needle, pulse = 0, perspective = 'batter', re
       Animated.delay(700),
       Animated.timing(angle, { toValue: restAngle, duration: 450, easing: Easing.inOut(Easing.cubic), useNativeDriver: false }),
     ]).start();
-  }, [needle, pulse, perspective, rest, angle]);
+  }, [needle, pulse, rest, angle]);
 
   const k = width / VB_W;
   const height = VB_H * k;
@@ -96,8 +92,7 @@ export default function CTGGauge({ needle, pulse = 0, perspective = 'batter', re
     const rad = (deg * Math.PI) / 180;
     const cos = Math.cos(rad);
     const sin = Math.sin(rad);
-    const leftSide = i < mid;
-    const color = i === mid ? colors.amber : leftSide === (perspective === 'batter') ? colors.loss : colors.win;
+    const color = i === mid ? colors.amber : i < mid ? colors.loss : colors.win;
     return (
       <Line
         key={i}

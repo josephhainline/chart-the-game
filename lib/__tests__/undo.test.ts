@@ -31,16 +31,19 @@ const demo = buildDemoData(NOW);
 /** The upcoming game: the default order (Hamilton, Brady, Cooper, Owen Haynes, Gabe, Lucas, …) and nobody up yet. */
 const upcoming: Game = demo.games.find((g) => g.id === 'g_next')!;
 
+/** A W at-bat by default; an opponent at-bat gets the pitcher vocabulary (`result` is the graded player's letter). */
 function ab(over: Partial<AtBat> = {}): AtBat {
+  const side = over.side ?? 'us';
+  const result = over.result ?? 'W';
   return {
     id: 'ab_1',
     gameId: upcoming.id,
-    side: 'us',
+    side,
     batterId: 'p_hamilton',
     inning: 1,
     half: 'top',
-    outcomeId: 'hit',
-    result: 'W',
+    outcomeId: side === 'us' ? (result === 'W' ? 'hit' : 'k_swinging') : result === 'W' ? 'p_k_swinging' : 'p_walk',
+    result,
     recordedAt: '2026-09-19T14:35:00.000Z',
     ...over,
   };
@@ -82,11 +85,13 @@ describe('undoLabel', () => {
     expect(undoLabel(record({ result: 'W', outcomeId: 'plain_w' }))).toBe('Undo W');
   });
 
-  it('shows the pitcher’s letter for an opponent at-bat', () => {
-    const theirs = record({ side: 'them', batterId: upcoming.opponentLineup[0].id, pitcherId: 'p_weedon', result: 'L' });
-    expect(undoLabel(theirs)).toBe('Undo W');
-    const theirW = record({ side: 'them', batterId: upcoming.opponentLineup[0].id, pitcherId: 'p_weedon', result: 'W' });
-    expect(undoLabel(theirW)).toBe('Undo L');
+  it('shows the pitcher’s letter for an opponent at-bat: the stored result, nothing inverted', () => {
+    const walk = record({ side: 'them', batterId: upcoming.opponentLineup[0].id, pitcherId: 'p_weedon', result: 'L', outcomeId: 'p_walk' });
+    expect(undoLabel(walk)).toBe('Undo L');
+    const strikeout = record({ side: 'them', batterId: upcoming.opponentLineup[0].id, pitcherId: 'p_weedon', result: 'W', outcomeId: 'p_k_swinging' });
+    expect(undoLabel(strikeout)).toBe('Undo W');
+    // The big W while pitching is a plain pitcher W.
+    expect(undoLabel(record({ side: 'them', batterId: upcoming.opponentLineup[0].id, pitcherId: 'p_weedon', result: 'W', outcomeId: 'plain_w' }))).toBe('Undo W');
   });
 
   it('names the other kinds', () => {
