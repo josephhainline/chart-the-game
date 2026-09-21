@@ -17,7 +17,7 @@ import { compareClock, sortAtBats } from '@/lib/atbats';
 import { confirmAction } from '@/lib/confirm';
 import { gameTitle, halfLabel, opponentBatterLabel, playerLabel, playerShort } from '@/lib/format';
 import { isPlain, outcomeLabel, outcomeShort, plainFor } from '@/lib/outcomes';
-import { benchFor, benchOrder, gameHitting, hittingFor, orderWithLeavers } from '@/lib/stats';
+import { benchFor, benchOrder, FORM_WINDOW, gameHitting, hittingFor, orderWithLeavers } from '@/lib/stats';
 import { battingSide, useGame, useGameAtBats, useStore, useTeamGames, useTeamPlayers, type AtBatPatch } from '@/lib/store';
 import type { AtBat, Game, Half, OutcomeId, Result, Side } from '@/lib/types';
 import { useTypesExpanded } from '@/lib/uiPrefs';
@@ -525,7 +525,10 @@ export default function ChartTheGameScreen() {
   // The header's subject is the graded player: our batter while hitting, our
   // pitcher while pitching, with that player's game so far as the chips. Live,
   // that is the current batter or the game's pitcher; re-judging, the selected
-  // at-bat's batter or its pitcher of record.
+  // at-bat's batter or its pitcher of record. The pitcher's title is his name
+  // alone (the batter he faces is the AT-BAT row) and his chips are his last
+  // six this game: a pitcher faces a whole order per time through, and the
+  // header row has no room for more beside the name at 375pt.
   const pressTitle = (href: string) => () => {
     if (locked()) return;
     router.push(href);
@@ -537,39 +540,41 @@ export default function ChartTheGameScreen() {
     onTitlePress: pressTitle(`/game/${game.id}/batter/us/${batterId}`),
     titleLabel: `${fullName('us', batterId)}, open batter sheet`,
   });
+  const pitcherChips = (pitcherId: string): MiniChip[] =>
+    chipsFor(sorted.filter((ab) => ab.side === 'them' && ab.pitcherId === pitcherId).slice(-FORM_WINDOW));
   const headerSubject = (): DockSubject => {
     if (selected) {
       if (selected.side === 'us') return batterSubject(selected.batterId);
       const vs = `vs ${slotName('them', selected.batterId)}`;
       if (!selected.pitcherId) {
         return {
-          title: `No pitcher of record · ${vs}`,
+          title: 'No pitcher of record',
           titleMuted: true,
           chips: [],
           // The editor's Pitcher field sets one.
           onTitlePress: pressTitle(`/game/${game.id}/atbat/${selected.id}`),
-          titleLabel: 'No pitcher of record, edit this at-bat',
+          titleLabel: `No pitcher of record ${vs}, edit this at-bat`,
         };
       }
       const name = pitcherShort(selected.pitcherId);
       return {
-        title: `${name} ${vs}`,
-        chips: chipsFor(sorted.filter((ab) => ab.side === 'them' && ab.pitcherId === selected.pitcherId)),
+        title: name,
+        chips: pitcherChips(selected.pitcherId),
         // The pitcher sheet, not the picker: the picker changes the game's current pitcher, not this at-bat's.
         onTitlePress: pressTitle(`/game/${game.id}/pitching/${selected.pitcherId}`),
-        titleLabel: `${name}, open pitcher sheet`,
+        titleLabel: `${name} ${vs}, open pitcher sheet`,
       };
     }
     if (!currentBatter) return { title: 'No batters', titleMuted: true, chips: [] };
     if (liveSide === 'us') return batterSubject(currentBatter.id);
     const vs = `vs ${liveCurrent + 1}. ${currentBatter.label}`;
-    if (!pitcher) return { title: `No pitcher · ${vs}`, titleMuted: true, chips: [] };
+    if (!pitcher) return { title: 'No pitcher', titleMuted: true, chips: [] };
     return {
-      title: `${playerShort(pitcher)} ${vs}`,
-      chips: chipsFor(sorted.filter((ab) => ab.side === 'them' && ab.pitcherId === game.pitcherId)),
+      title: playerShort(pitcher),
+      chips: pitcherChips(pitcher.id),
       // The pitcher picker; the opposing batter is reached from his row.
       onTitlePress: pressTitle(`/game/${game.id}/pitcher`),
-      titleLabel: `${playerShort(pitcher)}, change pitcher`,
+      titleLabel: `${playerShort(pitcher)} ${vs}, change pitcher`,
     };
   };
   const modeWord = mode === 'hitting' ? 'HITTING' : 'PITCHING';

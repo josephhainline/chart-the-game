@@ -84,13 +84,15 @@ export default function AtBatEditorScreen() {
     side === 'us' ? (player ? playerLabel(player) : 'Removed player') : opponentBatter ? opponentBatterLabel(opponentBatter) : 'Batter (left)';
   const batterName = side === 'us' ? (player ? playerName(player) : 'Removed player') : opponentBatter?.name ?? 'Batter (left)';
   const pitcher = atBat.pitcherId ? playersById.get(atBat.pitcherId) : undefined;
+  /** Our pitcher of record by name: the no-pitcher wording only when the at-bat has none, not when he left the roster. */
+  const pitcherShortName = pitcher ? playerShort(pitcher) : atBat.pitcherId ? 'Removed player' : 'Our pitcher';
 
   const result = atBat.result;
   const label = outcomeLabel(atBat.outcomeId);
   const plain = isPlain(atBat.outcomeId);
   const when = halfLabel(atBat.inning, atBat.half);
   // The graded player is the subject: the batter on our at-bats, our pitcher of record on theirs.
-  const title = side === 'us' ? `${batterLabel} · ${when}` : `${pitcher ? playerShort(pitcher) : 'Our pitcher'} · ${when} · vs ${batterLabel}`;
+  const title = side === 'us' ? `${batterLabel} · ${when}` : `${pitcherShortName} · ${when} · vs ${batterLabel}`;
 
   /** Applies a change and records how to undo it. */
   const apply = (patch: AtBatPatch) => {
@@ -134,7 +136,7 @@ export default function AtBatEditorScreen() {
 
   const remove = async () => {
     // "Remove Weedon Hainline's Walk vs Batter 3 from the top of the 2nd?": the graded player owns the play.
-    const owner = side === 'us' ? batterName : pitcher ? playerName(pitcher) : 'our pitcher';
+    const owner = side === 'us' ? batterName : pitcher ? playerName(pitcher) : atBat.pitcherId ? 'a removed player' : 'our pitcher';
     const play = `${label || 'at-bat'}${side === 'them' ? ` vs ${batterName}` : ''}`;
     const ok = await confirmAction(
       'Remove this at-bat?',

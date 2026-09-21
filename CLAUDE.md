@@ -90,9 +90,9 @@ FontAwesome6 from `@expo/vector-icons` only. No react-native-paper, no lucide.
   steppers, links, OUTCOME TYPES toggle, current-row rail (`primaryDark` /
   `pitching`) and the `pitchingTint` surface under the opponent order —
   never the buttons or the gauge. The header's subject is the graded player:
-  the batter, or our pitcher ("Weedon H. (#04) vs 3. Batter 3") with his
-  chips; live, his title opens the pitcher picker, re-judging, the pitcher
-  sheet.
+  the batter, or our pitcher ("Weedon H. (#04)", the batter he faces is the
+  AT-BAT row) with his last six chips; live, his title opens the pitcher
+  picker, re-judging, the pitcher sheet.
 - Any ordered display or newest-at-bat lookup uses lib/atbats
   (`sortAtBats`/`newestAtBat`/`compareAtBats`), never document array order;
   unordered aggregates (counts, filters, `some`) need no sort.

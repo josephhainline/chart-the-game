@@ -218,12 +218,13 @@ returns to the team's Games.
     one-line title in the mode colour (muted when there is no pitcher) —
     hitting: "4. Cooper Woollen (#50)" with his chips this game, the title
     opens his batter sheet ("Cooper Woollen (#50), open batter sheet");
-    pitching: "Weedon H. (#04) vs 3. Batter 3" with the pitcher's chips this
-    game (his W/L, not the opposing batter's), the title opens the pitcher
-    picker ("Weedon H. (#04), change pitcher") and the opposing batter stays
-    reachable from his row; with no pitcher set the title reads "No pitcher ·
-    vs 3. Batter 3" muted, with no chips, beside the orange **Set pitcher**
-    button; the big row — solid red **L** · the CTG gauge (seven chunky
+    pitching: "Weedon H. (#04)" with the pitcher's last six chips this game
+    (his W/L, not the opposing batter's; the batter he faces is the AT-BAT
+    row, and a pitcher faces a whole order each time through, so the row has
+    no room for more), the title opens the pitcher picker ("Weedon H. (#04)
+    vs 3. Batter 3, change pitcher") and the opposing batter stays reachable
+    from his row; with no pitcher set the title reads "No pitcher" muted,
+    with no chips, beside the orange **Set pitcher** button; the big row — solid red **L** · the CTG gauge (seven chunky
     bars) · solid green **W** — with L on the left and W on the right in
     both modes and while re-judging (the letters are our player's grade, the
     gauge swings to the recorded letter's side and is not recoloured by
@@ -275,14 +276,13 @@ returns to the team's Games.
     the at-bat's batter for one of ours. The header label is the mode word
     alone (the readout carries the at-bat's half); the title is the batter
     ("4. Cooper Woollen (#50)", opens his batter sheet) or the pitcher of
-    record with the batter he faced ("Weedon H. (#04) vs 3. Batter 3", with
-    the pitcher's chips this game; the title opens the pitcher sheet —
-    "Weedon H. (#04), open pitcher sheet" — not the picker, which would
-    change the game's current pitcher rather than this at-bat's); a pitching
-    at-bat with no pitcher of record reads "No pitcher of record · vs 3.
-    Batter 3" muted, with no chips, and the title opens the at-bat editor
-    ("No pitcher of record, edit this at-bat"), whose Pitcher field sets
-    one. The outlined letter flips the at-bat to a plain
+    record ("Weedon H. (#04)", with his last six chips this game; the title
+    opens the pitcher sheet — "Weedon H. (#04) vs 3. Batter 3, open pitcher
+    sheet" — not the picker, which would change the game's current pitcher
+    rather than this at-bat's); a pitching at-bat with no pitcher of record
+    reads "No pitcher of record" muted, with no chips, and the title opens
+    the at-bat editor ("No pitcher of record vs 3. Batter 3, edit this
+    at-bat"), whose Pitcher field sets one. The outlined letter flips the at-bat to a plain
     result; a type sets that outcome; the ringed type again drops it to
     plain; each commit flashes the row, pushes "Undo re-judge" and snaps back
     to live. Selecting an at-bat of the side not batting peeks that side's
@@ -358,9 +358,10 @@ returns to the team's Games.
     never moves.
   - Batter sheet `/game/[gameId]/batter/[side]/[batterId]`: the batter's game
     W/L and at-bats newest first ("▲ 2nd · Out, Hard Hit Ball" with a
-    tile; each opens the editor; on an opposing batter's sheet the letters
-    are our pitcher's grades and the wording the pitcher outcomes' — "▲ 2nd ·
-    Walk" with an L tile); for our batters a **Form** card (§4: the
+    tile; each opens the editor; on an opposing batter's sheet the section
+    is labelled "Our pitchers vs him this game", the letters are our
+    pitchers' grades and the wording the pitcher outcomes' — "▲ 2nd · Walk"
+    with an L tile); for our batters a **Form** card (§4: the
     last six at-bats as mini chips with a HOT / COLD tag, then "Season +5 ·
     last game 3W / 0L", or "No at-bats yet this season"); **Bring up to bat
     now** when that side is batting (no dialog); **Add an L** / **Add a W**
@@ -369,7 +370,7 @@ returns to the team's Games.
     captioned "Charted in the ▲ 2nd with no play type; the batting order
     does not move. Tap it above to add a play type." (for an opposing batter:
     "Charted for Weedon H. (#04), our pitcher, in the ▲ 2nd with no play
-    type; …", or "Charted with no pitcher of record in the ▲ 2nd …"); and,
+    type; …", or "Charted for no pitcher of record in the ▲ 2nd …"); and,
     for our
     batters in the order while the game is not final, an orange
     **Substitute…** (swap icon) that opens the substitution sheet.

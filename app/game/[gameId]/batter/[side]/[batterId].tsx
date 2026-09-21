@@ -73,7 +73,7 @@ export default function BatterSheetScreen() {
   /** Our pitcher of record, whom a backfilled opposing at-bat grades (the store stamps `game.pitcherId`). */
   const pitcher = side === 'them' && game.pitcherId ? players.find((p) => p.id === game.pitcherId) : undefined;
   /** The backfill caption names the graded player when it is not the batter: "Charted for Weedon H. (#04), our pitcher, in the …". */
-  const gradedFor = side === 'us' ? '' : pitcher ? `for ${playerShort(pitcher)}, our pitcher, ` : 'with no pitcher of record ';
+  const gradedFor = side === 'us' ? '' : pitcher ? `for ${playerShort(pitcher)}, our pitcher, ` : 'for no pitcher of record ';
 
   const bringUp = () => {
     if (!batting) return;
@@ -94,7 +94,8 @@ export default function BatterSheetScreen() {
   return (
     <ModalScreen title={title} color={colors.orange} onClose={close}>
       <View style={styles.summary}>
-        <Text style={styles.sectionLabel}>This game</Text>
+        {/* An opposing batter's letters are our pitchers' grades against him. */}
+        <Text style={styles.sectionLabel}>{side === 'us' ? 'This game' : 'Our pitchers vs him this game'}</Text>
         {mine.length > 0 ? <WLText wl={wl} style={styles.summaryValue} /> : <Text style={type.caption}>No at-bats yet this game.</Text>}
       </View>
 

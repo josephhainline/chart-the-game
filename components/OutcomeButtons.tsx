@@ -23,6 +23,13 @@ type Props = {
   size?: OutcomeButtonsSize;
   /** Re-judge mode: the at-bat's current type gets a navy ring and a check. */
   selectedId?: OutcomeId;
+  /**
+   * The dock's grid: one box height per size in both modes (the batter
+   * grid's seven rows), the rows sharing it evenly, so the big buttons above
+   * never move when the half changes. Off (the editor), rows sit at their
+   * natural height.
+   */
+  fixedBox?: boolean;
 };
 
 /* touchAction stops the double-tap zoom delay on mobile browsers so a second tap is a second press. */
@@ -39,9 +46,8 @@ const METRICS: Record<OutcomeButtonsSize, { rowGap: number; columnGap: number; s
 };
 
 /**
- * The grid box is the height of the batter grid (seven rows at `minHeight`
- * plus the gaps) in both modes, so the big buttons above it never move when
- * the half changes: 314pt regular, 262pt compact, 220pt tiny.
+ * The fixed box is the height of the batter grid (seven rows at `minHeight`
+ * plus the gaps): 314pt regular, 262pt compact, 220pt tiny.
  */
 const BOX_ROWS = Math.max(LOSS_OUTCOMES.length, WIN_OUTCOMES.length);
 
@@ -54,21 +60,21 @@ function boxHeight(size: OutcomeButtonsSize): number {
  * The outcome grid: the side's catalog in rows of two, L column on the left
  * (red) and W column on the right (green), in both modes. Rendering by row
  * (not two independent columns) keeps each pair the same height, so a label
- * that wraps never knocks the grid out of alignment. The rows share the box
- * evenly (`flex: 1`): the seven batter rows fill it at `minHeight` (row 7 is
- * a blank L cell beside Hit by Pitch); the four pitcher rows stretch to fill
- * the same box, so a pitcher button is taller.
+ * that wraps never knocks the grid out of alignment. In a fixed box the rows
+ * share it evenly (`flex: 1`): the seven batter rows fill it at `minHeight`
+ * (row 7 is a blank L cell beside Hit by Pitch); the four pitcher rows
+ * stretch to fill the same box, so a pitcher button is taller.
  */
-export default function OutcomeButtons({ mode, onPress, disabled, size = 'regular', selectedId }: Props) {
+export default function OutcomeButtons({ mode, onPress, disabled, size = 'regular', selectedId, fixedBox = false }: Props) {
   const { width } = useWindowDimensions();
   const m = METRICS[size];
   const roomy = size === 'regular' && width >= ROOMY_WIDTH;
   const { loss, win } = catalogFor(mode === 'hitting' ? 'us' : 'them');
   const rows = Array.from({ length: Math.max(loss.length, win.length) }, (_, i) => [loss[i], win[i]] as const);
   return (
-    <View style={[styles.rows, { height: boxHeight(size), gap: m.rowGap, paddingHorizontal: m.sides }]}>
+    <View style={[styles.rows, fixedBox && { height: boxHeight(size) }, { gap: m.rowGap, paddingHorizontal: m.sides }]}>
       {rows.map(([l, w], i) => (
-        <View key={l?.id ?? w?.id ?? i} style={[styles.row, { gap: m.columnGap }]}>
+        <View key={l?.id ?? w?.id ?? i} style={[styles.row, fixedBox && styles.rowFill, { gap: m.columnGap }]}>
           {l ? (
             <OutcomeButton outcome={l} tone="loss" roomy={roomy} size={size} selected={l.id === selectedId} onPress={onPress} disabled={disabled} />
           ) : (
@@ -130,10 +136,10 @@ function OutcomeButton({
 const styles = StyleSheet.create({
   rows: {},
   row: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'stretch',
   },
+  rowFill: { flex: 1 },
   button: {
     flex: 1,
     borderRadius: 10,

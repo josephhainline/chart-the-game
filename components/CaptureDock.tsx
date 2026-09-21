@@ -270,7 +270,7 @@ export default function CaptureDock({
           <FontAwesome6 name={typesOpen ? 'chevron-up' : 'chevron-down'} size={10} color={accent} />
         </Pressable>
 
-        {typesOpen ? <OutcomeButtons mode={mode} onPress={onOutcome} disabled={disabled} size={typesSize} selectedId={rejudge?.selectedId} /> : null}
+        {typesOpen ? <OutcomeButtons mode={mode} onPress={onOutcome} disabled={disabled} size={typesSize} selectedId={rejudge?.selectedId} fixedBox /> : null}
       </View>
     </View>
   );
