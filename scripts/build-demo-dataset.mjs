@@ -20,7 +20,8 @@
  *   - plate appearances: every play mapped to a CTG outcome id in the
  *     vocabulary of the side that is graded (a batter outcome for our plate
  *     appearances, a pitcher outcome for theirs; the captures carry no contact
- *     quality beyond "Lineout"/"Popout", so other hits and outs are plain), the
+ *     quality beyond "Lineout"/"Popout", so outs other than those are plain,
+ *     while a hit against us is a hard-hit ball that reached), the
  *     batter to a roster id (ours) or a jersey-number index (theirs), our
  *     pitcher carried forward from the "(#13 Lucas pitching)" mentions;
  *   - each sub is placed at the half-inning of the incoming player's first

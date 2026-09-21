@@ -1993,8 +1993,12 @@ describe('StoreProvider loading', () => {
       for (const id of ['g_0815_2_ab32', 'g_0816_2_ab18', 'g_0913_2_ab20']) {
         expect(old.atBats.find((x) => x.id === id)).toMatchObject({ side: 'them', outcomeId: 'walk_2_looking', result: 'L' });
       }
-      // The old rule read Weedon's walk after two called strikes as his W.
-      expect(pitchingFor(old.atBats, 'p_weedon')).toEqual({ w: 12, l: 19 });
+      // Counted as the batters' letters (what a version-1 document stores): 12 W and 19 L against
+      // Weedon, which the old build inverted into his 19-12; the walk after two called strikes is
+      // one of those 19 batter L's, i.e. it was his W.
+      const vsWeedon = old.atBats.filter((x) => x.side === 'them' && x.pitcherId === 'p_weedon');
+      expect(vsWeedon.filter((x) => x.result === 'W').length).toBe(12);
+      expect(vsWeedon.filter((x) => x.result === 'L').length).toBe(19);
     });
 
     it('migrateV1 stamps version 2 and re-expresses every opponent at-bat as a pitcher (or plain) outcome with the pitcher’s letter', () => {

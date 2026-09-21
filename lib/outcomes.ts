@@ -10,7 +10,7 @@
  *
  * `Outcome.result` is the GRADED player's letter in both catalogs: `hit` is a
  * batter W, `p_walk` is a pitcher L. Nothing is ever inverted for the pitching
- * side. Codes may repeat across the catalogs (K, KL, BB, HBP, O+ name the same
+ * side. Codes may repeat across the catalogs (K, KL, BB, HBP name the same
  * play on either side); ids are unique.
  *
  * Renderer rule: the letter always comes from `ab.result`, never re-derived

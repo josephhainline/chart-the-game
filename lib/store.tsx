@@ -124,7 +124,7 @@ export function migrateV1(doc: StoredDocument): AppData {
   let changed = false;
   const atBats = doc.atBats.map((ab) => {
     if (ab.side !== 'them') return ab;
-    const mapped = V1_THEM_OUTCOMES[ab.outcomeId];
+    const mapped = Object.prototype.hasOwnProperty.call(V1_THEM_OUTCOMES, ab.outcomeId) ? V1_THEM_OUTCOMES[ab.outcomeId] : undefined;
     if (!mapped) return ab;
     changed = true;
     return { ...ab, outcomeId: mapped.outcomeId, result: mapped.result };

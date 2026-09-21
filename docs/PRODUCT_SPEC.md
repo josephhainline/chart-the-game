@@ -212,10 +212,11 @@ returns to the team's Games.
     is the graded player's) — while an at-bat is
     selected the LAST readout and Undo give way to the RE-JUDGE readout with
     "▶ Now" and "More…", and Undo is not shown until ▶ Now or a commit
-    returns the dock to live; the header, two lines in 36pt: the mode word
+    returns the dock to live; the header, one 36pt row: the mode word
     **HITTING** / **PITCHING** in the mode colour ("HITTING · ▲ 1st" /
-    "PITCHING · ▲ 1st" in amber while reviewing) over the graded player, a
-    one-line title in the mode colour (muted when there is no pitcher) —
+    "PITCHING · ▲ 1st" in amber while reviewing) beside the graded player's
+    one-line title in the mode colour (muted when there is no pitcher) and
+    his chips —
     hitting: "4. Cooper Woollen (#50)" with his chips this game, the title
     opens his batter sheet ("Cooper Woollen (#50), open batter sheet");
     pitching: "Weedon H. (#04)" with the pitcher's last six chips this game
@@ -616,7 +617,7 @@ Every typed outcome has a stable `OutcomeId`, a button label (the longer
 ones break onto two lines on the buttons; the row label and the editor show
 them on one) and a short code for the scorebook. Ids
 are unique across both catalogs; codes may repeat where they name the same
-play on either side (K, KL, BB, HBP, O+).
+play on either side (K, KL, BB, HBP).
 
 **Batter outcomes** (`lib/outcomes.ts` `LOSS_OUTCOMES` / `WIN_OUTCOMES`,
 thirteen; the prototype's twelve in their order, plus Hit by Pitch last so

@@ -55,13 +55,13 @@ export type DockRejudge = {
 /**
  * The header names the graded player. Label "HITTING" / "PITCHING"
  * ("HITTING · ▲ 1st" in amber while reviewing) in `color`; the title is
- * the batter ("4. Cooper Woollen (#50)") or our pitcher and the batter he
- * faces ("Weedon H. (#04) vs 3. Batter 3"), in the mode colour, or muted
- * (`titleMuted`) when there is no pitcher ("No pitcher · vs 3. Batter 3");
- * the chips are that player's game so far. With `onTitlePress` the title
- * is a button labelled `titleLabel` ("Cooper Woollen (#50), open batter
- * sheet" / "Weedon H. (#04), change pitcher"); the screen decides where it
- * goes.
+ * the batter ("4. Cooper Woollen (#50)") or our pitcher ("Weedon H. (#04)";
+ * the batter he faces is the AT-BAT row), in the mode colour, or muted
+ * (`titleMuted`) when there is no pitcher ("No pitcher"); the chips are that
+ * player's game so far (a pitcher's last six). With `onTitlePress` the
+ * title is a button labelled `titleLabel` ("Cooper Woollen (#50), open
+ * batter sheet" / "Weedon H. (#04) vs 3. Batter 3, change pitcher"); the
+ * screen decides where it goes.
  */
 export type DockHeader = {
   label: string;
