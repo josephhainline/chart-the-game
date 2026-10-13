@@ -14,8 +14,11 @@ month, and the certificate is free.
 
 The site lives in its own AWS account, a **member of an organization whose
 management account is `rookies-production`**. That account holds nothing else:
-no other hosted zones, no other buckets, no shared IAM. The reason is the
-handoff — if the site is ever given to someone else, the whole account goes
+no other hosted zones, no other buckets, no shared IAM. It has no payment
+method either: while it is a member, its charges consolidate onto the
+management account's card, which is the point of putting it in an
+organization rather than standing it up alone. The reason for the separate
+account is the handoff — if the site is ever given to someone else, the whole account goes
 with it and nothing has to be migrated (see **Handing the site over** below).
 `rookies-production` itself cannot be handed over: it hosts `joehainline.com`,
 `wizardryadventure.com` and `hhcf.us`.
@@ -84,8 +87,11 @@ aws sts get-caller-identity --profile chartthegame-admin
 An account created through Organizations has no root password. From the
 member account's email address, do a password reset, sign in as root, then:
 enable MFA, and fill in the alternate billing/operations/security contacts.
-This also has to happen before the account can ever leave the organization,
-so it is worth doing now rather than at handoff.
+Do not add a payment method: the organization's card covers this account, and
+a card of its own is only needed the day it leaves (step 1 of the handoff,
+where it is the new owner's). The root password, MFA and contacts are worth
+doing now rather than at handoff, though — the account cannot leave without
+them.
 
 Costs roll up to `rookies-production` while the account is a member. Worth
 adding a small budget alarm there, scoped to the new linked account.
@@ -167,9 +173,10 @@ override the default.
 
 Nothing in AWS has to move; the account itself changes hands.
 
-1. **Finish the member account's own sign-up** (as its root): payment method,
-   phone verification, contact details, customer agreement. An account
-   created by Organizations cannot leave until it stands on its own.
+1. **Finish the member account's own sign-up** (as its root): **the new
+   owner's** payment method, phone verification, contact details, customer
+   agreement. An account created by Organizations has been billing to the
+   organization's card and cannot leave until it stands on its own.
 2. **Leave the organization** — `aws organizations leave-organization` from
    inside the member account, or Remove account from the management console.
    Its costs stop appearing on the `rookies-production` bill.
