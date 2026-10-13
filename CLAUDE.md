@@ -19,7 +19,10 @@ FontAwesome6 from `@expo/vector-icons` only. No react-native-paper, no lucide.
   for hosting as a Claude Artifact (see script header)
 - `yarn deploy:web` / `yarn deploy:web:infra` — S3 + CloudFront + Route 53
   hosting for chartthegame.com (`infra/web-hosting.yaml`, `docs/HOSTING.md`).
-  Deploying is Joe's call: run these only when he asks.
+  The site has its own AWS account (a member of the `rookies-production`
+  organization) so it can be handed over whole: `chartthegame-admin` for the
+  stack, the scoped `chartthegame` user for uploads. Deploying is Joe's call:
+  run these only when he asks.
 
 ## Layout
 - `app/` — expo-router routes. Three nesting levels, each a Tabs group:

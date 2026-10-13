@@ -129,6 +129,41 @@ Resources:
               StringEquals:
                 AWS:SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${Distribution}'
 
+  # Routine `yarn deploy:web` runs as this user: upload to this one bucket and
+  # invalidate this one distribution, nothing else. Stack changes need an
+  # administrator (OrganizationAccountAccessRole, or an admin user in the
+  # account). Its access key is created by hand, never by this template — a
+  # template-made key would sit in the stack's outputs and events.
+  DeployUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: !Sub '${AWS::StackName}-deploy'
+      Policies:
+        - PolicyName: deploy-site
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # scripts/deploy-web.mjs reads the bucket name and distribution id from the outputs.
+              - Sid: ReadStackOutputs
+                Effect: Allow
+                Action: cloudformation:DescribeStacks
+                Resource: !Ref AWS::StackId
+              - Sid: ListSiteBucket
+                Effect: Allow
+                Action: s3:ListBucket
+                Resource: !GetAtt SiteBucket.Arn
+              - Sid: WriteSiteObjects
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource: !Sub '${SiteBucket.Arn}/*'
+              - Sid: InvalidateCdn
+                Effect: Allow
+                Action: cloudfront:CreateInvalidation
+                Resource: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${Distribution}'
+
   DnsRecords:
     Type: AWS::Route53::RecordSetGroup
     Condition: UseDomain
@@ -161,6 +196,9 @@ Outputs:
   NameServers:
     Description: Point the domain at these nameservers (Squarespace > Domains > DNS > Domain Nameservers).
     Value: !Join [' ', !GetAtt HostedZone.NameServers]
+  DeployUserName:
+    Description: Routine deploys run as this user; create its access key by hand.
+    Value: !Ref DeployUser
   BucketName:
     Value: !Ref SiteBucket
   DistributionId:

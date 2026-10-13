@@ -9,7 +9,7 @@
  *   node scripts/deploy-web.mjs site --skip-build   upload the existing dist-web/ export
  *   node scripts/deploy-web.mjs status           print the stack outputs (nameservers, URLs)
  *
- * Options: --profile <aws profile> (default: $AWS_PROFILE or rookies-production)
+ * Options: --profile <aws profile> (default: $AWS_PROFILE or chartthegame; the last one wins)
  *          --stack <name> (default chartthegame-web)   --region <region> (default us-east-1)
  */
 import { execFileSync, execSync } from 'node:child_process';
@@ -22,11 +22,14 @@ const args = process.argv.slice(2);
 const command = args.find((a) => !a.startsWith('--'));
 const flag = (name) => args.includes(`--${name}`);
 const option = (name, fallback) => {
-  const i = args.indexOf(`--${name}`);
+  // lastIndexOf so a profile passed on the command line overrides one baked into the package.json script.
+  const i = args.lastIndexOf(`--${name}`);
   return i !== -1 && args[i + 1] ? args[i + 1] : fallback;
 };
 
-const profile = option('profile', process.env.AWS_PROFILE ?? 'rookies-production');
+// The site account is its own AWS account (docs/HOSTING.md): `chartthegame` is the
+// scoped deploy user, `chartthegame-admin` the administrator the infra command uses.
+const profile = option('profile', process.env.AWS_PROFILE ?? 'chartthegame');
 const region = option('region', 'us-east-1');
 const stack = option('stack', 'chartthegame-web');
 const distDir = path.join(root, 'dist-web');
@@ -47,13 +50,27 @@ function printStatus() {
   console.log(`Bucket:        ${out.BucketName}`);
   console.log(`Distribution:  ${out.DistributionId}`);
   console.log(`Nameservers:   ${out.NameServers}`);
+  console.log(`Deploy user:   ${out.DeployUserName}`);
 }
 
 function infra() {
   const enableDomain = flag('domain') ? 'true' : 'false';
   console.log(`Deploying stack ${stack} in ${region} (profile ${profile}, custom domain: ${enableDomain})`);
   aws(
-    ['cloudformation', 'deploy', '--stack-name', stack, '--template-file', template, '--no-fail-on-empty-changeset', '--parameter-overrides', `EnableCustomDomain=${enableDomain}`],
+    [
+      'cloudformation',
+      'deploy',
+      '--stack-name',
+      stack,
+      '--template-file',
+      template,
+      '--no-fail-on-empty-changeset',
+      // The stack owns the named deploy user.
+      '--capabilities',
+      'CAPABILITY_NAMED_IAM',
+      '--parameter-overrides',
+      `EnableCustomDomain=${enableDomain}`,
+    ],
     { stdio: 'inherit' },
   );
   printStatus();
