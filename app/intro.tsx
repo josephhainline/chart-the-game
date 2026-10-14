@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import Dots from '@/components/intro/Dots';
 import { Button } from '@/components/ui';
+import { introOnly } from '@/constants/gate';
 import { colors, fonts } from '@/constants/theme';
 import { useStore } from '@/lib/store';
 
@@ -46,12 +47,15 @@ export default function IntroScreen() {
   // Set by the root layout when a first-time deep link was intercepted.
   const { next } = useLocalSearchParams<{ next?: string }>();
   const { setOnboarded } = useStore();
+  // The temporary hold (constants/gate): the intro is all there is.
+  const held = introOnly();
   const scrollRef = useRef<ScrollView>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [index, setIndex] = useState(0);
   const { width, height } = size;
 
   const enter = () => {
+    if (held) return;
     setOnboarded(true);
     // Only in-app paths: never follow a "next" that points off the site.
     const destination = typeof next === 'string' && next.startsWith('/') && !next.startsWith('//') ? next : '/';
@@ -113,15 +117,17 @@ export default function IntroScreen() {
       <View style={[styles.titleBand, { paddingTop: insets.top + 22 }]}>
         <Text style={styles.title}>Chart The Game</Text>
         <Text style={styles.subtitle}>a Coach Rob Floyd app</Text>
-        <Pressable
-          onPress={enter}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel="Skip intro"
-          style={({ pressed }) => [styles.skip, { top: insets.top + 20 }, pressed && styles.pressed]}
-        >
-          <Text style={styles.skipText}>Skip</Text>
-        </Pressable>
+        {held ? null : (
+          <Pressable
+            onPress={enter}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Skip intro"
+            style={({ pressed }) => [styles.skip, { top: insets.top + 20 }, pressed && styles.pressed]}
+          >
+            <Text style={styles.skipText}>Skip</Text>
+          </Pressable>
+        )}
       </View>
 
       <View style={styles.carousel} onLayout={onLayout}>
@@ -179,7 +185,9 @@ export default function IntroScreen() {
         <View style={[styles.footer, { paddingBottom: insets.bottom + 20 }]} pointerEvents="box-none">
           <Dots count={PAGE_COUNT} index={index} onSelect={goTo} />
           <View style={styles.buttons}>
-            {last ? (
+            {last && held ? (
+              <Text style={styles.held}>Coming soon.</Text>
+            ) : last ? (
               <>
                 <Button title="Log In" variant="gray" size="lg" style={styles.footerButton} onPress={enter} />
                 <Button title="Sign Up" variant="orange" size="lg" style={styles.footerButton} onPress={enter} />
@@ -249,4 +257,6 @@ const styles = StyleSheet.create({
   },
   buttons: { flexDirection: 'row', gap: 16, paddingHorizontal: 24 },
   footerButton: { flex: 1, height: 52 },
+  /** Stands in for the Log In / Sign Up pair while the site is held (constants/gate). */
+  held: { flex: 1, textAlign: 'center', lineHeight: 52, fontFamily: fonts.bold, fontSize: 18, color: colors.white },
 });

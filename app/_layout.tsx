@@ -10,6 +10,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import ConfirmDialog from '@/components/ConfirmDialog';
 import PhoneFrame from '@/components/PhoneFrame';
+import { introOnly } from '@/constants/gate';
 import { colors, fonts } from '@/constants/theme';
 import { StoreProvider, useStore } from '@/lib/store';
 
@@ -74,7 +75,9 @@ function AppStack() {
   // a deep link into a team or game sees the intro too. The Stack stays
   // mounted so the router is ready when the redirect fires; a splash covers
   // the destination screen for the frame it takes.
-  const needsIntro = ready && !data.onboarded && segments[0] !== 'intro';
+  // While the site is held on the intro (constants/gate), even an onboarded
+  // browser goes back to it, so a return visit cannot walk straight in.
+  const needsIntro = ready && (introOnly() || !data.onboarded) && segments[0] !== 'intro';
   useEffect(() => {
     if (!needsIntro) return;
     router.replace(pathname === '/' ? '/intro' : { pathname: '/intro', params: { next: pathname } });
