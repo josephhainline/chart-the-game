@@ -39,7 +39,7 @@ export default function AccountScreen() {
 
   return (
     <Screen>
-      <AppHeader subtitle />
+      <AppHeader />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.body}>
         <View style={styles.card}>
           <View style={styles.avatar}>

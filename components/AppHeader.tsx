@@ -8,8 +8,6 @@ import { colors, type } from '@/constants/theme';
 import { useDismiss } from '@/lib/navigation';
 
 type Props = {
-  /** Show the "a Coach Rob Floyd app" line under the title (app-level screens). */
-  subtitle?: boolean;
   /** Context sub-header (team name or game title). Omit for app-level screens. */
   context?: string;
   /** Sub-header color: team level is dark blue, game level is orange. */
@@ -30,7 +28,7 @@ type Props = {
  * The two-band header used on every screen except the intro:
  * a light-blue "Chart The Game" title band, then an optional context band.
  */
-export default function AppHeader({ subtitle, context, contextColor = colors.primaryDark, backHref = '/', onBack, right }: Props) {
+export default function AppHeader({ context, contextColor = colors.primaryDark, backHref = '/', onBack, right }: Props) {
   const insets = useSafeAreaInsets();
   const compact = Boolean(context);
   const dismiss = useDismiss(backHref);
@@ -43,7 +41,6 @@ export default function AppHeader({ subtitle, context, contextColor = colors.pri
     <View>
       <View style={[styles.titleBand, { paddingTop: insets.top + (compact ? 10 : 18) }, compact && styles.titleBandCompact]}>
         <Text style={[type.appTitle, compact && styles.compactTitle]}>Chart The Game</Text>
-        {subtitle && !compact ? <Text style={type.appSubtitle}>a Coach Rob Floyd app</Text> : null}
       </View>
       {context ? (
         <View style={[styles.contextBand, { backgroundColor: contextColor }]}>

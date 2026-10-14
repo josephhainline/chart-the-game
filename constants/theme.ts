@@ -62,7 +62,6 @@ export const fonts = {
 
 export const type = {
   appTitle: { fontFamily: fonts.bold, fontSize: 26, color: colors.white },
-  appSubtitle: { fontFamily: fonts.bold, fontSize: 15, color: colors.white },
   subheader: { fontFamily: fonts.bold, fontSize: 20, color: colors.white },
   h1: { fontFamily: fonts.bold, fontSize: 24, color: colors.text },
   h2: { fontFamily: fonts.bold, fontSize: 20, color: colors.text },

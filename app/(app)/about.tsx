@@ -33,7 +33,7 @@ export default function AboutScreen() {
 
   return (
     <Screen>
-      <AppHeader subtitle />
+      <AppHeader />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.body}>
         <Text style={styles.heading}>What is Chart The Game (CTG)?</Text>
 

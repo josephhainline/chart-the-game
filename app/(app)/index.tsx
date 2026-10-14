@@ -28,7 +28,7 @@ export default function MyTeamsScreen() {
 
   return (
     <Screen>
-      <AppHeader subtitle />
+      <AppHeader />
 
       <View style={styles.searchWrap}>
         <View style={[styles.search, searchFocused && styles.searchFocused]}>

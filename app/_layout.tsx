@@ -107,7 +107,6 @@ function Splash() {
   return (
     <View style={styles.splash}>
       <Text style={styles.splashTitle}>Chart The Game</Text>
-      <Text style={styles.splashSubtitle}>a Coach Rob Floyd app</Text>
     </View>
   );
 }
@@ -121,5 +120,4 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   splashTitle: { fontFamily: fonts.bold, fontSize: 36, color: '#fff' },
-  splashSubtitle: { fontFamily: fonts.bold, fontSize: 18, color: '#fff', marginTop: 4 },
 });

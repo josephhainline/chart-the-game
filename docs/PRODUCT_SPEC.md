@@ -5,7 +5,7 @@ _Source of truth for the web prototype build. Derived from the Marvel prototype 
 
 ## 1. What the product is
 
-Chart The Game is a youth-baseball coaching app ("a Coach Rob Floyd app"). The
+Chart The Game is a youth-baseball coaching app. The
 premise: every plate appearance is a 1-on-1 battle between the batter and the
 pitcher. The final score doesn't tell you who won those battles. So the coach
 charts every at-bat as a **W** or an **L** for **our** player in it — the

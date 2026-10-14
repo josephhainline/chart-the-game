@@ -116,7 +116,6 @@ export default function IntroScreen() {
     <View style={styles.root}>
       <View style={[styles.titleBand, { paddingTop: insets.top + 22 }]}>
         <Text style={styles.title}>Chart The Game</Text>
-        <Text style={styles.subtitle}>a Coach Rob Floyd app</Text>
         {held ? null : (
           <Pressable
             onPress={enter}
@@ -211,7 +210,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 64,
   },
   title: { fontFamily: fonts.bold, fontSize: 34, color: '#fff', textAlign: 'center' },
-  subtitle: { fontFamily: fonts.bold, fontSize: 17, color: '#fff', textAlign: 'center', marginTop: 2 },
   skip: {
     position: 'absolute',
     right: 8,
