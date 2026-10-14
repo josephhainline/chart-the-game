@@ -187,10 +187,20 @@ serves the app.
 ## Every later deploy
 
 ```sh
+./deploy.sh
+```
+
+Typechecks, runs the tests, then does the upload below; it stops for a
+confirmation if the working tree is dirty or the branch is not `main`.
+`--fast` skips the checks, `-y` skips the questions, `--dry-run` prints the
+steps without running them, and `./deploy.sh infra [--domain]` / `status`
+reach the stack commands. Underneath it is:
+
+```sh
 yarn deploy:web
 ```
 
-Exports the app (`web.output: "single"` in `app.json`, so every route falls
+which exports the app (`web.output: "single"` in `app.json`, so every route falls
 back to `index.html`), syncs it to the bucket (hashed bundle and asset files
 are cached for a year, `index.html` is never cached) and invalidates the
 CloudFront cache. Add `--skip-build` to re-upload an existing `dist-web/`.

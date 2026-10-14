@@ -19,6 +19,9 @@ FontAwesome6 from `@expo/vector-icons` only. No react-native-paper, no lucide.
 - `yarn test` — `jest lib --ci`, unit tests for `lib/`
 - `node scripts/build-web-artifact.mjs <outDir>` — relocatable static web build
   for hosting as a Claude Artifact (see script header)
+- `./deploy.sh` — the everyday deploy: typecheck, test, export, upload,
+  invalidate (`--fast`, `-y`, `--dry-run`; `infra [--domain]` and `status`
+  reach the stack). Wraps:
 - `yarn deploy:web` / `yarn deploy:web:infra` — S3 + CloudFront + Route 53
   hosting for chartthegame.com (`infra/web-hosting.yaml`, `docs/HOSTING.md`).
   The site has its own AWS account (a member of the `rookies-production`
