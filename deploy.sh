@@ -66,6 +66,15 @@ run() {
 }
 
 if [[ $command != site ]]; then
+  # Stack changes need the admin role: the scoped deploy user can read this
+  # stack's outputs (that is all `status` needs) but not its template.
+  if [[ $command == infra ]]; then
+    has_profile=false
+    for arg in ${passthrough[@]+"${passthrough[@]}"}; do
+      [[ $arg == --profile ]] && has_profile=true
+    done
+    [[ $has_profile == false ]] && passthrough+=(--profile chartthegame-admin)
+  fi
   run node scripts/deploy-web.mjs "$command" ${passthrough[@]+"${passthrough[@]}"}
   exit 0
 fi
