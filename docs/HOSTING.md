@@ -28,7 +28,7 @@ Three identities, in descending power:
 | Who | What it is | Used for |
 |---|---|---|
 | member-account **root** | the account's own root user | billing, contacts, MFA, leaving the org. Never an access key. |
-| `chartthegame-admin` | `OrganizationAccountAccessRole`, assumed from `rookies-production` | `yarn deploy:web:infra` (CloudFormation creating CloudFront/ACM/Route 53 needs broad rights) |
+| `chartthegame-admin` | `OrganizationAccountAccessRole`, assumed by the management account's `org-admin` user | `yarn deploy:web:infra` (CloudFormation creating CloudFront/ACM/Route 53 needs broad rights) |
 | `chartthegame` | the `chartthegame-web-deploy` IAM user the stack creates | `yarn deploy:web` — upload to the one bucket, invalidate the one distribution, read the stack outputs. Nothing else. |
 
 `chartthegame` is the only long-lived key on the laptop, and it is the one the
@@ -61,14 +61,40 @@ the provider delivers it. `--feature-set ALL` keeps service control policies
 available (a region restriction, say) and is required for an account to leave
 the organization later.
 
-### 2. Name the profiles
+### 2. A non-root identity to assume the role with
 
-In `~/.aws/config`:
+`create-account` puts an `OrganizationAccountAccessRole` in the member account
+that the management account can assume — but **AWS refuses `AssumeRole` from
+root credentials**, and the `rookies-production` profile is the account's root
+user. So the management account needs one IAM user that can do nothing except
+assume that role:
+
+```sh
+aws iam create-user --user-name org-admin --profile rookies-production
+
+cat > /tmp/org-admin-policy.json <<'JSON'
+{ "Version": "2012-10-17",
+  "Statement": [{ "Sid": "AssumeChartTheGameAdmin", "Effect": "Allow",
+    "Action": "sts:AssumeRole",
+    "Resource": "arn:aws:iam::<MEMBER_ACCOUNT_ID>:role/OrganizationAccountAccessRole" }] }
+JSON
+
+aws iam put-user-policy --user-name org-admin \
+  --policy-name AssumeMemberAccountAdmin \
+  --policy-document file:///tmp/org-admin-policy.json --profile rookies-production
+
+aws iam create-access-key --user-name org-admin --profile rookies-production
+```
+
+Put that key pair in `~/.aws/credentials` under `[org-admin]`. A second member
+account later means another ARN in that policy, not another user.
+
+Then in `~/.aws/config`:
 
 ```ini
 [profile chartthegame-admin]
 role_arn       = arn:aws:iam::<MEMBER_ACCOUNT_ID>:role/OrganizationAccountAccessRole
-source_profile = rookies-production
+source_profile = org-admin
 region         = us-east-1
 
 [profile chartthegame]
@@ -81,6 +107,10 @@ profile works:
 ```sh
 aws sts get-caller-identity --profile chartthegame-admin
 ```
+
+It should report an assumed role in the member account. (`org-admin` is also
+the identity that lets the management account's **root access key** be
+deleted, which AWS recommends — but check what else uses it first.)
 
 ### 3. Member-account root hygiene
 
@@ -182,6 +212,8 @@ Nothing in AWS has to move; the account itself changes hands.
    Its costs stop appearing on the `rookies-production` bill.
 3. **Delete `OrganizationAccountAccessRole`** in the member account: it
    trusts `rookies-production`, and that trust should not outlive the handoff.
+   Delete the `org-admin` user in the management account too, once no other
+   member account needs it.
 4. **Change the root email** to the new owner, who resets the password and
    re-enrolls MFA.
 5. **Delete the deploy key**: `aws iam delete-access-key` for
