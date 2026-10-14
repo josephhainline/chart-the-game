@@ -17,9 +17,13 @@
  *   - lineup + subs per game: replayed from the HAR event stream (`undo` pops
  *     the previous event; `fill_lineup_index` gives the starting order,
  *     `sub_players` the substitutions in order, courtesy runners skipped);
- *   - plate appearances: every play mapped to a CTG outcome id, the batter to
- *     a roster id (ours) or a jersey-number index (theirs), our pitcher carried
- *     forward from the "(#13 Lucas pitching)" mentions;
+ *   - plate appearances: every play mapped to a CTG outcome id in the
+ *     vocabulary of the side that is graded (a batter outcome for our plate
+ *     appearances, a pitcher outcome for theirs; the captures carry no contact
+ *     quality beyond "Lineout"/"Popout", so outs other than those are plain,
+ *     while a hit against us is a hard-hit ball that reached), the
+ *     batter to a roster id (ours) or a jersey-number index (theirs), our
+ *     pitcher carried forward from the "(#13 Lucas pitching)" mentions;
  *   - each sub is placed at the half-inning of the incoming player's first
  *     plate appearance after the outgoing player's last one (else the next
  *     play, else the last inning);
@@ -64,7 +68,7 @@ const PLAYERS = [
 const byName = new Map(PLAYERS.map((p) => [`${p[1]} ${p[2]}`, p[0]]));
 const byJersey = new Map(PLAYERS.map((p) => [String(Number(p[3])), p[0]]));
 
-// --- outcome mapping: GameChanger play → CTG outcome id ---
+// --- outcome mapping: GameChanger play → CTG outcome id, in the graded side's vocabulary ---
 function calledStrikes(pitches) {
   return (pitches || []).filter((p) => p.result === 'called_strike').length;
 }
@@ -72,25 +76,42 @@ function lastPitch(pitches) {
   const a = pitches || [];
   return a.length ? a[a.length - 1] : null;
 }
-function outcomeFor(p) {
+/**
+ * `side` 'us': a batter outcome grading our batter. 'them': a pitcher outcome
+ * grading our pitcher. A hit against us is a hard-hit ball that reached and a
+ * lineout a hard-hit out (the letter the play carries names its contact); a
+ * pop-up is weak contact by definition; every other out, error and fielder's
+ * choice is of unknown contact quality and stays plain, as do bunts (out or
+ * reached unknown) and sacs. The no-pitch fallbacks keep the play's letter.
+ */
+function outcomeFor(p, side) {
   const t = p.play_type;
   const n = p.name || '';
   const pitches = p.pitches || [];
-  if (['single', 'double', 'triple', 'home_run'].includes(t)) return 'hit';
-  if (t === 'walk') return pitches.length ? (calledStrikes(pitches) >= 2 ? 'walk_2_looking' : 'walk_clean') : 'plain_w';
-  if (t === 'hit_by_pitch') return 'plain_w';
+  const them = side === 'them';
+  if (['single', 'double', 'triple', 'home_run'].includes(t)) return them ? 'p_hard_reached' : 'hit';
+  if (t === 'walk') {
+    if (them) return pitches.length ? 'p_walk' : 'plain_l';
+    return pitches.length ? (calledStrikes(pitches) >= 2 ? 'walk_2_looking' : 'walk_clean') : 'plain_w';
+  }
+  if (t === 'hit_by_pitch') return them ? (pitches.length ? 'p_hbp' : 'plain_l') : 'hbp';
   if (t === 'strikeout' || t === 'dropped_third_strike_batter_out' || t === 'dropped_third_strike') {
     const lp = lastPitch(pitches);
-    if (!lp) return 'plain_l';
-    return lp.result === 'called_strike' ? 'k_looking' : 'k_swinging';
+    if (!lp) return them ? 'plain_w' : 'plain_l';
+    const looking = lp.result === 'called_strike';
+    if (them) return looking ? 'p_k_looking' : 'p_k_swinging';
+    return looking ? 'k_looking' : 'k_swinging';
   }
-  if (t === 'batter_out') return /lineout/i.test(n) ? 'fly_out_hard' : 'plain_l';
-  if (t === 'batter_out_advance_runners') return 'plain_l';
-  if (t === 'fielders_choice') return 'plain_l';
-  if (t === 'error') return 'plain_l';
-  if (t === 'infield_fly') return 'plain_l';
-  if (t === 'bunt' || /bunt/i.test(n)) return 'bunt';
-  if (/sac/i.test(n)) return 'sac_fly';
+  if (t === 'batter_out') {
+    if (them) return /lineout/i.test(n) ? 'p_hard_out' : /popout/i.test(n) ? 'p_weak_out' : 'plain_w';
+    return /lineout/i.test(n) ? 'fly_out_hard' : 'plain_l';
+  }
+  if (t === 'batter_out_advance_runners') return them ? 'plain_w' : 'plain_l';
+  if (t === 'fielders_choice') return them ? 'plain_w' : 'plain_l';
+  if (t === 'error') return them ? 'plain_w' : 'plain_l';
+  if (t === 'infield_fly') return them ? 'p_weak_out' : 'plain_l';
+  if (t === 'bunt' || /bunt/i.test(n)) return them ? 'plain_w' : 'bunt';
+  if (/sac/i.test(n)) return them ? 'plain_l' : 'sac_fly';
   return null;
 }
 
@@ -268,7 +289,7 @@ for (const [harFile, date, index] of SPEC) {
   const atBats = [];
   let maxInning = 1;
   for (const p of ordered) {
-    const outcomeId = outcomeFor(p);
+    const outcomeId = outcomeFor(p, p.play_side === 'offensive' ? 'us' : 'them');
     if (!outcomeId) {
       warnings.push(`${harFile}: unmapped ${p.play_side} ${p.play_type} ${p.name}`);
       continue;

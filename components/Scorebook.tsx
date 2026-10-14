@@ -10,7 +10,7 @@ const webCursor = Platform.OS === 'web' ? ({ cursor: 'pointer' } as const) : nul
 /** One charted at-bat as shown in a scorebook cell. */
 export type ScorebookCell = {
   atBatId: string;
-  /** Already from the perspective being shown (W = green). */
+  /** The at-bat's `result`: the graded player's letter (W = green). */
   result: Result;
   /** Outcome abbreviation ("K", "BB", "H", …) from `lib/outcomes`; '' for a plain at-bat. */
   short: string;

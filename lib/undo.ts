@@ -12,7 +12,6 @@
  */
 import { useSyncExternalStore } from 'react';
 
-import { displayResult } from './atbats';
 import type { Store } from './store';
 import type { AtBat, Game, Id, Side } from './types';
 
@@ -57,7 +56,7 @@ export function undoLabel(entry: UndoEntry | undefined): string {
   if (!entry) return 'Undo';
   switch (entry.kind) {
     case 'record':
-      return `Undo ${displayResult(entry.atBat)}`;
+      return `Undo ${entry.atBat.result}`;
     case 'skip':
       return 'Undo skip';
     case 'half':

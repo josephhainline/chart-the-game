@@ -3,12 +3,14 @@ import React from 'react';
 import { AppState } from 'react-native';
 
 import { newestAtBat, sortAtBats } from '../atbats';
+import { getOutcome, outcomeSide } from '../outcomes';
 import { buildDemoData } from '../seed';
 import { gameHitting, gamePitching, hittingFor, pitchingFor, scorebook } from '../stats';
-import { BACKUP_KEY, STORAGE_KEY, StoreProvider, battingSide, carryNextBatter, normalizeLoaded, useStore } from '../store';
+import { BACKUP_KEY, STORAGE_KEY, StoreProvider, battingSide, carryNextBatter, migrateV1, normalizeLoaded, useStore } from '../store';
 import type { Store } from '../store';
-import type { AppData, AtBat, Game, Substitution } from '../types';
+import type { AppData, AtBat, Game, OutcomeId, Result, StoredDocument, Substitution } from '../types';
 import { applyUndo, clearAllUndo, peekUndo, popUndo, pushUndo } from '../undo';
+import v1Fixture from './fixtures/v1-demo.json';
 
 jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
@@ -206,16 +208,18 @@ describe('StoreProvider actions', () => {
       run((s) => s.nextHalfInning(SCHEDULED)); // bottom 1st: the home team (Bears Ken) bats
       let recorded: ReturnType<Store['recordAtBat']>;
       run((s) => {
-        recorded = s.recordAtBat(SCHEDULED, 'k_swinging');
+        recorded = s.recordAtBat(SCHEDULED, 'p_k_swinging');
       });
       const g = game(SCHEDULED);
+      // A strikeout is our pitcher's W: the stored letter is his grade.
       expect(recorded).toMatchObject({
         side: 'them',
         batterId: g.opponentLineup[0].id,
         pitcherId: 'p_weedon',
         inning: 1,
         half: 'bottom',
-        result: 'L',
+        outcomeId: 'p_k_swinging',
+        result: 'W',
       });
       expect(g.theirNextBatter).toBe(1);
       expect(g.ourNextBatter).toBe(0);
@@ -226,10 +230,107 @@ describe('StoreProvider actions', () => {
         s.nextHalfInning(SCHEDULED);
         s.setPitcher(SCHEDULED, 'p_hamilton');
       });
-      run((s) => s.recordAtBat(SCHEDULED, 'hit'));
+      run((s) => s.recordAtBat(SCHEDULED, 'p_hard_reached'));
       const last = store().data.atBats[store().data.atBats.length - 1];
       expect(last.pitcherId).toBe('p_hamilton');
-      expect(last.result).toBe('W');
+      // A hard-hit ball that reached is the pitcher's L.
+      expect(last.result).toBe('L');
+    });
+
+    it('takes the pitcher’s grade from a pitcher outcome: a walk is his L, a weak ball that reached his W', () => {
+      run((s) => s.nextHalfInning(SCHEDULED));
+      run((s) => {
+        s.recordAtBat(SCHEDULED, 'p_walk');
+        s.recordAtBat(SCHEDULED, 'p_weak_reached');
+        s.recordAtBat(SCHEDULED, 'p_hbp');
+      });
+      const theirs = store().data.atBats.filter((x) => x.gameId === SCHEDULED && x.side === 'them');
+      expect(theirs.map((x) => [x.outcomeId, x.result])).toEqual([
+        ['p_walk', 'L'],
+        ['p_weak_reached', 'W'],
+        ['p_hbp', 'L'],
+      ]);
+      expect(pitchingFor(store().data.atBats, 'p_weedon', SCHEDULED)).toEqual({ w: 1, l: 2 });
+    });
+
+    it('records the new batter outcomes with their letters: Hit by Pitch a W, the hard-hit out still a W', () => {
+      run((s) => {
+        s.recordAtBat(SCHEDULED, 'hbp');
+        s.recordAtBat(SCHEDULED, 'fly_out_hard');
+      });
+      const ours = store().data.atBats.filter((x) => x.gameId === SCHEDULED);
+      expect(ours.map((x) => [x.batterId, x.outcomeId, x.result])).toEqual([
+        ['p_hamilton', 'hbp', 'W'],
+        ['p_brady', 'fly_out_hard', 'W'],
+      ]);
+    });
+
+    describe('the side guard', () => {
+      const ob1 = () => game(SCHEDULED).opponentLineup[0].id;
+
+      it('refuses a pitcher outcome while we bat, naming the outcome, and records nothing', () => {
+        expect(() => store().recordAtBat(SCHEDULED, 'p_walk')).toThrow('p_walk is a pitcher outcome; this is a hitting at-bat');
+        expect(() => store().recordAtBat(SCHEDULED, 'p_k_swinging')).toThrow('p_k_swinging is a pitcher outcome; this is a hitting at-bat');
+        expect(store().data.atBats.filter((x) => x.gameId === SCHEDULED)).toEqual([]);
+        expect(game(SCHEDULED)).toMatchObject({ status: 'scheduled', ourNextBatter: 0 });
+      });
+
+      it('refuses a batter outcome while they bat', () => {
+        run((s) => s.nextHalfInning(SCHEDULED));
+        expect(() => store().recordAtBat(SCHEDULED, 'k_swinging')).toThrow('k_swinging is a batter outcome; this is a pitching at-bat');
+        expect(() => store().recordAtBat(SCHEDULED, 'hit')).toThrow('hit is a batter outcome; this is a pitching at-bat');
+        expect(() => store().recordAtBat(SCHEDULED, 'hbp')).toThrow('hbp is a batter outcome; this is a pitching at-bat');
+        expect(store().data.atBats.filter((x) => x.gameId === SCHEDULED)).toEqual([]);
+        expect(game(SCHEDULED).theirNextBatter).toBe(0);
+      });
+
+      it('judges a backfill by the target’s side', () => {
+        expect(() => store().recordAtBat(SCHEDULED, 'p_walk', { side: 'us', batterId: 'p_lucas', inning: 1, half: 'top' })).toThrow(
+          'p_walk is a pitcher outcome; this is a hitting at-bat',
+        );
+        expect(() => store().recordAtBat(SCHEDULED, 'hit', { side: 'them', batterId: ob1(), inning: 1, half: 'bottom' })).toThrow(
+          'hit is a batter outcome; this is a pitching at-bat',
+        );
+        expect(store().data.atBats.filter((x) => x.gameId === SCHEDULED)).toEqual([]);
+      });
+
+      it('lets the plain pair through on either side', () => {
+        run((s) => {
+          s.recordAtBat(SCHEDULED, 'plain_w');
+          s.recordAtBat(SCHEDULED, 'plain_l', { side: 'them', batterId: ob1(), inning: 1, half: 'bottom' });
+          s.nextHalfInning(SCHEDULED);
+          s.recordAtBat(SCHEDULED, 'plain_w');
+          s.recordAtBat(SCHEDULED, 'plain_l');
+        });
+        const mine = store().data.atBats.filter((x) => x.gameId === SCHEDULED);
+        expect(mine.map((x) => [x.side, x.outcomeId, x.result])).toEqual([
+          ['us', 'plain_w', 'W'],
+          ['them', 'plain_l', 'L'],
+          ['them', 'plain_w', 'W'],
+          ['them', 'plain_l', 'L'],
+        ]);
+      });
+
+      it('applies to a re-judge too, and leaves the at-bat alone when it refuses', () => {
+        run((s) => {
+          s.recordAtBat(SCHEDULED, 'hit');
+          s.nextHalfInning(SCHEDULED);
+          s.recordAtBat(SCHEDULED, 'p_k_swinging');
+        });
+        const [ours, theirs] = store().data.atBats.filter((x) => x.gameId === SCHEDULED);
+        const before = store().data;
+        expect(() => store().updateAtBat(ours.id, { outcomeId: 'p_walk' })).toThrow('p_walk is a pitcher outcome; this is a hitting at-bat');
+        expect(() => store().updateAtBat(theirs.id, { outcomeId: 'k_swinging' })).toThrow('k_swinging is a batter outcome; this is a pitching at-bat');
+        expect(store().data).toBe(before);
+        // The plain pair and the at-bat's own catalog are fine; a patch without an outcome never checks.
+        run((s) => {
+          s.updateAtBat(ours.id, { outcomeId: 'plain_l' });
+          s.updateAtBat(theirs.id, { outcomeId: 'p_walk' });
+          s.updateAtBat(theirs.id, { pitcherId: 'p_cooper' });
+        });
+        expect(store().data.atBats.find((x) => x.id === ours.id)).toMatchObject({ outcomeId: 'plain_l', result: 'L' });
+        expect(store().data.atBats.find((x) => x.id === theirs.id)).toMatchObject({ outcomeId: 'p_walk', result: 'L', pitcherId: 'p_cooper' });
+      });
     });
 
     it('returns undefined for an unknown game or an empty batting order', () => {
@@ -251,7 +352,8 @@ describe('StoreProvider actions', () => {
     });
 
     it('does not change the status of a final game', () => {
-      run((s) => s.recordAtBat('g_0823_3', 'hit'));
+      // The game ended in the bottom of the 4th at Redbirds STL: they bat, so a pitcher outcome.
+      run((s) => s.recordAtBat('g_0823_3', 'p_k_swinging'));
       expect(game('g_0823_3').status).toBe('final');
     });
 
@@ -286,11 +388,11 @@ describe('StoreProvider actions', () => {
         expect(book.rows[0].wl).toEqual({ w: 1, l: 0 });
       });
 
-      it('on the pitching side the stored result stays the batter’s and the pitcher line inverts it', () => {
+      it('on the pitching side the plain pair is our pitcher’s own grade: the big L is his L, the big W his W', () => {
         run((s) => s.nextHalfInning(SCHEDULED)); // Bears Ken bat, Weedon pitching
         run((s) => {
-          s.recordAtBat(SCHEDULED, 'plain_l'); // our pitcher won
-          s.recordAtBat(SCHEDULED, 'plain_w'); // their batter won
+          s.recordAtBat(SCHEDULED, 'plain_l'); // our pitcher lost the battle
+          s.recordAtBat(SCHEDULED, 'plain_w'); // our pitcher won it
         });
         const theirs = store().data.atBats.filter((x) => x.gameId === SCHEDULED && x.side === 'them');
         expect(theirs.map((x) => [x.outcomeId, x.result, x.pitcherId])).toEqual([
@@ -300,8 +402,8 @@ describe('StoreProvider actions', () => {
         expect(gamePitching(store().data.atBats, SCHEDULED)).toEqual({ w: 1, l: 1 });
         expect(pitchingFor(store().data.atBats, 'p_weedon', SCHEDULED)).toEqual({ w: 1, l: 1 });
         const book = scorebook(store().data.atBats, SCHEDULED, 'them', game(SCHEDULED).opponentLineup);
-        expect(book.rows[0].wl).toEqual({ w: 1, l: 0 });
-        expect(book.rows[1].wl).toEqual({ w: 0, l: 1 });
+        expect(book.rows[0].wl).toEqual({ w: 0, l: 1 });
+        expect(book.rows[1].wl).toEqual({ w: 1, l: 0 });
       });
     });
 
@@ -339,9 +441,9 @@ describe('StoreProvider actions', () => {
         const ob3 = game(SCHEDULED).opponentLineup[2].id;
         let recorded: ReturnType<Store['recordAtBat']>;
         run((s) => {
-          recorded = s.recordAtBat(SCHEDULED, 'k_swinging', { side: 'them', batterId: ob3, inning: 1, half: 'bottom' });
+          recorded = s.recordAtBat(SCHEDULED, 'p_k_swinging', { side: 'them', batterId: ob3, inning: 1, half: 'bottom' });
         });
-        expect(recorded).toMatchObject({ side: 'them', batterId: ob3, pitcherId: 'p_weedon', inning: 1, half: 'bottom', result: 'L' });
+        expect(recorded).toMatchObject({ side: 'them', batterId: ob3, pitcherId: 'p_weedon', inning: 1, half: 'bottom', result: 'W' });
         expect(game(SCHEDULED)).toMatchObject({ status: 'in_progress', inning: 1, half: 'top', ourNextBatter: 0, theirNextBatter: 0 });
       });
 
@@ -373,8 +475,8 @@ describe('StoreProvider actions', () => {
         s.nextHalfInning(SCHEDULED);
       });
       run((s) => {
-        s.recordAtBat(SCHEDULED, 'k_swinging');
-        s.recordAtBat(SCHEDULED, 'hit');
+        s.recordAtBat(SCHEDULED, 'p_k_swinging');
+        s.recordAtBat(SCHEDULED, 'p_hard_reached');
       });
       const theirs = store().data.atBats.filter((x) => x.gameId === SCHEDULED && x.side === 'them');
       expect(theirs).toHaveLength(2);
@@ -394,9 +496,9 @@ describe('StoreProvider actions', () => {
 
     it('never re-credits at-bats that already name a pitcher (a mid-inning relief change)', () => {
       run((s) => s.nextHalfInning(SCHEDULED));
-      run((s) => s.recordAtBat(SCHEDULED, 'k_swinging')); // credited to Weedon
+      run((s) => s.recordAtBat(SCHEDULED, 'p_k_swinging')); // credited to Weedon
       run((s) => s.setPitcher(SCHEDULED, 'p_hamilton'));
-      run((s) => s.recordAtBat(SCHEDULED, 'hit'));
+      run((s) => s.recordAtBat(SCHEDULED, 'p_hard_reached'));
       const theirs = store().data.atBats.filter((x) => x.gameId === SCHEDULED && x.side === 'them');
       expect(theirs.map((x) => x.pitcherId)).toEqual(['p_weedon', 'p_hamilton']);
     });
@@ -407,7 +509,7 @@ describe('StoreProvider actions', () => {
         s.nextHalfInning(SCHEDULED); // top 2nd (we bat)
         s.nextHalfInning(SCHEDULED); // bottom 2nd (they bat)
       });
-      run((s) => s.recordAtBat(SCHEDULED, 'bunt'));
+      run((s) => s.recordAtBat(SCHEDULED, 'p_weak_reached'));
       const redbirdsBefore = store().data.atBats.filter((x) => x.gameId === 'g_0823_3');
       run((s) => s.setPitcher(SCHEDULED, 'p_cooper'));
       const theirs = store().data.atBats.filter((x) => x.gameId === SCHEDULED && x.side === 'them');
@@ -421,7 +523,7 @@ describe('StoreProvider actions', () => {
 
     it('clearing the pitcher changes nothing about recorded at-bats', () => {
       run((s) => s.nextHalfInning(SCHEDULED));
-      run((s) => s.recordAtBat(SCHEDULED, 'k_swinging'));
+      run((s) => s.recordAtBat(SCHEDULED, 'p_k_swinging'));
       const before = store().data.atBats;
       run((s) => s.setPitcher(SCHEDULED, undefined));
       expect(game(SCHEDULED).pitcherId).toBeUndefined();
@@ -438,11 +540,11 @@ describe('StoreProvider actions', () => {
       it('re-stamps this half’s opponent at-bats that name a different pitcher, and still credits unassigned ones', () => {
         run((s) => s.nextHalfInning(SCHEDULED)); // bottom 1st, Weedon pitching
         run((s) => {
-          s.recordAtBat(SCHEDULED, 'k_swinging'); // Weedon
-          s.recordAtBat(SCHEDULED, 'hit'); // Weedon
+          s.recordAtBat(SCHEDULED, 'p_k_swinging'); // Weedon
+          s.recordAtBat(SCHEDULED, 'p_hard_reached'); // Weedon
         });
         run((s) => s.setPitcher(SCHEDULED, undefined));
-        run((s) => s.recordAtBat(SCHEDULED, 'bunt')); // nobody
+        run((s) => s.recordAtBat(SCHEDULED, 'p_weak_reached')); // nobody
         run((s) => s.setPitcher(SCHEDULED, 'p_hamilton', { recreditHalf: true }));
         expect(game(SCHEDULED).pitcherId).toBe('p_hamilton');
         const theirs = store().data.atBats.filter((x) => x.gameId === SCHEDULED && x.side === 'them');
@@ -453,13 +555,13 @@ describe('StoreProvider actions', () => {
 
       it('leaves earlier half-innings, our at-bats and other games alone', () => {
         run((s) => s.nextHalfInning(SCHEDULED)); // bottom 1st
-        run((s) => s.recordAtBat(SCHEDULED, 'k_swinging')); // Weedon, 1st
+        run((s) => s.recordAtBat(SCHEDULED, 'p_k_swinging')); // Weedon, 1st
         run((s) => {
           s.nextHalfInning(SCHEDULED); // top 2nd
           s.recordAtBat(SCHEDULED, 'hit'); // ours
           s.nextHalfInning(SCHEDULED); // bottom 2nd
         });
-        run((s) => s.recordAtBat(SCHEDULED, 'fc_weak')); // Weedon, 2nd
+        run((s) => s.recordAtBat(SCHEDULED, 'p_weak_reached')); // Weedon, 2nd
         const redbirdsBefore = store().data.atBats.filter((x) => x.gameId === 'g_0823_3');
         run((s) => s.setPitcher(SCHEDULED, 'p_cooper', { recreditHalf: true }));
         const mine = store().data.atBats.filter((x) => x.gameId === SCHEDULED);
@@ -473,7 +575,7 @@ describe('StoreProvider actions', () => {
 
       it('is the default-off behavior when the option is false or absent', () => {
         run((s) => s.nextHalfInning(SCHEDULED));
-        run((s) => s.recordAtBat(SCHEDULED, 'k_swinging')); // Weedon
+        run((s) => s.recordAtBat(SCHEDULED, 'p_k_swinging')); // Weedon
         run((s) => s.setPitcher(SCHEDULED, 'p_hamilton', { recreditHalf: false }));
         run((s) => s.setPitcher(SCHEDULED, 'p_cooper', {}));
         const theirs = store().data.atBats.filter((x) => x.gameId === SCHEDULED && x.side === 'them');
@@ -483,7 +585,7 @@ describe('StoreProvider actions', () => {
 
       it('clearing the pitcher with recreditHalf changes no at-bat', () => {
         run((s) => s.nextHalfInning(SCHEDULED));
-        run((s) => s.recordAtBat(SCHEDULED, 'k_swinging'));
+        run((s) => s.recordAtBat(SCHEDULED, 'p_k_swinging'));
         const before = store().data.atBats;
         run((s) => s.setPitcher(SCHEDULED, undefined, { recreditHalf: true }));
         expect(store().data.atBats).toEqual(before);
@@ -524,7 +626,7 @@ describe('StoreProvider actions', () => {
       run((s) => {
         s.recordAtBat(SCHEDULED, 'hit');
         s.nextHalfInning(SCHEDULED);
-        s.recordAtBat(SCHEDULED, 'hit');
+        s.recordAtBat(SCHEDULED, 'p_hard_reached');
       });
       expect(game(SCHEDULED)).toMatchObject({ ourNextBatter: 1, theirNextBatter: 1, half: 'bottom' });
       run((s) => s.undoLastAtBat(SCHEDULED));
@@ -602,7 +704,7 @@ describe('StoreProvider actions', () => {
 
     it('sets or clears the pitcher on an opponent at-bat (explicit undefined clears)', () => {
       run((s) => s.nextHalfInning(SCHEDULED));
-      run((s) => s.recordAtBat(SCHEDULED, 'k_swinging')); // Weedon
+      run((s) => s.recordAtBat(SCHEDULED, 'p_k_swinging')); // Weedon
       const theirs = store().data.atBats.find((x) => x.gameId === SCHEDULED && x.side === 'them')!;
       run((s) => s.updateAtBat(theirs.id, { pitcherId: 'p_hamilton' }));
       expect(find(theirs.id).pitcherId).toBe('p_hamilton');
@@ -611,8 +713,9 @@ describe('StoreProvider actions', () => {
       expect(find(theirs.id).pitcherId).toBeUndefined();
       // A patch that does not mention the pitcher leaves it alone.
       run((s) => s.updateAtBat(theirs.id, { pitcherId: 'p_cooper' }));
-      run((s) => s.updateAtBat(theirs.id, { outcomeId: 'hit' }));
-      expect(find(theirs.id)).toMatchObject({ pitcherId: 'p_cooper', outcomeId: 'hit', result: 'W' });
+      run((s) => s.updateAtBat(theirs.id, { outcomeId: 'p_hard_reached' }));
+      expect(find(theirs.id)).toMatchObject({ pitcherId: 'p_cooper', outcomeId: 'p_hard_reached', result: 'L' });
+      expect(pitchingFor(store().data.atBats, 'p_cooper', SCHEDULED)).toEqual({ w: 0, l: 1 });
     });
 
     it('keeps the inning at 1 or more', () => {
@@ -733,7 +836,7 @@ describe('StoreProvider actions', () => {
       run((s) => {
         s.recordAtBat(SCHEDULED, 'hit'); // Hamilton; Brady due
         s.nextHalfInning(SCHEDULED);
-        s.recordAtBat(SCHEDULED, 'k_swinging'); // Batter 1; Batter 2 due
+        s.recordAtBat(SCHEDULED, 'p_k_swinging'); // Batter 1; Batter 2 due
       });
       expect(game(SCHEDULED)).toMatchObject({ ourNextBatter: 1, theirNextBatter: 1 });
       const theirs = ours().find((x) => x.side === 'them')!;
@@ -821,7 +924,7 @@ describe('StoreProvider actions', () => {
     it('undoing an at-bat charted while reviewing an earlier half puts that batter back up', () => {
       run((s) => s.recordAtBat(SCHEDULED, 'hit')); // Hamilton, top 1st; Brady due
       run((s) => s.nextHalfInning(SCHEDULED)); // bottom 1st: they bat
-      run((s) => s.recordAtBat(SCHEDULED, 'k_swinging')); // Batter 1; Batter 2 due
+      run((s) => s.recordAtBat(SCHEDULED, 'p_k_swinging')); // Batter 1; Batter 2 due
       run((s) => s.prevHalfInning(SCHEDULED)); // back to the top 1st for a missed at-bat
       let brady: AtBat | undefined;
       run((s) => {
@@ -881,7 +984,7 @@ describe('StoreProvider actions', () => {
     it('undoing a remove in the pitching half restores their pointer', () => {
       run((s) => {
         s.nextHalfInning(SCHEDULED);
-        s.recordAtBat(SCHEDULED, 'k_swinging'); // Batter 1; Batter 2 due
+        s.recordAtBat(SCHEDULED, 'p_k_swinging'); // Batter 1; Batter 2 due
       });
       const theirs = ours()[0];
       const g = game(SCHEDULED);
@@ -1289,7 +1392,7 @@ describe('StoreProvider actions', () => {
       expect(game(SCHEDULED).pitcherId).toBeUndefined();
       let recorded: ReturnType<Store['recordAtBat']>;
       run((s) => {
-        recorded = s.recordAtBat(SCHEDULED, 'k_swinging');
+        recorded = s.recordAtBat(SCHEDULED, 'p_k_swinging');
       });
       expect(recorded!.side).toBe('them');
       expect(recorded!.pitcherId).toBeUndefined();
@@ -1386,7 +1489,7 @@ describe('StoreProvider actions', () => {
     it('clearAllData empties everything but keeps onboarded', () => {
       run((s) => s.setOnboarded(true));
       run((s) => s.clearAllData());
-      expect(store().data).toEqual({ version: 1, onboarded: true, teams: [], players: [], games: [], atBats: [] });
+      expect(store().data).toEqual({ version: 2, onboarded: true, teams: [], players: [], games: [], atBats: [] });
     });
 
     it('setOnboarded flips the flag both ways', () => {
@@ -1507,7 +1610,7 @@ describe('StoreProvider actions', () => {
     describe('setOpponentLineup keeps the same batter due', () => {
       it('after removing the batter who just hit', () => {
         run((s) => s.nextHalfInning(SCHEDULED));
-        run((s) => s.recordAtBat(SCHEDULED, 'hit')); // Batter 1 hit; Batter 2 due
+        run((s) => s.recordAtBat(SCHEDULED, 'p_hard_reached')); // Batter 1 hit; Batter 2 due
         const [b1, ...rest] = game(SCHEDULED).opponentLineup;
         run((s) => s.setOpponentLineup(SCHEDULED, rest));
         const g = game(SCHEDULED);
@@ -1819,28 +1922,236 @@ describe('StoreProvider loading', () => {
     const keys = storage.setItem.mock.calls.map(([key]) => key);
     expect(keys[0]).toBe(BACKUP_KEY);
     await waitForSave();
-    expect(lastWritten()!.version).toBe(1);
+    expect(lastWritten()!.version).toBe(2);
     expect(keys.indexOf(BACKUP_KEY)).toBeLessThan(storage.setItem.mock.calls.findIndex(([key]) => key === STORAGE_KEY));
     expect(storage.__INTERNAL_MOCK_STORAGE__[BACKUP_KEY]).toBe(raw);
   });
 
-  it('backs up a document from another schema version instead of overwriting it', async () => {
-    const raw = JSON.stringify({ ...demo, version: 2 });
+  it('backs up a document from a schema version this build does not know instead of overwriting it', async () => {
+    const raw = JSON.stringify({ ...demo, version: 3 });
     storage.__INTERNAL_MOCK_STORAGE__[STORAGE_KEY] = raw;
     mount();
     await settle();
     expect(store().loadIssue).toBe('backed_up');
     expect(storage.__INTERNAL_MOCK_STORAGE__[BACKUP_KEY]).toBe(raw);
-    expect(store().data.version).toBe(1);
+    expect(store().data.version).toBe(2);
+    expect(warn).toHaveBeenCalledWith('Saved data is not a version 1 or 2 document (version 3); keeping a backup.');
   });
 
-  it('treats a version-1 document with a broken shape as unreadable', async () => {
-    const raw = JSON.stringify({ version: 1, onboarded: true });
-    storage.__INTERNAL_MOCK_STORAGE__[STORAGE_KEY] = raw;
-    mount();
-    await settle();
-    expect(store().loadIssue).toBe('backed_up');
-    expect(storage.__INTERNAL_MOCK_STORAGE__[BACKUP_KEY]).toBe(raw);
-    expect(Array.isArray(store().data.teams)).toBe(true);
+  it('treats a version-1 or version-2 document with a broken shape as unreadable', async () => {
+    for (const version of [1, 2]) {
+      const raw = JSON.stringify({ version, onboarded: true });
+      storage.__INTERNAL_MOCK_STORAGE__ = {};
+      storage.__INTERNAL_MOCK_STORAGE__[STORAGE_KEY] = raw;
+      latest = undefined;
+      mount();
+      await settle();
+      expect(store().loadIssue).toBe('backed_up');
+      expect(storage.__INTERNAL_MOCK_STORAGE__[BACKUP_KEY]).toBe(raw);
+      expect(Array.isArray(store().data.teams)).toBe(true);
+      unmount();
+      await settle();
+    }
+  });
+
+  describe('a version-1 document (pitching at-bats charted in the batter vocabulary)', () => {
+    /**
+     * The demo as the previous build saved it, captured from that build: 579
+     * at-bats, every opponent at-bat carrying a batter outcome and the
+     * BATTER's letter (a strikeout is 'L', a hit 'W').
+     */
+    const v1 = (): StoredDocument => JSON.parse(JSON.stringify(v1Fixture)) as StoredDocument;
+
+    /** What `migrateV1` does to an opponent at-bat, per old outcome id: the pitcher outcome and the pitcher's letter. */
+    const THEM_TABLE: Record<string, [OutcomeId, Result]> = {
+      k_swinging: ['p_k_swinging', 'W'],
+      k_looking: ['p_k_looking', 'W'],
+      walk_clean: ['p_walk', 'L'],
+      walk_2_looking: ['p_walk', 'L'],
+      hit: ['p_hard_reached', 'L'],
+      sac_fly: ['p_hard_out', 'L'],
+      bunt: ['plain_w', 'W'],
+      error_weak: ['p_weak_reached', 'W'],
+      fc_weak: ['p_weak_reached', 'W'],
+      error_hard: ['p_hard_reached', 'L'],
+      fc_hard: ['p_hard_reached', 'L'],
+      fly_out_hard: ['p_hard_out', 'L'],
+      plain_w: ['plain_l', 'L'],
+      plain_l: ['plain_w', 'W'],
+    };
+
+    it('is a genuine version-1 capture: batter ids and the batter’s letter on every opponent at-bat', () => {
+      const old = v1();
+      expect(old.version).toBe(1);
+      expect(old.atBats).toHaveLength(579);
+      expect(old.atBats.filter((x) => x.side === 'us')).toHaveLength(314);
+      const theirs = old.atBats.filter((x) => x.side === 'them');
+      expect(theirs).toHaveLength(265);
+      expect(theirs.every((x) => outcomeSide(x.outcomeId) !== 'pitcher')).toBe(true);
+      expect(theirs.some((x) => x.outcomeId === 'k_swinging' && x.result === 'L')).toBe(true);
+      expect(theirs.some((x) => x.outcomeId === 'hit' && x.result === 'W')).toBe(true);
+      for (const id of ['g_0815_2_ab32', 'g_0816_2_ab18', 'g_0913_2_ab20']) {
+        expect(old.atBats.find((x) => x.id === id)).toMatchObject({ side: 'them', outcomeId: 'walk_2_looking', result: 'L' });
+      }
+      // Counted as the batters' letters (what a version-1 document stores): 12 W and 19 L against
+      // Weedon, which the old build inverted into his 19-12; the walk after two called strikes is
+      // one of those 19 batter L's, i.e. it was his W.
+      const vsWeedon = old.atBats.filter((x) => x.side === 'them' && x.pitcherId === 'p_weedon');
+      expect(vsWeedon.filter((x) => x.result === 'W').length).toBe(12);
+      expect(vsWeedon.filter((x) => x.result === 'L').length).toBe(19);
+    });
+
+    it('migrateV1 stamps version 2 and re-expresses every opponent at-bat as a pitcher (or plain) outcome with the pitcher’s letter', () => {
+      const old = v1();
+      const next = migrateV1(old);
+      expect(next).not.toBe(old);
+      expect(next.version).toBe(2);
+      expect(next.atBats).toHaveLength(old.atBats.length);
+      next.atBats.forEach((x, i) => {
+        const was = old.atBats[i];
+        expect(x.id).toBe(was.id);
+        if (x.side === 'us') return;
+        expect(outcomeSide(x.outcomeId)).not.toBe('batter');
+        expect([x.outcomeId, x.result]).toEqual(THEM_TABLE[was.outcomeId]);
+        // The stored letter is what the catalog derives for the new outcome: the store and the migration agree.
+        expect(x.result).toBe(getOutcome(x.outcomeId).result);
+        // Everything but the outcome and its letter is untouched.
+        expect({ ...x, outcomeId: undefined, result: undefined }).toEqual({ ...was, outcomeId: undefined, result: undefined });
+      });
+      expect(next.atBats.find((x) => x.id === 'g_0815_2_ab32')).toMatchObject({ pitcherId: 'p_weedon', outcomeId: 'p_walk', result: 'L' });
+      expect(next.atBats.find((x) => x.id === 'g_0816_2_ab18')).toMatchObject({ pitcherId: 'p_owen_haynes', outcomeId: 'p_walk', result: 'L' });
+      expect(next.atBats.find((x) => x.id === 'g_0913_2_ab20')).toMatchObject({ pitcherId: 'p_lucas', outcomeId: 'p_walk', result: 'L' });
+    });
+
+    it('keeps every hitting line and moves only the walk-after-two-called-strikes pitcher lines', () => {
+      const old = v1();
+      const next = migrateV1(old);
+      expect(hittingFor(next.atBats, 'p_cooper')).toEqual({ w: 25, l: 6 });
+      expect(hittingFor(next.atBats, 'p_owen_haynes')).toEqual({ w: 24, l: 7 });
+      for (const p of old.players) expect(hittingFor(next.atBats, p.id)).toEqual(hittingFor(old.atBats, p.id));
+      expect(pitchingFor(next.atBats, 'p_weedon')).toEqual({ w: 18, l: 13 });
+      expect(pitchingFor(next.atBats, 'p_owen_haynes')).toEqual({ w: 11, l: 27 });
+      expect(pitchingFor(next.atBats, 'p_lucas')).toEqual({ w: 11, l: 13 });
+      expect(pitchingFor(next.atBats, 'p_carsyn')).toEqual({ w: 34, l: 23 });
+      expect(pitchingFor(next.atBats, 'p_cooper')).toEqual({ w: 39, l: 33 });
+      // The migrated document carries the same letters as the rebuilt seed, at-bat for at-bat. The
+      // ids differ only where the old build stored a plain letter the captures could type: a
+      // hit-by-pitch (a plain W on our side, a plain W = pitcher L on theirs) and a pop-up against
+      // us (a plain out). The migration cannot tell those from any other plain at-bat, so they
+      // stay plain; the letters agree everywhere.
+      const seed = buildDemoData(NOW);
+      expect(next.atBats.map((x) => [x.id, x.result])).toEqual(seed.atBats.map((x) => [x.id, x.result]));
+      const differing = next.atBats.map((x, i) => [x.side, x.outcomeId, seed.atBats[i].outcomeId] as const).filter(([, a, b]) => a !== b);
+      const count = (side: string, migrated: OutcomeId, typed: OutcomeId) => differing.filter((d) => d[0] === side && d[1] === migrated && d[2] === typed).length;
+      expect(differing).toHaveLength(24);
+      expect(count('us', 'plain_w', 'hbp')).toBe(11);
+      expect(count('them', 'plain_l', 'p_hbp')).toBe(6);
+      expect(count('them', 'plain_w', 'p_weak_out')).toBe(7);
+    });
+
+    it('leaves our at-bats, the teams, players and games as the very same objects', () => {
+      const old = v1();
+      const next = migrateV1(old);
+      expect(next.teams).toBe(old.teams);
+      expect(next.players).toBe(old.players);
+      expect(next.games).toBe(old.games);
+      expect(next.onboarded).toBe(old.onboarded);
+      next.atBats.forEach((x, i) => {
+        if (x.side === 'us') expect(x).toBe(old.atBats[i]);
+        else expect(x).not.toBe(old.atBats[i]);
+      });
+    });
+
+    it('covers the whole table, swaps the plain pair, and passes an unknown id through untouched', () => {
+      const them = (i: number, outcomeId: OutcomeId, result: Result): AtBat => ({
+        id: `ab_${i}`,
+        gameId: SCHEDULED,
+        side: 'them',
+        batterId: 'g_next_ob0',
+        pitcherId: 'p_weedon',
+        inning: 1,
+        half: 'bottom',
+        outcomeId,
+        result,
+        recordedAt: '2026-09-19T15:10:00.000Z',
+      });
+      const ids = Object.keys(THEM_TABLE) as OutcomeId[];
+      const unknown = them(99, 'hr_bomb' as OutcomeId, 'W');
+      const ours: AtBat = { ...them(100, 'hit', 'W'), side: 'us', batterId: 'p_hamilton', pitcherId: undefined, half: 'top' };
+      const old: StoredDocument = {
+        ...demo,
+        version: 1,
+        atBats: [...ids.map((id, i) => them(i, id, getOutcome(id).result)), unknown, ours],
+      };
+      const next = migrateV1(old);
+      expect(next.version).toBe(2);
+      ids.forEach((id, i) => expect([next.atBats[i].outcomeId, next.atBats[i].result]).toEqual(THEM_TABLE[id]));
+      // Every plain flip really is a flip of the letter.
+      expect(next.atBats.find((x) => x.id === `ab_${ids.indexOf('plain_w')}`)).toMatchObject({ outcomeId: 'plain_l', result: 'L' });
+      expect(next.atBats.find((x) => x.id === `ab_${ids.indexOf('plain_l')}`)).toMatchObject({ outcomeId: 'plain_w', result: 'W' });
+      expect(next.atBats[ids.length]).toBe(unknown);
+      expect(next.atBats[ids.length + 1]).toBe(ours);
+      expect(() => migrateV1(old)).not.toThrow();
+    });
+
+    it('returns a version-2 document as the very same object, and a version-1 one with nothing to re-express as a new object stamped 2', () => {
+      expect(migrateV1(demo)).toBe(demo);
+      const saved: AppData = { ...demo, onboarded: true };
+      expect(migrateV1(saved)).toBe(saved);
+      const empty: StoredDocument = { version: 1, onboarded: false, teams: [], players: [], games: [], atBats: [] };
+      const next = migrateV1(empty);
+      expect(next).not.toBe(empty);
+      expect(next).toEqual({ ...empty, version: 2 });
+      expect(next.atBats).toBe(empty.atBats);
+    });
+
+    it('loads migrated, writes the version-2 document back once, and a second launch reads it as-is (no re-flip)', async () => {
+      const old = v1();
+      storage.__INTERNAL_MOCK_STORAGE__[STORAGE_KEY] = JSON.stringify(old);
+      mount();
+      await settle();
+      expect(store().ready).toBe(true);
+      expect(store().loadIssue).toBeUndefined();
+      expect(store().data.version).toBe(2);
+      expect(store().data).toEqual(migrateV1(old));
+      expect(store().data.onboarded).toBe(old.onboarded);
+      expect(pitchingFor(store().data.atBats, 'p_weedon')).toEqual({ w: 18, l: 13 });
+      expect(store().data.atBats.find((x) => x.id === 'g_0815_2_ab32')).toMatchObject({ outcomeId: 'p_walk', result: 'L' });
+      await waitForSave();
+      const written = lastWritten()!;
+      expect(written.version).toBe(2);
+      expect(written).toEqual(store().data);
+      expect(storage.setItem.mock.calls.filter(([key]) => key === STORAGE_KEY)).toHaveLength(1);
+      expect(storage.__INTERNAL_MOCK_STORAGE__[BACKUP_KEY]).toBeUndefined();
+      expect(warn).not.toHaveBeenCalled();
+
+      // Second launch against the written-back document: nothing changes and nothing is written.
+      unmount();
+      await settle();
+      storage.setItem.mockClear();
+      latest = undefined;
+      expect(JSON.parse(storage.__INTERNAL_MOCK_STORAGE__[STORAGE_KEY]) as AppData).toEqual(written);
+      mount();
+      await settle();
+      expect(store().loadIssue).toBeUndefined();
+      expect(store().data).toEqual(written);
+      await waitForSave();
+      expect(storage.setItem).not.toHaveBeenCalled();
+      expect(pitchingFor(store().data.atBats, 'p_weedon')).toEqual({ w: 18, l: 13 });
+      expect(pitchingFor(store().data.atBats, 'p_carsyn')).toEqual({ w: 34, l: 23 });
+      expect(store().data.atBats.find((x) => x.id === 'g_0815_2_ab32')).toMatchObject({ outcomeId: 'p_walk', result: 'L' });
+      expect(store().data.atBats.filter((x) => x.side === 'them' && outcomeSide(x.outcomeId) === 'batter')).toEqual([]);
+    });
+
+    it('charting carries on in the pitcher vocabulary after the migration', async () => {
+      storage.__INTERNAL_MOCK_STORAGE__[STORAGE_KEY] = JSON.stringify(v1());
+      mount();
+      await settle();
+      const g = store().data.games.find((x) => x.id === 'g_0913_2')!;
+      expect(g.pitcherId).toBe('p_weedon');
+      const before = pitchingFor(store().data.atBats, 'p_weedon');
+      run((s) => s.recordAtBat('g_0913_2', 'p_walk', { side: 'them', batterId: g.opponentLineup[0].id, inning: 4, half: 'top' }));
+      expect(pitchingFor(store().data.atBats, 'p_weedon')).toEqual({ w: before.w, l: before.l + 1 });
+    });
   });
 });

@@ -7,7 +7,7 @@ import type { Result } from '@/lib/types';
 const webCursor = Platform.OS === 'web' ? ({ cursor: 'pointer' } as const) : null;
 
 type Props = {
-  /** Already from the perspective being shown (W = green). */
+  /** The graded player's letter (`AtBat.result`; W = green). */
   result: Result;
   /** Outcome abbreviation under the letter ("SF"); omit for a plain at-bat. */
   code?: string;

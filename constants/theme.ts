@@ -16,7 +16,7 @@ export const colors = {
   /** Amber review line on the inning strip. */
   amberBg: '#FFF3D6',
   amberInk: '#8A5A00',
-  /** Left rail on the AT-BAT row and the re-judge border. */
+  /** The re-judge accent: the ring on a selected chip or tile and the dock border while re-judging. */
   currentRail: '#FF9052',
   /** Translucent tints for row states: peeking the other side's order, a re-judged W or L. */
   primaryTint: 'rgba(0, 166, 255, 0.08)',
@@ -26,6 +26,8 @@ export const colors = {
   hotTint: 'rgba(255, 144, 82, 0.16)',
   coldTint: 'rgba(0, 166, 255, 0.14)',
   pitching: '#976DD0',
+  /** Pitching with alpha: the lavender surface behind the batting order while we pitch (CTG screen). */
+  pitchingTint: 'rgba(151, 109, 208, 0.10)',
   navy: '#040B71',
   text: '#495460',
   textMuted: '#99A2AD',

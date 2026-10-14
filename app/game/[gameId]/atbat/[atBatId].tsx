@@ -8,7 +8,6 @@ import OutcomeButtons from '@/components/OutcomeButtons';
 import ResultTile from '@/components/ResultTile';
 import { Chip, EmptyState } from '@/components/ui';
 import { colors, fonts, radii, type } from '@/constants/theme';
-import { displayResult, invertResult } from '@/lib/atbats';
 import { confirmAction } from '@/lib/confirm';
 import { halfLabel, inningOrdinal, lineupFirstRoster, opponentBatterLabel, playerLabel, playerName, playerShort } from '@/lib/format';
 import { useDismiss } from '@/lib/navigation';
@@ -32,8 +31,9 @@ function previousOf(ab: AtBat): Previous {
  * `updateAtBat` and lands on the game's undo stack; Done just closes. Reached
  * from "More…" in the dock, a Stats scorebook cell and the batter sheet.
  *
- * The big letters and the grid read in the perspective being shown (our
- * pitcher's for their at-bats); storage is always the batter's result.
+ * The letters and the grid are the graded player's: the batter's on our
+ * at-bats, our pitcher's on theirs. `ab.result` stores that letter and the
+ * grid is that side's catalog, so nothing inverts.
  */
 export default function AtBatEditorScreen() {
   const { gameId, atBatId } = useLocalSearchParams<{ gameId: string; atBatId: string }>();
@@ -77,7 +77,6 @@ export default function AtBatEditorScreen() {
   if (!atBat) return null;
 
   const side = atBat.side;
-  const perspective = side === 'us' ? 'batter' : 'pitcher';
   const playersById = new Map(players.map((p) => [p.id, p]));
   const player = side === 'us' ? playersById.get(atBat.batterId) : undefined;
   const opponentBatter = side === 'them' ? game.opponentLineup.find((b) => b.id === atBat.batterId) : undefined;
@@ -85,12 +84,15 @@ export default function AtBatEditorScreen() {
     side === 'us' ? (player ? playerLabel(player) : 'Removed player') : opponentBatter ? opponentBatterLabel(opponentBatter) : 'Batter (left)';
   const batterName = side === 'us' ? (player ? playerName(player) : 'Removed player') : opponentBatter?.name ?? 'Batter (left)';
   const pitcher = atBat.pitcherId ? playersById.get(atBat.pitcherId) : undefined;
+  /** Our pitcher of record by name: the no-pitcher wording only when the at-bat has none, not when he left the roster. */
+  const pitcherShortName = pitcher ? playerShort(pitcher) : atBat.pitcherId ? 'Removed player' : 'Our pitcher';
 
-  const shown = displayResult(atBat);
+  const result = atBat.result;
   const label = outcomeLabel(atBat.outcomeId);
   const plain = isPlain(atBat.outcomeId);
   const when = halfLabel(atBat.inning, atBat.half);
-  const title = `${batterLabel} · ${when}${side === 'them' && pitcher ? ` · ${playerShort(pitcher)} pitching` : ''}`;
+  // The graded player is the subject: the batter on our at-bats, our pitcher of record on theirs.
+  const title = side === 'us' ? `${batterLabel} · ${when}` : `${pitcherShortName} · ${when} · vs ${batterLabel}`;
 
   /** Applies a change and records how to undo it. */
   const apply = (patch: AtBatPatch) => {
@@ -100,9 +102,9 @@ export default function AtBatEditorScreen() {
   };
 
   /** A result that disagrees with the current type drops the type: the at-bat becomes plain. */
-  const chooseResult = (shownResult: Result) => {
-    if (shownResult === shown) return;
-    apply({ outcomeId: plainFor(perspective === 'pitcher' ? invertResult(shownResult) : shownResult) });
+  const chooseResult = (next: Result) => {
+    if (next === result) return;
+    apply({ outcomeId: plainFor(next) });
   };
 
   const chooseType = (outcomeId: OutcomeId) => {
@@ -110,7 +112,7 @@ export default function AtBatEditorScreen() {
   };
 
   const clearType = () => {
-    if (!plain) apply({ outcomeId: plainFor(atBat.result) });
+    if (!plain) apply({ outcomeId: plainFor(result) });
   };
 
   const chooseBatter = (batterId: Id) => {
@@ -133,9 +135,12 @@ export default function AtBatEditorScreen() {
   };
 
   const remove = async () => {
+    // "Remove Weedon Hainline's Walk vs Batter 3 from the top of the 2nd?": the graded player owns the play.
+    const owner = side === 'us' ? batterName : pitcher ? playerName(pitcher) : atBat.pitcherId ? 'a removed player' : 'our pitcher';
+    const play = `${label || 'at-bat'}${side === 'them' ? ` vs ${batterName}` : ''}`;
     const ok = await confirmAction(
       'Remove this at-bat?',
-      `Remove ${batterName}'s ${label || 'at-bat'} from the ${atBat.half} of the ${inningOrdinal(atBat.inning)}? Later at-bats are not affected.`,
+      `Remove ${owner}'s ${play} from the ${atBat.half} of the ${inningOrdinal(atBat.inning)}? Later at-bats are not affected.`,
       'Remove',
     );
     if (!ok) return;
@@ -149,9 +154,6 @@ export default function AtBatEditorScreen() {
     close();
   };
 
-  // Pitching: W (our pitcher won the battle) on the left, like the dock and the grid.
-  const leftResult: Result = perspective === 'pitcher' ? 'W' : 'L';
-  const rightResult = invertResult(leftResult);
   const order =
     side === 'us'
       ? game.lineup.map((slot) => {
@@ -164,25 +166,26 @@ export default function AtBatEditorScreen() {
     <ModalScreen title={title} color={colors.orange} actionLabel="Done" onAction={close} onClose={close}>
       <View style={styles.state}>
         <ResultTile
-          result={shown}
+          result={result}
           code={outcomeShort(atBat.outcomeId)}
           size="large"
-          accessibilityLabel={`${shown}, ${label || 'no play type'}`}
+          accessibilityLabel={`${result}, ${label || 'no play type'}`}
         />
         <Text style={styles.stateText}>
-          {shown} · {label || 'no play type'}
+          {result} · {label || 'no play type'}
         </Text>
       </View>
 
-      <Text style={styles.sectionLabel}>{perspective === 'pitcher' ? 'Result for our pitcher' : 'Result'}</Text>
+      <Text style={styles.sectionLabel}>{side === 'them' ? 'Result for our pitcher' : 'Result'}</Text>
+      {/* L on the left and W on the right on both sides, like the dock and the grid. */}
       <View style={styles.resultRow}>
-        <ResultButton result={leftResult} current={shown === leftResult} onPress={() => chooseResult(leftResult)} />
-        <ResultButton result={rightResult} current={shown === rightResult} onPress={() => chooseResult(rightResult)} />
+        <ResultButton result="L" current={result === 'L'} onPress={() => chooseResult('L')} />
+        <ResultButton result="W" current={result === 'W'} onPress={() => chooseResult('W')} />
       </View>
 
       <Text style={styles.sectionLabel}>Play type</Text>
       <View style={styles.grid}>
-        <OutcomeButtons perspective={perspective} onPress={chooseType} selectedId={atBat.outcomeId} />
+        <OutcomeButtons mode={side === 'us' ? 'hitting' : 'pitching'} onPress={chooseType} selectedId={atBat.outcomeId} />
       </View>
       <Pressable
         onPress={clearType}

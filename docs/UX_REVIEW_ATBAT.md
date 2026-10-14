@@ -1,5 +1,7 @@
 # At-bat flow UX review (Sept 2026)
 
+_Superseded in part by GitHub issue #1 (Sept 2026): the W-left / L-right flip while pitching and the batter-worded grid with swapped colours described below were replaced by fixed positions (L always left, W always right, in both halves) and a separate pitcher catalog; `docs/PRODUCT_SPEC.md` §5 (Grading rules) is current._
+
 Status: **recommendation, not yet agreed.** Produced 2026-09-14 from a five-lens review of the CTG charting screen (each finding checked by two adversarial verifiers), three independent redesign proposals scored by three judges, and a synthesis. Nothing here changes `PRODUCT_SPEC.md` until Joe picks a direction; the phases below are the proposed order of work. The same review, with an interactive mockup, is published as the "At-Bat Flow Review" artifact.
 
 ## Brief (Joe, verbatim)

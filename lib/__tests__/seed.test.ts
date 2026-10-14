@@ -3,7 +3,7 @@ import { differenceInCalendarDays } from 'date-fns';
 
 import { compareClock } from '../atbats';
 import dataset from '../demo/bears-floyd-14u.json';
-import { getOutcome, isPlain } from '../outcomes';
+import { getOutcome, isPlain, outcomeSide } from '../outcomes';
 import { DEMO_SEASON, DEMO_TEAM_ID, NEXT_GAME_ID, buildDemoData, saturdayOffset } from '../seed';
 import type { DemoDataset, DemoGame } from '../seed';
 import { hittingFor, pitchingFor, score } from '../stats';
@@ -102,8 +102,8 @@ describe('buildDemoData: determinism', () => {
     expect(other.teams.map((t) => t.season)).toEqual(data.teams.map((t) => t.season));
   });
 
-  it('starts un-onboarded with schema version 1', () => {
-    expect(data.version).toBe(1);
+  it('starts un-onboarded with schema version 2 (pitching at-bats carry the pitcher’s own grade)', () => {
+    expect(data.version).toBe(2);
     expect(data.onboarded).toBe(false);
   });
 });
@@ -523,15 +523,37 @@ describe('buildDemoData: at-bats', () => {
     }
   });
 
-  it('result always derives from the outcome, from the batter’s perspective on both sides', () => {
+  it('result always derives from the outcome and is the graded player’s letter: the batter’s on ours, the pitcher’s on theirs', () => {
     for (const x of data.atBats) expect(x.result).toBe(getOutcome(x.outcomeId).result);
     expect(data.atBats.some((x) => x.side === 'them' && x.result === 'W')).toBe(true);
     expect(data.atBats.some((x) => x.side === 'them' && x.result === 'L')).toBe(true);
-    // The real season mixes typed outcomes and plain ones (a walk without pitch data, an out in play).
+    // The real season mixes typed outcomes and plain ones (an out in play of unknown contact).
     expect(data.atBats.some((x) => isPlain(x.outcomeId) && x.result === 'W')).toBe(true);
     expect(data.atBats.some((x) => isPlain(x.outcomeId) && x.result === 'L')).toBe(true);
     expect(data.atBats.some((x) => x.outcomeId === 'hit')).toBe(true);
     expect(data.atBats.some((x) => x.outcomeId === 'k_looking')).toBe(true);
+    expect(data.atBats.some((x) => x.outcomeId === 'p_walk')).toBe(true);
+    expect(data.atBats.some((x) => x.outcomeId === 'p_k_swinging')).toBe(true);
+  });
+
+  it('never puts a batter outcome on a pitching at-bat or a pitcher outcome on a hitting one', () => {
+    for (const x of data.atBats) {
+      const grades = outcomeSide(x.outcomeId);
+      if (x.side === 'us') expect(grades).not.toBe('pitcher');
+      else expect(grades).not.toBe('batter');
+    }
+  });
+
+  it('uses the builder’s vocabulary on each side: typed where the capture names the play, plain where contact is unknown', () => {
+    const count = (side: Side) => {
+      const c: Record<string, number> = {};
+      for (const x of data.atBats.filter((y) => y.side === side)) c[x.outcomeId] = (c[x.outcomeId] ?? 0) + 1;
+      return c;
+    };
+    // Our hit-by-pitches are the typed batter W; every other id is as before.
+    expect(count('us')).toEqual({ hit: 114, walk_clean: 63, walk_2_looking: 3, k_swinging: 19, k_looking: 19, fly_out_hard: 5, hbp: 11, plain_l: 80 });
+    // Theirs: hits are hard-hit balls that reached, lineouts hard-hit outs, pop-ups weak outs; other outs, errors and FCs stay plain.
+    expect(count('them')).toEqual({ p_hard_reached: 79, p_walk: 48, p_k_swinging: 35, p_k_looking: 14, p_hbp: 6, p_hard_out: 3, p_weak_out: 7, plain_w: 73 });
   });
 
   it('are recorded at first pitch plus the dataset offset, in order, before the game finished', () => {
@@ -563,5 +585,18 @@ describe('buildDemoData: at-bats', () => {
     expect(pitchingFor(data.atBats, 'p_carsyn')).toEqual({ w: 34, l: 23 });
     expect(pitchingFor(data.atBats, 'p_cooper')).toEqual({ w: 39, l: 33 });
     expect(pitchingFor(data.atBats, 'p_hamilton')).toEqual({ w: 0, l: 0 });
+  });
+
+  it('grade a walk after two called strikes as the pitcher’s L: Weedon, Owen Haynes and Lucas each faced one', () => {
+    for (const [id, pitcherId] of [
+      ['g_0815_2_ab32', 'p_weedon'],
+      ['g_0816_2_ab18', 'p_owen_haynes'],
+      ['g_0913_2_ab20', 'p_lucas'],
+    ] as const) {
+      expect(data.atBats.find((x) => x.id === id)).toMatchObject({ side: 'them', pitcherId, outcomeId: 'p_walk', result: 'L' });
+    }
+    expect(pitchingFor(data.atBats, 'p_weedon')).toEqual({ w: 18, l: 13 });
+    expect(pitchingFor(data.atBats, 'p_owen_haynes')).toEqual({ w: 11, l: 27 });
+    expect(pitchingFor(data.atBats, 'p_lucas')).toEqual({ w: 11, l: 13 });
   });
 });

@@ -298,5 +298,5 @@ export function buildDemoData(now: Date = new Date()): AppData {
     createdAt: addDays(nextStartsAt, -1).toISOString(),
   });
 
-  return { version: 1, onboarded: false, teams, players, games, atBats };
+  return { version: 2, onboarded: false, teams, players, games, atBats };
 }

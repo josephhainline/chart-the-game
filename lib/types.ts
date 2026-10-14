@@ -89,12 +89,14 @@ export type Game = {
 export type Result = 'W' | 'L';
 
 /**
- * The twelve typed outcomes from the prototype plus the two "plain" ids: a
- * W or L recorded with the big buttons and no play type (see lib/outcomes).
+ * Every outcome id: the thirteen batter outcomes (the hitting grid), the eight
+ * pitcher outcomes (the pitching grid) and the two "plain" ids for a W or L
+ * recorded with the big buttons and no play type (see lib/outcomes).
  */
 export type OutcomeId =
   | 'plain_w'
   | 'plain_l'
+  // Batter outcomes: recorded on a `side: 'us'` at-bat.
   | 'k_swinging'
   | 'walk_2_looking'
   | 'error_weak'
@@ -106,7 +108,17 @@ export type OutcomeId =
   | 'error_hard'
   | 'fc_hard'
   | 'fly_out_hard'
-  | 'hit';
+  | 'hit'
+  | 'hbp'
+  // Pitcher outcomes: recorded on a `side: 'them'` at-bat.
+  | 'p_walk'
+  | 'p_hbp'
+  | 'p_hard_reached'
+  | 'p_hard_out'
+  | 'p_k_swinging'
+  | 'p_k_looking'
+  | 'p_weak_out'
+  | 'p_weak_reached';
 
 export type AtBat = {
   id: Id;
@@ -119,14 +131,20 @@ export type AtBat = {
   pitcherId?: Id;
   inning: number;
   half: Half;
+  /** A batter outcome when side === 'us', a pitcher outcome when side === 'them', or a plain id on either. */
   outcomeId: OutcomeId;
-  /** Always from the BATTER's perspective. Pitcher perspective is the inverse. */
+  /**
+   * The GRADED player's letter: the batter's when side === 'us', our
+   * pitcher's when side === 'them'. Nothing inverts it anywhere; it is always
+   * derived from the outcome (`getOutcome(outcomeId).result`).
+   */
   result: Result;
   recordedAt: string;
 };
 
 export type AppData = {
-  version: 1;
+  /** 2 since pitching at-bats store the pitcher's own grade; version 1 stored the batter's (see `migrateV1` in lib/store). */
+  version: 2;
   onboarded: boolean;
   teams: Team[];
   players: Player[];
@@ -134,8 +152,11 @@ export type AppData = {
   atBats: AtBat[];
 };
 
+/** A document as it may sit in storage: this build's shape, or a version-1 one waiting for `migrateV1`. */
+export type StoredDocument = Omit<AppData, 'version'> & { version: 1 | 2 };
+
 export const EMPTY_DATA: AppData = {
-  version: 1,
+  version: 2,
   onboarded: false,
   teams: [],
   players: [],

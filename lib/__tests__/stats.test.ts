@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
 import { compareAtBats } from '../atbats';
-import { isPlain, outcomeShort } from '../outcomes';
+import { OUTCOMES, PITCHER_OUTCOMES, isPlain, outcomeShort } from '../outcomes';
 import { buildDemoData } from '../seed';
 import {
   FORM_HOT,
@@ -21,7 +21,6 @@ import {
   lastGameLine,
   leftGameBatterIds,
   orderWithLeavers,
-  pitcherResult,
   pitchingFor,
   rankByHitting,
   recentForm,
@@ -34,16 +33,22 @@ import type { AtBat, Game, Half, Id, Player, Result, Side, Substitution, Team } 
 
 let seq = 0;
 
-/** Minimal at-bat factory: everything not given defaults to a sensible 'us' at-bat in the 1st. */
+/**
+ * Minimal at-bat factory: everything not given defaults to a sensible 'us'
+ * at-bat in the 1st. `result` is the graded player's letter (the batter's on
+ * 'us', our pitcher's on 'them'), so the default outcome follows the side: a
+ * pitcher W is a strikeout, a pitcher L a hard-hit ball that reached.
+ */
 function ab(over: Partial<AtBat> & { batterId: Id; result: Result }): AtBat {
   seq += 1;
+  const side = over.side ?? 'us';
   return {
     id: `ab${seq}`,
     gameId: 'g1',
-    side: 'us',
+    side,
     inning: 1,
     half: 'top',
-    outcomeId: over.result === 'W' ? 'hit' : 'k_swinging',
+    outcomeId: side === 'us' ? (over.result === 'W' ? 'hit' : 'k_swinging') : over.result === 'W' ? 'p_k_swinging' : 'p_hard_reached',
     recordedAt: '2026-09-07T14:00:00.000Z',
     ...over,
   };
@@ -71,7 +76,7 @@ function game(id: Id, teamId: Id): Game {
   };
 }
 
-describe('score / addResult / pitcherResult', () => {
+describe('score / addResult', () => {
   it('score is W minus L', () => {
     expect(score({ w: 5, l: 2 })).toBe(3);
     expect(score({ w: 2, l: 5 })).toBe(-3);
@@ -84,11 +89,6 @@ describe('score / addResult / pitcherResult', () => {
     expect(addResult(start, false)).toEqual({ w: 1, l: 2 });
     expect(start).toEqual({ w: 1, l: 1 });
     expect(ZERO).toEqual({ w: 0, l: 0 });
-  });
-
-  it('pitcherResult is the inverse of the batter result', () => {
-    expect(pitcherResult(ab({ batterId: 'b', result: 'W' }))).toBe('L');
-    expect(pitcherResult(ab({ batterId: 'b', result: 'L' }))).toBe('W');
   });
 });
 
@@ -121,20 +121,33 @@ describe('hittingFor', () => {
 
 describe('pitchingFor', () => {
   const atBats: AtBat[] = [
-    // Their batter lost -> our pitcher won.
-    ab({ batterId: 'ob1', result: 'L', side: 'them', pitcherId: 'p1' }),
-    ab({ batterId: 'ob2', result: 'L', side: 'them', pitcherId: 'p1' }),
-    // Their batter won -> our pitcher lost.
-    ab({ batterId: 'ob3', result: 'W', side: 'them', pitcherId: 'p1' }),
-    ab({ batterId: 'ob1', result: 'W', side: 'them', pitcherId: 'p1', gameId: 'g2' }),
-    ab({ batterId: 'ob1', result: 'L', side: 'them', pitcherId: 'p2' }),
+    // Our pitcher's grade, as stored: two Ws ...
+    ab({ batterId: 'ob1', result: 'W', side: 'them', pitcherId: 'p1' }),
+    ab({ batterId: 'ob2', result: 'W', side: 'them', pitcherId: 'p1' }),
+    // ... and two Ls.
+    ab({ batterId: 'ob3', result: 'L', side: 'them', pitcherId: 'p1' }),
+    ab({ batterId: 'ob1', result: 'L', side: 'them', pitcherId: 'p1', gameId: 'g2' }),
+    ab({ batterId: 'ob1', result: 'W', side: 'them', pitcherId: 'p2' }),
     // Our own at-bat with a stray pitcherId must never count as pitching.
     ab({ batterId: 'p1', result: 'L', side: 'us', pitcherId: 'p1' }),
   ];
 
-  it('inverts the batter result: batter L is pitcher W', () => {
+  it('counts the pitcher’s grade as stored: a W is his W', () => {
     expect(pitchingFor(atBats, 'p1')).toEqual({ w: 2, l: 2 });
     expect(pitchingFor(atBats, 'p2')).toEqual({ w: 1, l: 0 });
+  });
+
+  it('a walk or a hard-hit ball is his L, a strikeout or a weak ball his W, whatever the play type says about the batter', () => {
+    const faced: AtBat[] = [
+      ab({ batterId: 'ob1', result: 'L', side: 'them', pitcherId: 'p1', outcomeId: 'p_walk' }),
+      ab({ batterId: 'ob2', result: 'L', side: 'them', pitcherId: 'p1', outcomeId: 'p_hard_out' }),
+      ab({ batterId: 'ob3', result: 'W', side: 'them', pitcherId: 'p1', outcomeId: 'p_weak_reached' }),
+      ab({ batterId: 'ob4', result: 'W', side: 'them', pitcherId: 'p1', outcomeId: 'p_k_looking' }),
+      ab({ batterId: 'ob5', result: 'W', side: 'them', pitcherId: 'p1', outcomeId: 'plain_w' }),
+    ];
+    expect(pitchingFor(faced, 'p1')).toEqual({ w: 3, l: 2 });
+    expect(gamePitching(faced, 'g1')).toEqual({ w: 3, l: 2 });
+    expect(gamePitcherLines(faced, 'g1', [player('p1', 't', 'Weedon', 'Hainline')])[0].wl).toEqual({ w: 3, l: 2 });
   });
 
   it('limits to one game when a gameId is given', () => {
@@ -153,11 +166,11 @@ describe('gameHitting / gamePitching', () => {
     ab({ batterId: 'p1', result: 'W' }),
     ab({ batterId: 'p2', result: 'L' }),
     ab({ batterId: 'p3', result: 'W' }),
-    ab({ batterId: 'ob1', result: 'L', side: 'them', pitcherId: 'p1' }),
-    ab({ batterId: 'ob2', result: 'W', side: 'them', pitcherId: 'p1' }),
-    ab({ batterId: 'ob3', result: 'L', side: 'them', pitcherId: 'p9' }),
+    ab({ batterId: 'ob1', result: 'W', side: 'them', pitcherId: 'p1' }),
+    ab({ batterId: 'ob2', result: 'L', side: 'them', pitcherId: 'p1' }),
+    ab({ batterId: 'ob3', result: 'W', side: 'them', pitcherId: 'p9' }),
     ab({ batterId: 'p1', result: 'L', gameId: 'g2' }),
-    ab({ batterId: 'ob1', result: 'W', side: 'them', pitcherId: 'p1', gameId: 'g2' }),
+    ab({ batterId: 'ob1', result: 'L', side: 'them', pitcherId: 'p1', gameId: 'g2' }),
   ];
 
   it('gameHitting totals every at-bat where we batted in that game', () => {
@@ -166,7 +179,7 @@ describe('gameHitting / gamePitching', () => {
     expect(gameHitting(atBats, 'g3')).toEqual(ZERO);
   });
 
-  it('gamePitching totals their at-bats from the pitcher perspective regardless of who pitched', () => {
+  it('gamePitching totals our pitchers’ grades on their at-bats regardless of who pitched', () => {
     expect(gamePitching(atBats, 'g1')).toEqual({ w: 2, l: 1 });
     expect(gamePitching(atBats, 'g2')).toEqual({ w: 0, l: 1 });
     expect(gamePitching(atBats, 'g3')).toEqual(ZERO);
@@ -179,15 +192,15 @@ describe('gamePitcherLines', () => {
   const p5 = player('p5', 't', 'Chase', 'Baker');
   const players = [p5, p9, p1];
   const atBats: AtBat[] = [
-    ab({ batterId: 'ob1', result: 'L', side: 'them', pitcherId: 'p1', inning: 1, half: 'bottom', recordedAt: '2026-09-07T14:01:00.000Z' }),
-    ab({ batterId: 'ob2', result: 'W', side: 'them', pitcherId: 'p1', inning: 2, half: 'bottom', recordedAt: '2026-09-07T14:10:00.000Z' }),
-    ab({ batterId: 'ob3', result: 'L', side: 'them', pitcherId: 'p9', inning: 3, half: 'bottom', recordedAt: '2026-09-07T14:20:00.000Z' }),
-    ab({ batterId: 'ob1', result: 'L', side: 'them', pitcherId: 'p1', inning: 4, half: 'bottom', recordedAt: '2026-09-07T14:30:00.000Z' }),
+    ab({ batterId: 'ob1', result: 'W', side: 'them', pitcherId: 'p1', inning: 1, half: 'bottom', recordedAt: '2026-09-07T14:01:00.000Z' }),
+    ab({ batterId: 'ob2', result: 'L', side: 'them', pitcherId: 'p1', inning: 2, half: 'bottom', recordedAt: '2026-09-07T14:10:00.000Z' }),
+    ab({ batterId: 'ob3', result: 'W', side: 'them', pitcherId: 'p9', inning: 3, half: 'bottom', recordedAt: '2026-09-07T14:20:00.000Z' }),
+    ab({ batterId: 'ob1', result: 'W', side: 'them', pitcherId: 'p1', inning: 4, half: 'bottom', recordedAt: '2026-09-07T14:30:00.000Z' }),
     ab({ batterId: 'p1', result: 'W', inning: 1, half: 'top' }),
-    ab({ batterId: 'ob1', result: 'W', side: 'them', pitcherId: 'p9', gameId: 'g2' }),
+    ab({ batterId: 'ob1', result: 'L', side: 'them', pitcherId: 'p9', gameId: 'g2' }),
   ];
 
-  it('lists our pitchers in the order they first faced a batter, from the pitcher side, with the innings they worked', () => {
+  it('lists our pitchers in the order they first faced a batter, with their grades and the innings they worked', () => {
     expect(gamePitcherLines(atBats, 'g1', players)).toEqual([
       { player: p1, wl: { w: 2, l: 1 }, innings: { from: 1, to: 4 } },
       { player: p9, wl: { w: 1, l: 0 }, innings: { from: 3, to: 3 } },
@@ -249,10 +262,10 @@ describe('seasonTable', () => {
     ab({ batterId: 'p_bob', result: 'L' }),
     // Belongs to another team's game: must not count even though the batter id matches.
     ab({ batterId: 'p_amy', result: 'W', gameId: 'g_other' }),
-    ab({ batterId: 'ob1', result: 'L', side: 'them', pitcherId: 'p_zed' }),
-    ab({ batterId: 'ob2', result: 'L', side: 'them', pitcherId: 'p_zed', gameId: 'g2' }),
-    ab({ batterId: 'ob3', result: 'W', side: 'them', pitcherId: 'p_amy' }),
-    ab({ batterId: 'ob4', result: 'L', side: 'them', pitcherId: 'p_amy', gameId: 'g_other' }),
+    ab({ batterId: 'ob1', result: 'W', side: 'them', pitcherId: 'p_zed' }),
+    ab({ batterId: 'ob2', result: 'W', side: 'them', pitcherId: 'p_zed', gameId: 'g2' }),
+    ab({ batterId: 'ob3', result: 'L', side: 'them', pitcherId: 'p_amy' }),
+    ab({ batterId: 'ob4', result: 'W', side: 'them', pitcherId: 'p_amy', gameId: 'g_other' }),
   ];
 
   it('orders the default lineup first (deduped, skipping unknown ids), then the rest by last name', () => {
@@ -281,7 +294,7 @@ describe('seasonTable', () => {
     expect(byId.p_amy.score).toBeNull();
   });
 
-  it('pitching mode: uses the pitcher perspective and only this team’s games', () => {
+  it('pitching mode: each pitcher’s grades, only this team’s games', () => {
     const rows = seasonTable(team, players, games, atBats, 'pitching');
     const byId = Object.fromEntries(rows.map((r) => [r.player.id, r]));
     expect(byId.p_zed.wl).toEqual({ w: 2, l: 0 });
@@ -327,15 +340,15 @@ describe('seasonTable', () => {
       const orphaned = [
         ...atBats,
         // Charted while no pitcher was set.
-        ab({ batterId: 'ob9', result: 'L', side: 'them' }),
-        ab({ batterId: 'ob9', result: 'L', side: 'them', gameId: 'g2' }),
+        ab({ batterId: 'ob9', result: 'W', side: 'them' }),
+        ab({ batterId: 'ob9', result: 'W', side: 'them', gameId: 'g2' }),
         // Other team's game: never counted.
-        ab({ batterId: 'ob9', result: 'W', side: 'them', gameId: 'g_other' }),
+        ab({ batterId: 'ob9', result: 'L', side: 'them', gameId: 'g_other' }),
       ];
       const rows = seasonTable(team, withoutAmy, games, orphaned, 'pitching');
       const last = rows[rows.length - 1];
       expect(last.player.id).toBe(REMOVED_ROW_ID);
-      // Amy's L (batter W) + two batter Ls with no pitcher = 2W 1L from the pitcher's side.
+      // Amy's L + the two Ws nobody was credited for = 2W 1L.
       expect(last).toMatchObject({ removed: true, wl: { w: 2, l: 1 }, score: 1 });
       expect(rows.some((r) => r.player.id === 'p_amy')).toBe(false);
       const sum = games.filter((g) => g.teamId === 't1').map((g) => gamePitching(orphaned, g.id)).reduce((a, b) => ({ w: a.w + b.w, l: a.l + b.l }), ZERO);
@@ -429,12 +442,12 @@ describe('scorebook', () => {
     expect(rows).toEqual([]);
   });
 
-  it('for side "them" the row totals are from our pitcher’s perspective', () => {
+  it('for side "them" the row totals are our pitcher’s grades against that batter', () => {
     const theirs = [{ id: 'ob1' }, { id: 'ob2' }];
     const theirAtBats: AtBat[] = [
-      ab({ batterId: 'ob1', result: 'L', side: 'them', pitcherId: 'p1', inning: 1 }),
-      ab({ batterId: 'ob1', result: 'L', side: 'them', pitcherId: 'p1', inning: 2 }),
-      ab({ batterId: 'ob2', result: 'W', side: 'them', pitcherId: 'p1', inning: 1 }),
+      ab({ batterId: 'ob1', result: 'W', side: 'them', pitcherId: 'p1', inning: 1, outcomeId: 'p_k_swinging' }),
+      ab({ batterId: 'ob1', result: 'W', side: 'them', pitcherId: 'p1', inning: 2, outcomeId: 'p_weak_out' }),
+      ab({ batterId: 'ob2', result: 'L', side: 'them', pitcherId: 'p1', inning: 1, outcomeId: 'p_walk' }),
       ab({ batterId: 'p1', result: 'W', side: 'us', inning: 4 }),
     ];
     const { innings, rows } = scorebook(theirAtBats, 'g1', 'them', theirs);
@@ -442,8 +455,10 @@ describe('scorebook', () => {
     expect(innings).toEqual([1, 2]);
     expect(rows[0].wl).toEqual({ w: 2, l: 0 });
     expect(rows[1].wl).toEqual({ w: 0, l: 1 });
-    // Cells still hold the raw at-bats (batter perspective) so the UI can invert the letter.
-    expect(rows[0].innings[0][0].result).toBe('L');
+    // Cells hold the raw at-bats: the letter is already the pitcher's and the code the pitcher outcome's.
+    expect(rows[0].innings[0][0].result).toBe('W');
+    expect(rows[0].innings[0].map((x) => outcomeShort(x.outcomeId))).toEqual(['K']);
+    expect(rows[1].innings[0].map((x) => [x.result, outcomeShort(x.outcomeId)])).toEqual([['L', 'BB']]);
   });
 });
 
@@ -486,9 +501,10 @@ describe('plain at-bats (no play type) in the totals', () => {
     ab({ batterId: 'p1', result: 'W', outcomeId: 'plain_w', inning: 1 }),
     ab({ batterId: 'p1', result: 'L', outcomeId: 'plain_l', inning: 2 }),
     ab({ batterId: 'p1', result: 'W', outcomeId: 'hit', inning: 3 }),
-    ab({ batterId: 'ob1', result: 'L', outcomeId: 'plain_l', side: 'them', pitcherId: 'p1', inning: 1 }),
-    ab({ batterId: 'ob2', result: 'W', outcomeId: 'plain_w', side: 'them', pitcherId: 'p1', inning: 1 }),
-    ab({ batterId: 'ob3', result: 'L', outcomeId: 'k_swinging', side: 'them', pitcherId: 'p1', inning: 2 }),
+    // While pitching the big W is a plain pitcher W and the big L a plain pitcher L.
+    ab({ batterId: 'ob1', result: 'W', outcomeId: 'plain_w', side: 'them', pitcherId: 'p1', inning: 1 }),
+    ab({ batterId: 'ob2', result: 'L', outcomeId: 'plain_l', side: 'them', pitcherId: 'p1', inning: 1 }),
+    ab({ batterId: 'ob3', result: 'W', outcomeId: 'p_k_swinging', side: 'them', pitcherId: 'p1', inning: 2 }),
   ];
 
   it('count exactly like typed ones in hitting and pitching', () => {
@@ -1058,12 +1074,11 @@ describe('orderWithLeavers', () => {
   });
 });
 
-describe('outcome catalog', () => {
-  it('every outcome has a stable id, a label and a non-empty scorebook code', () => {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { OUTCOMES } = require('../outcomes') as typeof import('../outcomes');
-    expect(OUTCOMES).toHaveLength(12);
-    for (const o of OUTCOMES) {
+describe('outcome catalogs', () => {
+  it('every outcome on either side has a stable id, a label and a non-empty scorebook code', () => {
+    expect(OUTCOMES).toHaveLength(13);
+    expect(PITCHER_OUTCOMES).toHaveLength(8);
+    for (const o of [...OUTCOMES, ...PITCHER_OUTCOMES]) {
       expect(o.id).toMatch(/^[a-z_0-9]+$/);
       expect(o.label.length).toBeGreaterThan(0);
       expect(o.short.length).toBeGreaterThan(0);

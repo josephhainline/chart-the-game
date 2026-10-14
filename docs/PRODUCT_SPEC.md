@@ -8,15 +8,17 @@ _Source of truth for the web prototype build. Derived from the Marvel prototype 
 Chart The Game is a youth-baseball coaching app ("a Coach Rob Floyd app"). The
 premise: every plate appearance is a 1-on-1 battle between the batter and the
 pitcher. The final score doesn't tell you who won those battles. So the coach
-charts every at-bat as a **W** or an **L** for the batter, using judgment about
-*how* the at-bat went (a hard-hit fly out is a W; a bunt or a weak-contact error
-is an L).
+charts every at-bat as a **W** or an **L** for **our** player in it — the
+batter when we hit, the pitcher when we pitch — graded on what he controlled
+(a hard-hit fly out is a W for the batter; a bunt or a weak-contact error is
+an L; a walk is an L for our pitcher; a weak ball that fell in is his W). The
+rules are in §5, Grading rules.
 
 Those W/L records accumulate across games and seasons. They produce:
 
-- **Hitting stats** per player: W, L, Score (= W − L).
-- **Pitching stats** per player: when our pitcher faces an opposing batter, the
-  batter's L is the pitcher's W and vice versa.
+- **Hitting stats** per player: W, L, Score (= W − L) over his at-bats.
+- **Pitching stats** per player: W, L, Score over the opposing at-bats he
+  faced, each graded for him (a walk is his L however the batter earned it).
 - **Lineup ranking**: the app can rank the batting order by CTG hitting score.
 
 Primary user: a coach standing at a youth game with a phone, one hand free.
@@ -27,11 +29,13 @@ Big tap targets, one tap per at-bat, nothing modal in the way.
 | Token            | Hex       | Use |
 |------------------|-----------|-----|
 | `primary`        | `#00A6FF` | App title band, primary buttons, active tab tint |
-| `primaryDark`    | `#0A47AC` | Team-level sub-header, Hitting toggle, stats band, COLD tag ink |
+| `primaryDark`    | `#0A47AC` | Team-level sub-header, Hitting toggle, stats band, COLD tag ink, the CTG screen's hitting-mode chrome (§3) |
 | `orange`         | `#FF9052` | Game-level sub-header, "Chart The Game" CTA, CTG accent, Sign Up |
-| `win`            | `#77D353` | W buttons, W letters, positive scores |
-| `loss`           | `#F95F62` | L buttons, L letters, negative scores |
-| `pitching`       | `#976DD0` | Pitching toggle + band on Stats |
+| `win`            | `#77D353` | W buttons, W letters, positive scores (green in both modes) |
+| `loss`           | `#F95F62` | L buttons, L letters, negative scores (red in both modes) |
+| `pitching`       | `#976DD0` | Pitching toggle + band on Stats, the CTG screen's pitching-mode chrome (§3) |
+| `primaryTint`    | `rgba(0, 166, 255, 0.08)` | Light-blue rows while the CTG screen peeks our order |
+| `pitchingTint`   | `rgba(151, 109, 208, 0.10)` | Lavender surface behind the order while the CTG screen shows the opponent order |
 | `navy`           | `#040B71` | Subscribe CTA panel on About |
 | `text`           | `#495460` | Body/heading text (dark slate, never pure black) |
 | `textMuted`      | `#99A2AD` | Dates, secondary lines |
@@ -144,7 +148,12 @@ returns to the team's Games.
   numbers, add/remove) and **Our pitcher** selector (any roster player).
 - CTG (the core screen), the "Capture Dock" layout (`docs/UX_REVIEW_ATBAT.md`
   has the reasoning). Header, inning strip and dock are fixed; only the
-  batting-order list scrolls.
+  batting-order list scrolls. The screen is in **hitting mode** while our
+  order is shown and **pitching mode** while the opponent's is (§5): the
+  mode picks the graded player, the outcome grid and the *mode colour* —
+  `primaryDark` blue while hitting, `pitching` purple while pitching —
+  which is applied to the chrome named below and never to the W/L buttons,
+  the letters or the gauge.
   - Inning strip, two lines. Line 1: Prev half · "▲ 1st" / "▼ 1st" · Next
     half · a HITTING (blue) or PITCHING (purple) pill · a small outlined
     orange **End Game** at the right. Line 2, left: while pitching the
@@ -156,14 +165,21 @@ returns to the team's Games.
     steps Next half until the clock reaches that half. The second line is
     left out while we are hitting with nothing to review. Runs are not
     tracked anywhere: the app is about each player's battles, not the
-    scoreboard. Away team bats in the top half.
+    scoreboard. Away team bats in the top half. The strip, the tab bar and
+    the app header are not recoloured by mode.
   - Batting-order list: one row per batter of the side at bat — number, name
     and, when the batter has at-bats this game, the label of this half's
     newest at-bat followed by one mini chip per at-bat this game (tinted W/L
     letters in inning order); at the right the AT-BAT / ON DECK / IN THE HOLE
     tag, or this half's newest at-bat as a solid W/L tile (letter over the
-    outcome code; letter alone for a plain at-bat). The AT-BAT row has an
-    orange left rail. A forward-step target on every other row is the only
+    outcome code; letter alone for a plain at-bat). Every letter, label and
+    code is the graded player's (§5): on an opponent row the letter is our
+    pitcher's grade and the wording the pitcher outcome's, and the tile and
+    chips read "Re-judge Weedon H. (#04) vs Batter 3: L, Walk" / "…: L,
+    ▲ 2nd" ("Our pitcher vs Batter 3" with no pitcher of record). The
+    AT-BAT row's left rail is the mode colour. While the list shows the
+    opponent order (live or peeked) it sits on the lavender `pitchingTint`
+    surface; our order sits on white. A forward-step target on every other row is the only
     skip control. The next batter comes up with no dialog, even if he already
     batted this half. A farther target asks first unless nothing is skipped:
     "Bring Lucas Kloster (#13) up now? 2 batters will be skipped." counts only
@@ -180,25 +196,48 @@ returns to the team's Games.
     this game through a substitution and the player who replaced him still
     holds a slot. Bench rows are display only; a finished game's box score
     has no bench band.
-  - Capture Dock, fixed above the tab bar with a 3pt top border (blue while
-    charting, orange while re-judging). Top to bottom: a context row with
-    ‹ › steppers that walk the game's at-bats in inning/half/time order
-    (‹ from live selects the newest; › past the newest returns to live), the
-    LAST readout ("Cooper W. (#50) · W · Fly Out, Hard Hit Ball"; a plain
-    at-bat reads "· W · add type ›"; suffix "· ▲ 1st" when it belongs to
-    another half; tapping it selects that at-bat) and **Undo**, whose label
+  - Capture Dock, fixed above the tab bar with a 3pt top border (the mode
+    colour while charting, orange while re-judging). Top to bottom: a
+    context row with ‹ › steppers (mode colour) that walk the game's at-bats
+    in inning/half/time order (‹ from live selects the newest; › past the
+    newest returns to live), the LAST readout ("Cooper W. (#50) · W · Out,
+    Hard Hit Ball"; a pitching at-bat names the graded player facing the
+    batter: "Weedon H. (#04) vs Batter 3 · L · Walk", "Our pitcher vs Batter
+    3 · …" with no pitcher of record; a plain at-bat reads "· W · add type ›"
+    with the link in the mode colour; suffix "· ▲ 1st" when it belongs to
+    another half; tapping it selects that at-bat; read aloud as "Last
+    at-bat: Weedon H. (#04) vs Batter 3, L, Walk") and **Undo**, whose label
     names the top of the stack ("Undo W", "Undo skip", "Undo Next half",
-    "Undo Prev half", "Undo re-judge", "Undo remove", "Undo sub") — while an at-bat is
+    "Undo Prev half", "Undo re-judge", "Undo remove", "Undo sub"; the letter
+    is the graded player's) — while an at-bat is
     selected the LAST readout and Undo give way to the RE-JUDGE readout with
     "▶ Now" and "More…", and Undo is not shown until ▶ Now or a commit
-    returns the dock to live; the AT-BAT header ("4. Cooper Woollen (#50)"
-    with his chips — the name opens his batter sheet; "AT-BAT · ▲ 1st" in
-    amber while reviewing); the big row —
-    solid red **L** · the CTG gauge (seven chunky
-    bars) · solid green **W** (pitching: W left, L right, gauge in the
-    pitcher's perspective); the "OUTCOME TYPES" toggle and, when open, the
-    twelve outcome buttons in two columns (§5): 36pt buttons and 64pt big L/W
-    on windows 700pt and taller, 28pt and 56pt below. The types default open
+    returns the dock to live; the header, one 36pt row: the mode word
+    **HITTING** / **PITCHING** in the mode colour ("HITTING · ▲ 1st" /
+    "PITCHING · ▲ 1st" in amber while reviewing) beside the graded player's
+    one-line title in the mode colour (muted when there is no pitcher) and
+    his chips —
+    hitting: "4. Cooper Woollen (#50)" with his chips this game, the title
+    opens his batter sheet ("Cooper Woollen (#50), open batter sheet");
+    pitching: "Weedon H. (#04)" with the pitcher's last six chips this game
+    (his W/L, not the opposing batter's; the batter he faces is the AT-BAT
+    row, and a pitcher faces a whole order each time through, so the row has
+    no room for more), the title opens the pitcher picker ("Weedon H. (#04)
+    vs 3. Batter 3, change pitcher") and the opposing batter stays reachable
+    from his row; with no pitcher set the title reads "No pitcher" muted,
+    with no chips, beside the orange **Set pitcher** button; the big row — solid red **L** · the CTG gauge (seven chunky
+    bars) · solid green **W** — with L on the left and W on the right in
+    both modes and while re-judging (the letters are our player's grade, the
+    gauge swings to the recorded letter's side and is not recoloured by
+    mode); the "OUTCOME TYPES" toggle (mode colour) and, when open, the mode's
+    grid (§5) in two columns: the thirteen batter outcomes while hitting, the
+    eight pitcher outcomes while pitching, L column left and W column right.
+    The grid box has one height per size in both modes, so the big row never
+    moves when the half changes: seven rows of 34pt buttons with 4pt gaps
+    (262pt) and 64pt big L/W on windows 700pt and taller, 28pt buttons and 4pt
+    gaps (220pt) with 56pt big L/W below; the pitcher grid's four rows
+    stretch to fill the same box. With the types open the dock stands about
+    450pt tall on a phone (188pt of chrome plus the 262pt box). The types default open
     on windows 760pt and taller and collapsed otherwise; a toggle persists at
     AsyncStorage key `ctg:ui:typesExpanded`; tapping the LAST readout of a
     plain at-bat also opens the types for that re-judge without saving the
@@ -210,7 +249,13 @@ returns to the team's Games.
     batter pointer, scrolls the list so one previous row stays above the
     AT-BAT row, and pushes an undo entry. Recording stays live while reviewing
     and charts into the reviewed half (the clock's half, which the dock header
-    names as "AT-BAT · ▲ 1st" in amber). The fourteen buttons ignore presses
+    names as "HITTING · ▲ 1st" or "PITCHING · ▲ 1st" in amber). The big
+    buttons are read aloud as grades for the graded player, in the same shape
+    in both modes: "Loss for Cooper Woollen (#50)" / "Win for Cooper Woollen
+    (#50)" while hitting, "Loss for Weedon Hainline (#04)" / "Win for Weedon
+    Hainline (#04)" while pitching ("Loss for our pitcher" / "Win for our
+    pitcher" until one is set). Every record button (the big pair and the
+    grid) ignores presses
     for 450ms after a record, after a re-judge commit, and after a
     farther-target skip resolves (with or without its dialog, confirmed or
     cancelled), so a double tap cannot chart two batters; the skip targets and
@@ -221,14 +266,29 @@ returns to the team's Games.
   - Re-judging: with an at-bat selected (tile, chip, LAST readout or the
     steppers; a stepper or LAST selection scrolls that at-bat's row into
     view, a tile or chip tap does not) the dock reads "RE-JUDGE · Cooper W.
-    (#50) · ▲ 2nd · L · Strikeout Swinging" with "▶ Now" (back to live) and
-    "More…" (the full editor); the recorded letter is solid, the other
-    outlined, the current
-    type ringed in the grid. The outlined letter flips the at-bat to a plain
+    (#50) · ▲ 2nd · L · Strikeout Swinging" (a pitching at-bat: "RE-JUDGE ·
+    Weedon H. (#04) vs Batter 3 · ▲ 2nd · L · Walk") with "▶ Now" (back to
+    live) and "More…" (the full editor); the recorded letter is solid, the
+    other outlined (both stay in place: L left, W right, read aloud as
+    "Change to L" / "Change to W"), the current type ringed in the grid. The
+    dock takes the *selected at-bat's* mode, whatever half the clock is in:
+    the pitching colours, the pitcher grid and our pitcher of record as the
+    subject for a pitching at-bat, the hitting colours, the batter grid and
+    the at-bat's batter for one of ours. The header label is the mode word
+    alone (the readout carries the at-bat's half); the title is the batter
+    ("4. Cooper Woollen (#50)", opens his batter sheet) or the pitcher of
+    record ("Weedon H. (#04)", with his last six chips this game; the title
+    opens the pitcher sheet — "Weedon H. (#04) vs 3. Batter 3, open pitcher
+    sheet" — not the picker, which would change the game's current pitcher
+    rather than this at-bat's); a pitching at-bat with no pitcher of record
+    reads "No pitcher of record" muted, with no chips, and the title opens
+    the at-bat editor ("No pitcher of record vs 3. Batter 3, edit this
+    at-bat"), whose Pitcher field sets one. The outlined letter flips the at-bat to a plain
     result; a type sets that outcome; the ringed type again drops it to
     plain; each commit flashes the row, pushes "Undo re-judge" and snaps back
     to live. Selecting an at-bat of the side not batting peeks that side's
-    order (light-blue rows, no tags or skip targets) until the selection
+    order (no tags or skip targets; light-blue `primaryTint` rows for our
+    order, the lavender surface for the opponent's) until the selection
     clears — on any commit, ▶ Now, a half change, End Game or leaving the
     screen. Pointer and clock never change on a re-judge.
   - Undo is a per-game session stack (20 deep; survives tab switches, not a
@@ -241,13 +301,14 @@ returns to the team's Games.
     the record is dropped (only while the sub still holds the slot). Undo
     right after Next half reads "Undo Next half" and deletes nothing. The stack is emptied by Reset demo data, Clear all
     data and deleting the game.
-  - Pitching half: the list shows the opponent order and every readout shows
-    our pitcher's result (green = our pitcher won the battle); storage stays
-    the batter's result. The big buttons' accessibility labels speak in the
-    pitcher's perspective too: "Knox K. (#8) won against Batter 1" / "Knox K.
-    (#8) lost to Batter 1" ("Our pitcher …" until one is set), where hitting
-    reads "Win for Owen Haynes (#7)" / "Loss for …". With no pitcher set the
-    record controls are dimmed
+  - Pitching mode: the list shows the opponent order on the lavender
+    surface, the rail, the dock border, the steppers, the header, the "add
+    type ›" link and the OUTCOME TYPES toggle turn purple, the header names
+    our pitcher, and the grid offers the eight pitcher outcomes. Every
+    letter recorded or shown is our pitcher's grade (`result` on the
+    at-bat; nothing is inverted) and every label and code is the pitcher
+    outcome's: the big W is his W, the big L his L, in the same places as
+    while hitting. With no pitcher set the record controls are dimmed
     behind an orange **Set pitcher** in the dock header (and the strip's
     link); picking one credits this half's unassigned opponent at-bats.
   - A game becomes "in progress" on the first at-bat, half-inning change,
@@ -267,18 +328,29 @@ returns to the team's Games.
 - Game sheets (modal routes beside End Game and Edit Game, orange header):
   - Pitcher sheet `/game/[gameId]/pitching/[playerId]`: "Weedon Hainline
     (#04) · pitching", his W/L and innings this game, then every batter he
-    faced, newest first ("▲ 2nd · Batter 6 (#11) · Strikeout Swinging" with a
-    tile from the pitcher's side), each opening the at-bat editor. This is how
-    an opposing at-bat is re-judged after the game.
+    faced, newest first ("▲ 2nd · vs Batter 6 (#11) · Walk" with a tile
+    showing the pitcher's grade; read aloud as "Edit ▲ 2nd · vs Batter 6
+    (#11) · Walk, L"), each opening the at-bat editor. This is how an
+    opposing at-bat is re-judged after the game.
   - At-bat editor `/game/[gameId]/atbat/[atBatId]`: title "Cooper Woollen
-    (#50) · ▲ 2nd" (pitching: "Batter 3 · ▼ 2nd · Weedon H. (#04) pitching"),
-    a large tile with "W · Fly Out, Hard Hit Ball" / "W · no play type", two
-    result buttons in the perspective shown (the current one solid), the
-    twelve types with the current one ringed, a "No play type" chip, Batter
+    (#50) · ▲ 2nd" (a pitching at-bat leads with its graded player: "Weedon
+    H. (#04) · ▼ 2nd · vs Batter 3", the batter's number appended when he has
+    one; "Our pitcher · ▼ 2nd · vs Batter 3" with no pitcher of record),
+    a large tile with "W · Out, Hard Hit Ball" / "W · no play type" (the
+    at-bat's `result` and label), two result buttons — L on the left, W on
+    the right, our player's grade on both sides, the current one solid,
+    read aloud as "L, current result" / "Change to W" — under "Result"
+    ("Result for our pitcher" on a pitching at-bat), the at-bat's side's
+    grid (§5: the thirteen batter outcomes for one of ours, the eight
+    pitcher outcomes for a pitching at-bat) with the current type ringed, a
+    "No play type" chip, Batter
     (an inline picker over that side's order), Pitcher (opponent at-bats
     only; roster chips), Half-inning (▲/▼ and inning −/+) and "Remove at-bat"
-    (confirmed: "Remove Brady Felton's Strikeout Swinging from the top of the
-    2nd? Later at-bats are not affected."). Rules: a type sets the outcome
+    (confirmed, naming the graded player: "Remove Brady Felton's Strikeout
+    Swinging from the top of the 2nd? Later at-bats are not affected.";
+    pitching: "Remove Weedon Hainline's Walk vs Batter 3 from the top of the
+    2nd? …", "our pitcher's" with no pitcher of record, "at-bat" for a plain
+    one). Rules: a type sets the outcome
     (result derived); a result that disagrees with the type clears the type;
     "No play type" keeps the result. Every change applies at once and is
     undoable from the CTG tab; Done closes. Removing the game's newest at-bat
@@ -286,13 +358,21 @@ returns to the team's Games.
     (record-then-remove equals undo); otherwise pointers stay put; the clock
     never moves.
   - Batter sheet `/game/[gameId]/batter/[side]/[batterId]`: the batter's game
-    W/L and at-bats newest first ("▲ 2nd · Fly Out, Hard Hit Ball" with a
-    tile; each opens the editor); for our batters a **Form** card (§4: the
+    W/L and at-bats newest first ("▲ 2nd · Out, Hard Hit Ball" with a
+    tile; each opens the editor; on an opposing batter's sheet the section
+    is labelled "Our pitchers vs him this game", the letters are our
+    pitchers' grades and the wording the pitcher outcomes' — "▲ 2nd · Walk"
+    with an L tile); for our batters a **Form** card (§4: the
     last six at-bats as mini chips with a HOT / COLD tag, then "Season +5 ·
     last game 3W / 0L", or "No at-bats yet this season"); **Bring up to bat
-    now** when that side is batting (no dialog); **Add a W** / **Add an L**
-    ("Add a W (pitcher won)" for opponents) that chart a plain at-bat in the
-    current half-inning without moving the batting order; and, for our
+    now** when that side is batting (no dialog); **Add an L** / **Add a W**
+    (L left, W right on both sides) that chart a plain at-bat for the graded
+    player in the current half-inning without moving the batting order,
+    captioned "Charted in the ▲ 2nd with no play type; the batting order
+    does not move. Tap it above to add a play type." (for an opposing batter:
+    "Charted for Weedon H. (#04), our pitcher, in the ▲ 2nd with no play
+    type; …", or "Charted for no pitcher of record in the ▲ 2nd …"); and,
+    for our
     batters in the order while the game is not final, an orange
     **Substitute…** (swap icon) that opens the substitution sheet.
   - Substitution sheet `/game/[gameId]/sub/[batterId]` ("Substitute"): an OUT
@@ -322,6 +402,8 @@ returns to the team's Games.
 - Stats: scorebook grid — "#" slot column, "Line Up" name column ("Owen H.
   (#7)"), one column per inning, each cell a green W or red L with the outcome
   code under it (letter alone for a plain at-bat; a blank diamond when empty).
+  The opponent grid's letters are our pitcher's grades and its codes the
+  pitcher outcomes' ("BB", "R+", "K", "O-", …).
   Tapping a cell opens the at-bat editor; a cell holding several at-bats opens
   the batter sheet. A substitution shows as two rows with the same slot
   number: the player who left, muted with "OUT ▲ 4TH" under his name, right
@@ -333,7 +415,7 @@ returns to the team's Games.
   when N > 0. The W-L totals column stays pinned on the right; five or more
   innings scroll sideways. The **Pitching** section (purple band) is a list
   of our pitchers only, in the order they pitched: Pitcher · Innings
-  ("1st–3rd") · W / L (pitcher's side) · Score, with a Totals row; the game's
+  ("1st–3rd") · W / L (the pitcher's grade) · Score, with a Totals row; the game's
   current pitcher is listed before he has faced anyone ("Not yet"). Opposing
   batters are never tracked as individuals. Tapping a pitcher opens the
   pitcher sheet.
@@ -386,33 +468,69 @@ type AtBat = {
   batterId: Id;                                    // Player.id or OpponentBatter.id
   pitcherId?: Id;                                  // our pitcher when side === 'them'
   inning: number; half: 'top' | 'bottom';
-  outcomeId: OutcomeId;                            // one of the twelve, or 'plain_w' / 'plain_l' (no play type)
-  result: 'W' | 'L';                               // from the BATTER's perspective, derived from the outcome
+  outcomeId: OutcomeId;                            // a batter outcome on side 'us', a pitcher outcome on side 'them', or 'plain_w' / 'plain_l' (no play type) on either
+  result: 'W' | 'L';                               // the GRADED player's letter: the batter's on 'us', our pitcher's on 'them'; derived from the outcome, never inverted
   recordedAt: string;
 };
 
+type OutcomeId = 'plain_w' | 'plain_l'          // no play type, either side
+  | 'k_swinging' | 'walk_2_looking' | 'error_weak' | 'fc_weak' | 'bunt' | 'k_looking'          // batter L (§5)
+  | 'sac_fly' | 'walk_clean' | 'error_hard' | 'fc_hard' | 'fly_out_hard' | 'hit' | 'hbp'       // batter W
+  | 'p_walk' | 'p_hbp' | 'p_hard_reached' | 'p_hard_out'                                        // pitcher L
+  | 'p_k_swinging' | 'p_k_looking' | 'p_weak_out' | 'p_weak_reached';                          // pitcher W
+
 type AppData = {
-  version: 1;
+  version: 2;                                      // 1 = pitching at-bats stored the batter's letter (see below)
   onboarded: boolean;
   teams: Team[]; players: Player[]; games: Game[]; atBats: AtBat[];
 };
 ```
 
 Derived, never stored: hitting W/L per player = at-bats with `side:'us'`;
-pitching W/L per player = at-bats with `side:'them'` and `pitcherId` = player,
-where pitcher W = batter `L`.
+pitching W/L per player = at-bats with `side:'them'` and `pitcherId` = player.
+Both count `result` as it is stored; nothing inverts a letter anywhere.
 
 Every view orders at-bats by inning, half, then `recordedAt` (a backfilled
 at-bat sits in its own inning). An at-bat can be re-judged in place
 (`outcomeId`, `batterId`, `pitcherId`, `inning`, `half`; `result` re-derives)
 or removed; neither touches the game document except the remove rule in §3.
-The document stays `version: 1`: older documents open in this build (lineup
-slots are normalized on load, see below), but a document that contains the
-plain ids will not open in a build older than the Capture Dock.
+The store refuses an outcome from the wrong catalog ("p_walk is a pitcher
+outcome; this is a hitting at-bat" / "hit is a batter outcome; this is a
+pitching at-bat"); the plain pair passes on both sides.
+
+The document is `version: 2`. Version 1 stored the batter's letter on
+pitching at-bats and charted them with batter outcomes; `migrateV1` in
+`lib/store.tsx` (typed over `StoredDocument`, a document whose `version` is
+1 or 2) re-expresses every version-1 `side: 'them'` at-bat in the pitcher
+vocabulary with our pitcher's letter and stamps the document 2, in the
+loader right before the lineup-slot normalization below, so it runs exactly
+once and the rewritten document is saved back on load. The mapping keeps
+every pitcher's grade except in the one case the old rule got wrong (a
+stored letter may change, since it now means the pitcher's): `k_swinging` /
+`k_looking` → `p_k_swinging` / `p_k_looking` (W); `walk_clean` → `p_walk`
+(L); `walk_2_looking` → `p_walk` (L — the corrected case: the old rule
+credited the pitcher a W); `hit`, `error_hard`, `fc_hard` → `p_hard_reached`
+(L); `sac_fly`, `fly_out_hard` → `p_hard_out` (L); `error_weak`, `fc_weak` →
+`p_weak_reached` (W); `bunt` → `plain_w` (weak contact, out or reached
+unknown); `plain_w` → `plain_l` and `plain_l` → `plain_w` (the stored letter
+now means the pitcher's, so the plain pair swaps to keep his grade); an id
+this build does not know passes through untouched. Outs the old inversion
+graded W stay plain: the coach never judged their contact, so "Weak Hit
+Ball, Out" would be a false claim, and a weak single cannot be told from a
+hard one (both were `hit`), so "weak hit that reached" never moves. Our
+at-bats, teams, players and games are the same objects. The storage key
+stays `ctg:data:v1` (it names the slot, not the schema). Any other version
+or an unreadable shape is parked under `ctg:data:backup` and replaced by the
+demo, with the warning "Saved data is not a version 1 or 2 document". A
+version-2 document will not open in an older build: that build parks it
+under the backup key and reseeds, and this build never restores from the
+backup key, so never run an older build against a browser that has charted
+with this one (`docs/HOSTING.md`).
 
 Documents written before substitutions existed carried a `position` key on
 lineup slots; the store drops every key but `playerId` on load and rewrites
-the document only when something changed.
+the document only when something changed. This normalization never touches
+at-bats.
 
 **Form** (derived in `lib/stats.ts`): a batter's *recent form* is his last
 `FORM_WINDOW = 6` our-side at-bats across the team's games (final and in
@@ -430,37 +548,121 @@ UI-only state, never in the document: the selected at-bat, the per-game undo
 stack, the record lockout, and the outcome-types preference (AsyncStorage
 key `ctg:ui:typesExpanded`).
 
-## 5. At-bat outcomes (exactly the prototype's twelve, in this order)
+## 5. Grading rules
 
-Batter **L** (left column, red):
-1. Strikeout Swinging
-2. Walk, Didn't Swing & Took 2 Strikes Looking
-3. Error, Weak Hit Ball
-4. Fielder's Choice, Weak Hit Ball
-5. Bunt
-6. Strikeout Looking
+**Principle.** Every at-bat grades exactly one of our players: the batter
+when we hit, the pitcher when we pitch. The letter is a grade on what that
+player controlled, not a record of who won the plate appearance. The two
+grades are independent: one at-bat can be a W for both sides or an L for
+both (a walk after two called strikes is an L for the batter and an L for
+the pitcher; a bloop single is a W for both). Contact quality (hard vs.
+weak) is the coach's one subjective input; everything else on the grid is
+observable (bunted, struck out, took strikes, reached base and how). There
+are two grades only, no neutral or no-decision grade.
 
-Batter **W** (right column, green):
-1. Sac Fly
-2. Walk, No Strikes Looking
-3. Error, Hard Hit Ball
-4. Fielder's Choice, Hard Hit Ball
-5. Fly Out, Hard Hit Ball
-6. Hit
+**The batter** (side `us`; the hitting grid):
 
-Each has a stable `OutcomeId` (`k_swinging`, `walk_2_looking`, `error_weak`,
-`fc_weak`, `bunt`, `k_looking`, `sac_fly`, `walk_clean`, `error_hard`,
-`fc_hard`, `fly_out_hard`, `hit`) and a short label for the scorebook
-("K", "BB(2K)", "E-", "FC-", "BUNT", "KL", "SF", "BB", "E+", "FC+", "F+",
-"H").
+| What happened | Contact | Result | Batter |
+|---|---|---|---|
+| Bunt | — | any | L |
+| Strikeout, swinging or looking | — | — | L |
+| Walk, took two strikes looking | — | — | L |
+| Walk, no strikes looking | — | — | W |
+| Hit by pitch | — | — | W |
+| Ball in play | hard | anything (hit, out, error, fielder's choice, sac fly) | W |
+| Ball in play | weak | out | L |
+| Ball in play | weak | reached on a hit | W |
+| Ball in play | weak | reached on an error or fielder's choice | L (open question) |
+
+*Open question for Coach Floyd* (does not block the build; the grid ships
+with these grades until it is answered): a weak single and a weak-contact
+error are the same swing, graded W and L only because of the scorer's
+call. Options: (a) a hit is a hit — leave as is; (b) reaching is what
+matters on weak contact — the weak-contact Error and Fielder's Choice
+buttons become W; (c) contact is what matters — add a "Hit, Weak Hit Ball"
+button graded L.
+
+**The pitcher** (side `them`; the pitching grid), on what he controlled: free
+passes and the quality of contact he allowed. A hard-hit ball is his L
+whether or not it was caught; a weak-hit ball is his W whether or not it
+fell in; a bunt against us is weak contact (his W).
+
+| Pitcher L | Pitcher W |
+|---|---|
+| Walk | Strikeout Swinging |
+| Hit by Pitch | Strikeout Looking |
+| Hard Hit Ball, Reached (hit, error, fielder's choice) | Weak Hit Ball, Out |
+| Hard Hit Ball, Out | Weak Hit Ball, Reached (error, fielder's choice, bloop, bunt) |
+
+**Known limit.** CTG grades contact and the big swing decisions (bunting,
+taking strike three, taking two strikes on a walk). It does not grade every
+swing decision — taking a 3-0 fastball, swinging at offspeed — and it does
+not grade the opposing batter or pitcher.
+
+**Hitting and pitching modes.** The CTG screen (§3) is in hitting mode
+while our order is shown and pitching mode while the opponent's is; when an
+at-bat is selected for re-judging the mode is that at-bat's. The mode picks
+the graded player (the header's subject and the readouts' name), the grid
+(batter or pitcher outcomes) and the chrome colour (`primaryDark` blue or
+`pitching` purple with the lavender `pitchingTint` surface). What never
+changes with the mode: L is on the left and W on the right, red and green,
+on the dock, in the grid's columns and in the at-bat editor; the gauge's
+colours; the strip, tab bar and app header. Storage follows the same rule:
+`AtBat.result` is the graded player's letter on both sides and nothing in
+the app inverts it (§4).
+
+### At-bat outcomes (the two catalogs)
+
+Every typed outcome has a stable `OutcomeId`, a button label (the longer
+ones break onto two lines on the buttons; the row label and the editor show
+them on one) and a short code for the scorebook. Ids
+are unique across both catalogs; codes may repeat where they name the same
+play on either side (K, KL, BB, HBP).
+
+**Batter outcomes** (`lib/outcomes.ts` `LOSS_OUTCOMES` / `WIN_OUTCOMES`,
+thirteen; the prototype's twelve in their order, plus Hit by Pitch last so
+the rows above stay paired):
+
+| Row | L (left column, red) | id | code | W (right column, green) | id | code |
+|---|---|---|---|---|---|---|
+| 1 | Strikeout Swinging | `k_swinging` | K | Sac Fly | `sac_fly` | SF |
+| 2 | Walk, Didn't Swing & Took 2 Strikes Looking | `walk_2_looking` | BB(2K) | Walk, No Strikes Looking | `walk_clean` | BB |
+| 3 | Error, Weak Hit Ball | `error_weak` | E- | Error, Hard Hit Ball | `error_hard` | E+ |
+| 4 | Fielder's Choice, Weak Hit Ball | `fc_weak` | FC- | Fielder's Choice, Hard Hit Ball | `fc_hard` | FC+ |
+| 5 | Bunt | `bunt` | BUNT | Out, Hard Hit Ball | `fly_out_hard` | F+ |
+| 6 | Strikeout Looking | `k_looking` | KL | Hit | `hit` | H |
+| 7 | — | | | Hit by Pitch | `hbp` | HBP |
+
+"Out, Hard Hit Ball" was "Fly Out, Hard Hit Ball": any hard-hit out (fly,
+line drive or ground ball) is the batter's W. Its id, its code and the W of
+every at-bat already charted with it are unchanged.
+
+**Pitcher outcomes** (`PITCHER_LOSS_OUTCOMES` / `PITCHER_WIN_OUTCOMES`,
+eight):
+
+| Row | L (left column, red) | id | code | W (right column, green) | id | code |
+|---|---|---|---|---|---|---|
+| 1 | Walk | `p_walk` | BB | Strikeout Swinging | `p_k_swinging` | K |
+| 2 | Hit by Pitch | `p_hbp` | HBP | Strikeout Looking | `p_k_looking` | KL |
+| 3 | Hard Hit Ball, Reached | `p_hard_reached` | R+ | Weak Hit Ball, Out | `p_weak_out` | O- |
+| 4 | Hard Hit Ball, Out | `p_hard_out` | O+ | Weak Hit Ball, Reached | `p_weak_reached` | R- |
+
+The buttons carry no parenthetical; the table above says what each covers.
+A batter outcome is only ever stored on a `side: 'us'` at-bat and a pitcher
+outcome on a `side: 'them'` one (the store enforces it, §4); the grid, the
+editor's picker and every label and code come from the catalog of the
+at-bat's side (`catalogFor`, `outcomeLabel`, `outcomeShort`), so batter
+wording never appears on a pitching at-bat.
 
 Two more ids, `plain_w` and `plain_l` (labels "Win" / "Loss", no short
-code), record a result without a play type: the dock's big W and L and the
-batter sheet's Add a W / Add an L. They are not in the twelve-button grid.
-Season tables, game HITTING/PITCHING lines and lineup ranking are W/L only,
-so a plain at-bat counts exactly like a typed one; the scorebook shows its
-letter alone. Renderers always take the letter from `result` and use the
-outcome only for its label and code.
+code), record a result without a play type on either side: the dock's big W
+and L and the batter sheet's Add a W / Add an L. They are not in either
+grid, and their letter is the graded player's like any other (the big W
+while pitching stores `plain_w`, our pitcher's W). Season tables, game
+HITTING/PITCHING lines and lineup ranking are W/L only, so a plain at-bat
+counts exactly like a typed one; the scorebook shows its letter alone.
+Renderers always take the letter from `result` and use the outcome only for
+its label and code.
 
 ## 6. Demo data
 
@@ -523,12 +725,22 @@ number seen (in order of first appearance, jersey as the number, unknown
 jerseys without one), the last pitcher who faced a batter as `pitcherId`, the
 clock at the bottom of the last inning, `finishedAt` two hours after first
 pitch and `createdAt` the day before. At-bats (`g_0815_1_ab0`, …) keep their
-real spacing after first pitch; each is the captured play mapped to a CTG
-outcome (hits, walks with or without called strikes, strikeouts swinging or
-looking, hard-hit line-outs; every other out is plain) with `result` derived
-from it, so the season has typed and plain at-bats on both sides: 314 of our
-plate appearances and 265 of theirs. Cooper ends the season +19 and Owen
-Haynes +17.
+real spacing after first pitch; each is the captured play mapped to an
+outcome of its side's catalog (§5) with `result` derived from it, so the
+season has typed and plain at-bats on both sides: 314 of our plate
+appearances and 265 of theirs. Our plays: hits → Hit, walks → Walk with or
+without two called strikes, hit by pitch → Hit by Pitch, strikeouts swinging
+or looking, line-outs → Out, Hard Hit Ball; every other out is `plain_l` (80
+of them). Their plays, graded for our pitcher: hits → Hard Hit Ball, Reached
+(79; a hit that is a pitcher L is a hard-hit one, the same reading the
+migration in §4 gives old data), walks → Walk (48, whatever the count),
+hit by pitch → Hit by Pitch (6), strikeouts → Strikeout Swinging (35) or
+Looking (14), line-outs → Hard Hit Ball, Out (3), pop-ups and infield flies →
+Weak Hit Ball, Out (7), and every other out, error and fielder's choice, of
+unknown contact quality, is `plain_w` (73). Cooper ends the season +19 and
+Owen Haynes +17; the pitching lines are Cooper 39-33, Carsyn 34-23, Weedon
+18-13, Lucas 11-13 and Owen Haynes 11-27 (the three opposing walks after two
+called strikes, one each for Weedon, Owen Haynes and Lucas, are pitcher Ls).
 
 The builder replays GameChanger's lineup events, so a slot the scorer
 cleared and refilled counts as a substitution and every batter is in the
@@ -574,4 +786,7 @@ About page body (verbatim from prototype):
 
 Runs and the scoreboard (the app scores battles, not innings), real
 authentication, multi-device sync, opponent scouting, pitch counts,
-box-score stats (AVG/OBP), exporting. Everything is local to the browser.
+box-score stats (AVG/OBP), exporting. A neutral / no-decision grade;
+count- or pitch-level grading (first-pitch strike, 3-0 swings, fastball vs.
+offspeed decisions); grading the opposing batter or pitcher. Everything is
+local to the browser.

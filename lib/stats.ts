@@ -1,4 +1,10 @@
-import { compareAtBats, invertResult } from './atbats';
+/**
+ * Derived W/L: hitting and pitching lines, the season table, the scorebook,
+ * form and display order. `ab.result` is the graded player's letter on both
+ * sides, so a pitcher W is simply a `side: 'them'` at-bat with `result === 'W'`;
+ * nothing here inverts a letter.
+ */
+import { compareAtBats } from './atbats';
 import { byLastName, lineupFirstRoster } from './format';
 import type { AtBat, Game, Half, Id, LineupSlot, Player, Result, Side, Team } from './types';
 
@@ -10,13 +16,9 @@ export function score(wl: WL): number {
   return wl.w - wl.l;
 }
 
-export function addResult(wl: WL, batterWon: boolean): WL {
-  return batterWon ? { w: wl.w + 1, l: wl.l } : { w: wl.w, l: wl.l + 1 };
-}
-
-/** A pitcher wins the battle when the batter loses it. */
-export function pitcherResult(ab: AtBat): 'W' | 'L' {
-  return invertResult(ab.result);
+/** `won` is the graded player's grade: the batter's on our at-bats, the pitcher's on theirs. */
+export function addResult(wl: WL, won: boolean): WL {
+  return won ? { w: wl.w + 1, l: wl.l } : { w: wl.w, l: wl.l + 1 };
 }
 
 /** Hitting W/L for one of our players, optionally limited to one game. */
@@ -36,7 +38,7 @@ export function pitchingFor(atBats: AtBat[], playerId: Id, gameId?: Id): WL {
   for (const ab of atBats) {
     if (ab.side !== 'them' || ab.pitcherId !== playerId) continue;
     if (gameId && ab.gameId !== gameId) continue;
-    wl = addResult(wl, ab.result === 'L');
+    wl = addResult(wl, ab.result === 'W');
   }
   return wl;
 }
@@ -51,12 +53,12 @@ export function gameHitting(atBats: AtBat[], gameId: Id): WL {
   return wl;
 }
 
-/** Team pitching W/L for a game: every at-bat where they batted, from our pitcher's side. */
+/** Team pitching W/L for a game: every at-bat where they batted, whoever pitched. */
 export function gamePitching(atBats: AtBat[], gameId: Id): WL {
   let wl = ZERO;
   for (const ab of atBats) {
     if (ab.gameId !== gameId || ab.side !== 'them') continue;
-    wl = addResult(wl, ab.result === 'L');
+    wl = addResult(wl, ab.result === 'W');
   }
   return wl;
 }
@@ -64,7 +66,7 @@ export function gamePitching(atBats: AtBat[], gameId: Id): WL {
 /** One of our pitchers' line for a game (see `gamePitcherLines`). */
 export type PitcherLine = {
   player: Player;
-  /** From our pitcher's side: W = the batter lost the battle. */
+  /** His grades on the batters he faced. */
   wl: WL;
   /** First and last inning he faced a batter; undefined before his first at-bat. */
   innings?: { from: number; to: number };
@@ -84,7 +86,7 @@ export function gamePitcherLines(atBats: AtBat[], gameId: Id, players: Player[],
     const player = byId.get(ab.pitcherId!);
     if (!player) continue;
     const line = lines.get(player.id) ?? { player, wl: ZERO };
-    line.wl = addResult(line.wl, ab.result === 'L');
+    line.wl = addResult(line.wl, ab.result === 'W');
     line.innings = line.innings ? { from: line.innings.from, to: Math.max(line.innings.to, ab.inning) } : { from: ab.inning, to: ab.inning };
     lines.set(player.id, line);
   }
@@ -141,7 +143,7 @@ export function seasonTable(
     if (ab.side !== side) continue;
     const owner = mode === 'hitting' ? ab.batterId : ab.pitcherId;
     if (owner !== undefined && rosterIds.has(owner)) continue;
-    orphan = addResult(orphan, mode === 'hitting' ? ab.result === 'W' : ab.result === 'L');
+    orphan = addResult(orphan, ab.result === 'W');
   }
   if (orphan.w + orphan.l > 0) {
     rows.push({
@@ -169,7 +171,8 @@ export type ScorebookRow<T> = {
  * Scorebook grid for one side of a game, one row per entry of `batters` in
  * the order given. The app passes `orderWithLeavers(game, atBats, side)` so a
  * player who was subbed out or removed mid-game keeps his row (any list of
- * `{ id }` works); at-bats whose batter is not in the list are dropped.
+ * `{ id }` works); at-bats whose batter is not in the list are dropped. An
+ * opponent row's W/L is our pitcher's grades against that batter.
  */
 export function scorebook<T extends { id: Id }>(
   atBats: AtBat[],
@@ -195,8 +198,7 @@ export function scorebook<T extends { id: Id }>(
     const row = rowByBatter.get(ab.batterId);
     if (!row) continue;
     row.innings[ab.inning - 1].push(ab);
-    const batterWon = ab.result === 'W';
-    row.wl = addResult(row.wl, side === 'us' ? batterWon : !batterWon);
+    row.wl = addResult(row.wl, ab.result === 'W');
   }
   return { innings, rows };
 }

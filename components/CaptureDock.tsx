@@ -4,7 +4,7 @@ import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import CTGGauge, { type NeedleSide } from '@/components/CTGGauge';
 import MiniChips, { type MiniChip } from '@/components/MiniChips';
-import OutcomeButtons, { type OutcomeButtonsSize, type Perspective } from '@/components/OutcomeButtons';
+import OutcomeButtons, { type OutcomeButtonsMode, type OutcomeButtonsSize } from '@/components/OutcomeButtons';
 import { Button } from '@/components/ui';
 import { colors, fonts } from '@/constants/theme';
 import type { OutcomeId, Result } from '@/lib/types';
@@ -13,11 +13,24 @@ const webCursor = Platform.OS === 'web' ? ({ cursor: 'pointer' } as const) : nul
 /* touchAction stops the double-tap zoom delay on mobile browsers so a second tap is a second press. */
 const webPress = Platform.OS === 'web' ? ({ cursor: 'pointer', touchAction: 'manipulation' } as const) : null;
 
+/**
+ * Which player the dock grades: our batter while we hit, our pitcher while we
+ * pitch. It picks the chrome colour (hitting blue / pitching purple) and the
+ * grid; it never moves the big buttons, which are L on the left and W on the
+ * right in both modes.
+ */
+export type DockMode = OutcomeButtonsMode;
+
+/** The chrome colour for a mode: the header, the top border while charting, the steppers, the links and the grid's toggle. */
+export function modeColor(mode: DockMode): string {
+  return mode === 'hitting' ? colors.primaryDark : colors.pitching;
+}
+
 /** The LAST readout: the game's newest at-bat. */
 export type DockLast = {
-  /** "Cooper W. (#50)" */
+  /** The graded player: "Cooper W. (#50)", or "Weedon H. (#04) vs Batter 3" for a pitching at-bat. */
   name: string;
-  /** Already in the perspective being shown (W = green). */
+  /** The graded player's letter (`AtBat.result`; W = green). */
   result: Result;
   /** Outcome label; '' for a plain at-bat, which the readout shows as "add type ›". */
   label: string;
@@ -29,21 +42,40 @@ export type DockLast = {
 
 /** Re-judge mode: the dock names a selected at-bat instead of recording. */
 export type DockRejudge = {
-  /** "Cooper W. (#50) · ▲ 2nd · L · Strikeout Swinging" */
+  /** "Cooper W. (#50) · ▲ 2nd · L · Strikeout Swinging" / "Weedon H. (#04) vs Batter 3 · ▲ 2nd · L · Walk" */
   readout: string;
-  /** The recorded letter in `perspective`: shown solid; the other letter is outlined. */
+  /** The recorded letter (the graded player's): shown solid; the other letter is outlined. */
   recorded: Result;
-  /** The selected at-bat's side decides which letter is on the left. */
-  perspective: Perspective;
   /** The at-bat's current type (ringed in the grid); omit for a plain at-bat. */
   selectedId?: OutcomeId;
   onNow: () => void;
   onMore: () => void;
 };
 
+/**
+ * The header names the graded player. Label "HITTING" / "PITCHING"
+ * ("HITTING · ▲ 1st" in amber while reviewing) in `color`; the title is
+ * the batter ("4. Cooper Woollen (#50)") or our pitcher ("Weedon H. (#04)";
+ * the batter he faces is the AT-BAT row), in the mode colour, or muted
+ * (`titleMuted`) when there is no pitcher ("No pitcher"); the chips are that
+ * player's game so far (a pitcher's last six). With `onTitlePress` the
+ * title is a button labelled `titleLabel` ("Cooper Woollen (#50), open
+ * batter sheet" / "Weedon H. (#04) vs 3. Batter 3, change pitcher"); the
+ * screen decides where it goes.
+ */
+export type DockHeader = {
+  label: string;
+  color: string;
+  title: string;
+  titleMuted?: boolean;
+  chips: MiniChip[];
+  onTitlePress?: () => void;
+  titleLabel?: string;
+};
+
 type Props = {
-  /** The live batting side's perspective (chart mode). */
-  perspective: Perspective;
+  /** The side shown: the live batting side while charting, the selected at-bat's side while re-judging. */
+  mode: DockMode;
   rejudge?: DockRejudge;
   last?: DockLast;
   canStepBack: boolean;
@@ -54,13 +86,7 @@ type Props = {
   undoLabel: string;
   canUndo: boolean;
   onUndo: () => void;
-  /**
-   * The AT-BAT header: label ("AT-BAT" / "AT-BAT · ▲ 1st"), its color,
-   * "4. Cooper Woollen (#50)" and his game so far. With `onTitlePress` the
-   * name is a button (the screen opens the batter sheet) labelled
-   * `titleLabel` ("Cooper Woollen (#50), open batter sheet").
-   */
-  header: { label: string; color: string; title: string; chips: MiniChip[]; onTitlePress?: () => void; titleLabel?: string };
+  header: DockHeader;
   onChipPress?: (atBatId: string) => void;
   /** Pitching with no pitcher: the record controls are dimmed and disabled behind "Set pitcher". */
   needsPitcher?: boolean;
@@ -68,13 +94,13 @@ type Props = {
   needle: NeedleSide;
   pulse: number;
   /**
-   * Accessibility labels for the big buttons, by the letter shown. Hitting:
-   * "Win for <batter>" / "Loss for <batter>"; pitching, in the pitcher's
-   * perspective like everything else on that side: "<pitcher> won against
-   * <batter>" / "<pitcher> lost to <batter>"; re-judge: "Change to W/L".
+   * Accessibility labels for the big buttons, by letter, in grade language
+   * for the graded player: "Loss for Cooper Woollen (#50)" / "Win for …"
+   * while hitting, "Loss for Weedon Hainline (#04)" / "Win for …" ("… for
+   * our pitcher" until one is set) while pitching; re-judge: "Change to L/W".
    */
   bigLabels: Record<Result, string>;
-  /** A big button, by the letter shown (already in the dock's perspective). */
+  /** A big button, by its letter: the graded player's grade, L on the left and W on the right in both modes. */
   onBig: (letter: Result) => void;
   onOutcome: (outcomeId: OutcomeId) => void;
   typesOpen: boolean;
@@ -87,12 +113,14 @@ type Props = {
 /**
  * The Capture Dock: the fixed block above the tab bar on the CTG screen.
  * Top to bottom: the context row (‹ › steppers, the LAST or RE-JUDGE
- * readout, Undo), the AT-BAT header, the big L · gauge · W row, the
- * "OUTCOME TYPES" toggle and the grid. Presentational: the screen owns every
- * piece of state and decides what each press means.
+ * readout, Undo), the HITTING / PITCHING header, the big L · gauge · W row,
+ * the "OUTCOME TYPES" toggle and the mode's grid. The chrome takes the mode
+ * colour; the letters, their positions and the gauge do not change with it.
+ * Presentational: the screen owns every piece of state and decides what
+ * each press means.
  */
 export default function CaptureDock({
-  perspective: livePerspective,
+  mode,
   rejudge,
   last,
   canStepBack,
@@ -116,18 +144,16 @@ export default function CaptureDock({
   typesSize,
   onHeight,
 }: Props) {
-  const perspective = rejudge ? rejudge.perspective : livePerspective;
-  const leftLetter: Result = perspective === 'batter' ? 'L' : 'W';
-  const rightLetter: Result = perspective === 'batter' ? 'W' : 'L';
+  const accent = modeColor(mode);
   const disabled = !rejudge && Boolean(needsPitcher);
 
   return (
     <View onLayout={(e) => onHeight?.(e.nativeEvent.layout.height)}>
       <View style={styles.divider} />
-      <View style={[styles.dock, { borderTopColor: rejudge ? colors.orange : colors.primaryDark }]}>
+      <View style={[styles.dock, { borderTopColor: rejudge ? colors.orange : accent }]}>
         <View style={styles.context}>
-          <Stepper icon="chevron-left" label="Previous at-bat" disabled={!canStepBack} onPress={onStepBack} />
-          <Stepper icon="chevron-right" label="Next at-bat" disabled={!canStepForward} onPress={onStepForward} />
+          <Stepper icon="chevron-left" label="Previous at-bat" color={accent} disabled={!canStepBack} onPress={onStepBack} />
+          <Stepper icon="chevron-right" label="Next at-bat" color={accent} disabled={!canStepForward} onPress={onStepForward} />
           {rejudge ? (
             <>
               <View style={styles.readout} accessibilityRole="text">
@@ -161,7 +187,7 @@ export default function CaptureDock({
                     ) : (
                       <>
                         {/* No-break spaces keep "add type ›" together as one unit when the readout wraps (at 375pt from the first record, or behind a wide Undo label). */}
-                        <Text style={styles.link}>add{'\u00A0'}type</Text>
+                        <Text style={{ color: accent }}>add{'\u00A0'}type</Text>
                         {'\u00A0›'}
                       </>
                     )}
@@ -192,15 +218,15 @@ export default function CaptureDock({
               onPress={header.onTitlePress}
               hitSlop={{ top: 6, bottom: 6 }}
               accessibilityRole="button"
-              accessibilityLabel={header.titleLabel ?? `${header.title}, open batter sheet`}
+              accessibilityLabel={header.titleLabel ?? header.title}
               style={({ pressed }) => [styles.headerTitleHit, pressed && styles.pressed, webCursor]}
             >
-              <Text style={styles.headerTitle} numberOfLines={1}>
+              <Text style={[styles.headerTitle, { color: header.titleMuted ? colors.textMuted : accent }]} numberOfLines={1}>
                 {header.title}
               </Text>
             </Pressable>
           ) : (
-            <Text style={styles.headerTitle} numberOfLines={1}>
+            <Text style={[styles.headerTitle, { color: header.titleMuted ? colors.textMuted : accent }]} numberOfLines={1}>
               {header.title}
             </Text>
           )}
@@ -212,23 +238,23 @@ export default function CaptureDock({
 
         <View style={styles.bigRow}>
           <BigButton
-            letter={leftLetter}
-            solid={!rejudge || rejudge.recorded === leftLetter}
-            selected={rejudge?.recorded === leftLetter}
+            letter="L"
+            solid={!rejudge || rejudge.recorded === 'L'}
+            selected={rejudge?.recorded === 'L'}
             disabled={disabled}
             short={typesSize === 'tiny'}
-            label={bigLabels[leftLetter]}
-            onPress={() => onBig(leftLetter)}
+            label={bigLabels.L}
+            onPress={() => onBig('L')}
           />
-          <CTGGauge needle={needle} pulse={pulse} perspective={perspective} rest={rejudge ? rejudge.recorded : 'center'} width={80} />
+          <CTGGauge needle={needle} pulse={pulse} rest={rejudge ? rejudge.recorded : 'center'} width={80} />
           <BigButton
-            letter={rightLetter}
-            solid={!rejudge || rejudge.recorded === rightLetter}
-            selected={rejudge?.recorded === rightLetter}
+            letter="W"
+            solid={!rejudge || rejudge.recorded === 'W'}
+            selected={rejudge?.recorded === 'W'}
             disabled={disabled}
             short={typesSize === 'tiny'}
-            label={bigLabels[rightLetter]}
-            onPress={() => onBig(rightLetter)}
+            label={bigLabels.W}
+            onPress={() => onBig('W')}
           />
         </View>
 
@@ -240,17 +266,29 @@ export default function CaptureDock({
           accessibilityState={{ expanded: typesOpen }}
           style={({ pressed }) => [styles.toggle, pressed && styles.pressed, webCursor]}
         >
-          <Text style={styles.toggleText}>OUTCOME TYPES</Text>
-          <FontAwesome6 name={typesOpen ? 'chevron-up' : 'chevron-down'} size={10} color={colors.textMuted} />
+          <Text style={[styles.toggleText, { color: accent }]}>OUTCOME TYPES</Text>
+          <FontAwesome6 name={typesOpen ? 'chevron-up' : 'chevron-down'} size={10} color={accent} />
         </Pressable>
 
-        {typesOpen ? <OutcomeButtons perspective={perspective} onPress={onOutcome} disabled={disabled} size={typesSize} selectedId={rejudge?.selectedId} /> : null}
+        {typesOpen ? <OutcomeButtons mode={mode} onPress={onOutcome} disabled={disabled} size={typesSize} selectedId={rejudge?.selectedId} fixedBox /> : null}
       </View>
     </View>
   );
 }
 
-function Stepper({ icon, label, disabled, onPress }: { icon: 'chevron-left' | 'chevron-right'; label: string; disabled: boolean; onPress: () => void }) {
+function Stepper({
+  icon,
+  label,
+  color,
+  disabled,
+  onPress,
+}: {
+  icon: 'chevron-left' | 'chevron-right';
+  label: string;
+  color: string;
+  disabled: boolean;
+  onPress: () => void;
+}) {
   return (
     <Pressable
       onPress={onPress}
@@ -260,7 +298,7 @@ function Stepper({ icon, label, disabled, onPress }: { icon: 'chevron-left' | 'c
       accessibilityState={{ disabled }}
       style={({ pressed }) => [styles.stepper, pressed && styles.pressed, disabled && styles.stepperDisabled, !disabled && webCursor]}
     >
-      <FontAwesome6 name={icon} size={16} color={colors.primaryDark} />
+      <FontAwesome6 name={icon} size={16} color={color} />
     </Pressable>
   );
 }
@@ -335,7 +373,6 @@ const styles = StyleSheet.create({
   readoutLabel: { fontFamily: fonts.bold, fontSize: 11, lineHeight: 13, color: colors.textMuted, letterSpacing: 0.6 },
   readoutText: { fontFamily: fonts.bold, fontSize: 14, lineHeight: 17, color: colors.text },
   readoutEmpty: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 17, color: colors.textMuted },
-  link: { color: colors.primaryDark },
   chip: { height: 32, paddingHorizontal: 10, borderRadius: 16, backgroundColor: colors.chip, alignItems: 'center', justifyContent: 'center', marginLeft: 4 },
   chipText: { fontFamily: fonts.bold, fontSize: 13, color: colors.text },
   undo: { paddingHorizontal: 8, marginLeft: 2 },
@@ -343,7 +380,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', minHeight: 36, paddingHorizontal: 16, gap: 8 },
   // flexShrink 0: the name gives way to the chips, never the label (web Text shrinks by default).
   headerLabel: { fontFamily: fonts.bold, fontSize: 12, letterSpacing: 0.6, flexShrink: 0 },
-  headerTitle: { fontFamily: fonts.bold, fontSize: 18, lineHeight: 22, color: colors.text, flexShrink: 1 },
+  headerTitle: { fontFamily: fonts.bold, fontSize: 18, lineHeight: 22, flexShrink: 1 },
   // The name's button shrinks with the name so the chips stay beside it; its hit area is the header's full 36pt.
   headerTitleHit: { flexShrink: 1, minWidth: 0, minHeight: 36, justifyContent: 'center' },
   headerChips: { flexShrink: 0 },
@@ -356,6 +393,6 @@ const styles = StyleSheet.create({
   bigLetter: { fontFamily: fonts.bold, fontSize: 40, lineHeight: 46 },
   disabled: { opacity: 0.4 },
   toggle: { alignSelf: 'center', height: 26, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  toggleText: { fontFamily: fonts.bold, fontSize: 12, color: colors.textMuted, letterSpacing: 0.6 },
+  toggleText: { fontFamily: fonts.bold, fontSize: 12, letterSpacing: 0.6 },
   pressed: { opacity: 0.6 },
 });
