@@ -16,6 +16,16 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
+# Metro and react-native need a modern Node (package.json "engines"); on an old
+# one the failure is a bare "configs.toReversed is not a function" from inside
+# Metro, two minutes into a deploy. Say so up front instead.
+node_major=$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)
+if [[ $node_major -lt 22 ]]; then
+  echo "Node $(node --version 2>/dev/null || echo '(none)') is too old; this project needs >= 22.13." >&2
+  echo "Run 'nvm use' in this directory (.nvmrc pins it), then try again." >&2
+  exit 1
+fi
+
 SITE_URL='https://chartthegame.com'
 CDN_URL='https://d1mwqpml5qkmi5.cloudfront.net'
 

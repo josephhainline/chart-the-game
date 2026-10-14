@@ -57,7 +57,7 @@ async function fresh(saved?: 'true' | 'false') {
           (latest as Hook)[1](open);
         });
       },
-      unmount: () => root?.unmount(),
+      unmount: () => act(() => { root?.unmount(); }),
     };
   };
   return { act, storage, prefs, mount };
