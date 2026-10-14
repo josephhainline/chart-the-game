@@ -28,8 +28,8 @@ Three identities, in descending power:
 | Who | What it is | Used for |
 |---|---|---|
 | member-account **root** | the account's own root user | billing, contacts, MFA, leaving the org. Never an access key. |
-| `chartthegame-admin` | `OrganizationAccountAccessRole`, assumed by the management account's `org-admin` user | `yarn deploy:web:infra` (CloudFormation creating CloudFront/ACM/Route 53 needs broad rights) |
-| `chartthegame` | the `chartthegame-web-deploy` IAM user the stack creates | `yarn deploy:web` — upload to the one bucket, invalidate the one distribution, read the stack outputs. Nothing else. |
+| `chartthegame-admin` | `OrganizationAccountAccessRole`, assumed by the management account's `org-admin` user | `./deploy.sh infra` (CloudFormation creating CloudFront/ACM/Route 53 needs broad rights) |
+| `chartthegame` | the `chartthegame-web-deploy` IAM user the stack creates | `./deploy.sh` — upload to the one bucket, invalidate the one distribution, read the stack outputs. Nothing else. |
 
 `chartthegame` is the only long-lived key on the laptop, and it is the one the
 deploy script uses by default. (If deploys ever move to CI, replace it with a
@@ -129,7 +129,7 @@ adding a small budget alarm there, scoped to the new linked account.
 ### 4. Create the stack, then the deploy key
 
 ```sh
-yarn deploy:web:infra     # runs as chartthegame-admin
+./deploy.sh infra         # runs as chartthegame-admin
 ```
 
 Takes a few minutes (CloudFront). It prints the four **nameservers** of the
@@ -152,7 +152,7 @@ aws_secret_access_key = ...
 ### 5. Upload the app
 
 ```sh
-yarn deploy:web           # runs as chartthegame
+./deploy.sh               # runs as chartthegame
 ```
 
 Check it at the CloudFront URL.
@@ -175,7 +175,7 @@ dig +short NS chartthegame.com
 Once `dig` shows the Route 53 nameservers:
 
 ```sh
-yarn deploy:web:infra --domain
+./deploy.sh infra --domain
 ```
 
 This requests the certificate for `chartthegame.com` and
@@ -197,7 +197,7 @@ steps without running them, and `./deploy.sh infra [--domain]` / `status`
 reach the stack commands. Underneath it is:
 
 ```sh
-yarn deploy:web
+npm run deploy:web
 ```
 
 which exports the app (`web.output: "single"` in `app.json`, so every route falls

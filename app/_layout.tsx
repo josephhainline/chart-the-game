@@ -1,7 +1,6 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
-import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
-import { Stack, usePathname, useRouter, useSegments } from 'expo-router';
+import { DefaultTheme, Stack, ThemeProvider, usePathname, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
@@ -34,10 +33,10 @@ export default function RootLayout() {
   // Require the four faces we use directly; importing the package index would
   // bundle all ten Lato weights.
   const [fontsLoaded, fontError] = useFonts({
-    Lato_400Regular: require('@expo-google-fonts/lato/Lato_400Regular.ttf'),
-    Lato_400Regular_Italic: require('@expo-google-fonts/lato/Lato_400Regular_Italic.ttf'),
-    Lato_700Bold: require('@expo-google-fonts/lato/Lato_700Bold.ttf'),
-    Lato_700Bold_Italic: require('@expo-google-fonts/lato/Lato_700Bold_Italic.ttf'),
+    Lato_400Regular: require('@expo-google-fonts/lato/400Regular/Lato_400Regular.ttf'),
+    Lato_400Regular_Italic: require('@expo-google-fonts/lato/400Regular_Italic/Lato_400Regular_Italic.ttf'),
+    Lato_700Bold: require('@expo-google-fonts/lato/700Bold/Lato_700Bold.ttf'),
+    Lato_700Bold_Italic: require('@expo-google-fonts/lato/700Bold_Italic/Lato_700Bold_Italic.ttf'),
     ...FontAwesome6.font,
   });
 
@@ -111,7 +110,7 @@ function Splash() {
 }
 
 const styles = StyleSheet.create({
-  cover: { ...StyleSheet.absoluteFillObject },
+  cover: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   splash: {
     flex: 1,
     backgroundColor: colors.primary,

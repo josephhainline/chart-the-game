@@ -92,9 +92,9 @@ if [[ $fast == true ]]; then
   echo "Skipping typecheck and tests (--fast)."
 else
   echo "Typechecking..."
-  run yarn --silent typecheck
+  run npm run --silent typecheck
   echo "Testing..."
-  run yarn --silent test
+  run npm run --silent test
 fi
 
 # --- Ship --------------------------------------------------------------------

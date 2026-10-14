@@ -9,20 +9,23 @@ the data model. The original design is the Marvel export in `MarvelPrototype_v1/
 (open `index.html` in a browser; `data.js` lists the 26 screens).
 
 ## Stack
-Expo SDK 51 · expo-router 3 · React Native 0.74 · React Native Web · TypeScript
-strict · Node 18 · yarn 1. Fonts: Lato via `@expo-google-fonts/lato`; icons:
+Expo SDK 57 · expo-router 57 · React Native 0.86 · React 19 · React Native Web ·
+TypeScript strict · Node 22 · npm. Node 22 is a floor (react-native requires
+`^22.13 || ^24.3 || >=26`), and the package manager is npm because yarn 1 runs
+out of heap installing this tree. Fonts: Lato via `@expo-google-fonts/lato`
+(per-weight paths, e.g. `lato/400Regular/Lato_400Regular.ttf`); icons:
 FontAwesome6 from `@expo/vector-icons` only. No react-native-paper, no lucide.
 
 ## Commands
-- `yarn web` — dev server at http://localhost:8081 (web)
-- `yarn typecheck` — `tsc --noEmit` (must be clean)
-- `yarn test` — `jest lib --ci`, unit tests for `lib/`
+- `npm run web` — dev server at http://localhost:8081 (web)
+- `npm run typecheck` — `tsc --noEmit` (must be clean)
+- `npm test` — `jest lib --ci`, unit tests for `lib/`
 - `node scripts/build-web-artifact.mjs <outDir>` — relocatable static web build
   for hosting as a Claude Artifact (see script header)
 - `./deploy.sh` — the everyday deploy: typecheck, test, export, upload,
   invalidate (`--fast`, `-y`, `--dry-run`; `infra [--domain]` and `status`
   reach the stack). Wraps:
-- `yarn deploy:web` / `yarn deploy:web:infra` — S3 + CloudFront + Route 53
+- `npm run deploy:web` / `npm run deploy:web:infra` — S3 + CloudFront + Route 53
   hosting for chartthegame.com (`infra/web-hosting.yaml`, `docs/HOSTING.md`).
   The site has its own AWS account (a member of the `rookies-production`
   organization) so it can be handed over whole: `chartthegame-admin` for the

@@ -1,7 +1,7 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
-import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { Tabs } from 'expo-router';
 import React from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View, type ColorValue } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors, type } from '@/constants/theme';
@@ -9,10 +9,17 @@ import { colors, type } from '@/constants/theme';
 type TabIconName = React.ComponentProps<typeof FontAwesome6>['name'];
 
 /**
+ * Exactly what expo-router hands a custom `tabBar`, taken from the component
+ * itself: expo-router vendors React Navigation now, so naming its internal
+ * module would break on the next upgrade.
+ */
+type TabBarProps = Parameters<NonNullable<React.ComponentProps<typeof Tabs>['tabBar']>>[0];
+
+/**
  * Bottom tab bar matching the prototype: each tab is a rounded light-gray chip
  * holding an icon, with the label underneath. The active tab tints its icon.
  */
-export default function TabBar({ state, descriptors, navigation, activeColor = colors.primary }: BottomTabBarProps & { activeColor?: string }) {
+export default function TabBar({ state, descriptors, navigation, activeColor = colors.primary }: TabBarProps & { activeColor?: string }) {
   const insets = useSafeAreaInsets();
 
   return (
@@ -54,7 +61,7 @@ export default function TabBar({ state, descriptors, navigation, activeColor = c
   );
 }
 
-export function TabIcon({ name, color }: { name: TabIconName; color: string }) {
+export function TabIcon({ name, color }: { name: TabIconName; color: ColorValue }) {
   return <FontAwesome6 name={name} size={26} color={color} />;
 }
 

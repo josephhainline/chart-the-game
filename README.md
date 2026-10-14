@@ -11,9 +11,9 @@ design it was built from.
 ## Run it
 
 ```sh
-yarn install
-yarn web          # dev server at http://localhost:8081
-yarn ios          # or android — the app is React Native throughout
+npm install
+npm run web      # dev server at http://localhost:8081
+npm run ios      # or android — the app is React Native throughout
 ```
 
 First launch shows the intro, then seeds a demo team (Bears Floyd 14U) with
@@ -49,10 +49,10 @@ npx jest lib --ci          # unit tests for the data layer
 ## Ship a web prototype
 
 ```sh
-yarn deploy:web            # export + upload to S3/CloudFront (chartthegame.com)
+./deploy.sh                # export + upload to S3/CloudFront (chartthegame.com)
 ```
 
-`docs/HOSTING.md` covers the one-time AWS setup (`yarn deploy:web:infra`)
+`docs/HOSTING.md` covers the one-time AWS setup (`./deploy.sh infra`)
 and the Squarespace nameserver change. The site is a single-page export, so
 every route falls back to `index.html` on the host.
 
